@@ -1,0 +1,17 @@
+# Fin de línea LF en el repo aunque se trabaje en Windows (diffs limpios)
+* text=auto eol=lf
+
+# Binarios: sin conversión ni diffs de texto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.mp4 binary
+*.mov binary
+*.pdf binary
+*.db binary

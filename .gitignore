@@ -1,0 +1,38 @@
+# Dependencias
+node_modules/
+
+# Builds
+dist/
+build/
+
+# Variables de entorno (pueden tener secretos; solo se versiona .env.example)
+.env
+.env.*
+!.env.example
+
+# Bases de datos locales (SQLite)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+
+# Tests y cachés de herramientas
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Capturas de verificación de los agentes
+.capturas/
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

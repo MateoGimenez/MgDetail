@@ -1,0 +1,21 @@
+{
+  "name": "mgdetailing-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web de MgDetailing: landing y turnos (frontend React) + API (backend Node).",
+  "scripts": {
+    "instalar": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "dev": "concurrently --kill-others-on-fail -n backend,frontend -c red,gray \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build",
+    "start": "npm --prefix backend start",
+    "crear-admin": "npm --prefix backend run crear-admin --",
+    "test": "npm --prefix backend test",
+    "verificar": "npm --prefix backend run typecheck && npm --prefix backend run lint && npm --prefix backend test && npm --prefix frontend run typecheck && npm --prefix frontend run lint && npm --prefix frontend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

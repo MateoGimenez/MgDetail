@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-16T20:30:00-03:00",
+  "title": "Design System: MgDetailing",
+  "extensions": {
+    "colorMeta": {
+      "rojo-filete": { "role": "primary", "displayName": "Rojo filete", "canonical": "#e42c42" },
+      "rojo-chapa": { "role": "primary", "displayName": "Rojo chapa", "canonical": "#c8102e" },
+      "grafito": { "role": "neutral", "displayName": "Grafito laqueado", "canonical": "#14171a" },
+      "imprimacion": { "role": "neutral", "displayName": "Gris imprimación (panel)", "canonical": "#eceef1" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Romana cromada", "purpose": "Solo el H1 del cartel." },
+      "script": { "displayName": "Cursiva de cartel", "purpose": "Logo y la frase." }
+    },
+    "shadows": [
+      { "name": "sombra-1", "value": "0 1px 2px rgb(0 0 0 / 0.4), 0 8px 18px -10px rgb(0 0 0 / 0.75)", "purpose": "Elementos chicos." },
+      { "name": "sombra-2", "value": "0 2px 6px rgb(0 0 0 / 0.35), 0 30px 60px -30px rgb(0 0 0 / 0.9)", "purpose": "Paneles: cartel, plancha destacada, formulario." }
+    ],
+    "motion": [
+      { "name": "ease-pincel", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Trazo del filete: ataque rápido, final lento." },
+      { "name": "ease-salida", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Transiciones de estado y barrido del cromo." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "520px" },
+      { "name": "md", "value": "640px" },
+      { "name": "lg", "value": "900px" },
+      { "name": "xl", "value": "1000px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario (chapa roja)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal: reservar, confirmar, ingresar.",
+      "html": "<button class=\"ds-btn-primario\">Reservá tu turno</button>",
+      "css": ".ds-btn-primario{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 22px;border:1px solid #8c0a1f;border-radius:6px;color:#fff;font:650 1rem/1.15 Archivo,system-ui,sans-serif;background:linear-gradient(180deg,#d61c35 0%,#c8102e 52%,#ae0c27 100%);box-shadow:inset 0 1px 0 rgb(255 255 255/.26),inset 0 -2px 0 rgb(0 0 0/.16),0 1px 2px rgb(0 0 0/.45),0 10px 20px -12px rgb(0 0 0/.9);cursor:pointer;transition:background-color .16s,transform .16s}.ds-btn-primario:hover{background:linear-gradient(180deg,#e2233e 0%,#d11533 52%,#b80e29 100%)}.ds-btn-primario:focus-visible{outline:2px solid #fff;outline-offset:3px}.ds-btn-primario:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Botón secundario",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acciones secundarias sobre grafito.",
+      "html": "<button class=\"ds-btn-secundario\">Reservá este servicio</button>",
+      "css": ".ds-btn-secundario{min-height:48px;padding:0 22px;border:1px solid rgb(255 255 255/.26);border-radius:6px;background:transparent;color:#f7f8f9;font:650 1rem/1.15 Archivo,system-ui,sans-serif;cursor:pointer}.ds-btn-secundario:hover{border-color:rgb(255 255 255/.55);background:rgb(255 255 255/.05)}.ds-btn-secundario:focus-visible{outline:2px solid #fff;outline-offset:3px}"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campos del formulario de turno.",
+      "html": "<input class=\"ds-entrada\" placeholder=\"Ej.: Toyota Hilux 2018\">",
+      "css": ".ds-entrada{min-height:50px;padding:0 14px;border:1px solid #3a4047;border-radius:6px;background:#0f1214;color:#f7f8f9;font:400 1rem Archivo,system-ui,sans-serif}.ds-entrada::placeholder{color:#8e969f}.ds-entrada:hover{border-color:#59616a}.ds-entrada:focus{outline:none;border-color:#e42c42;box-shadow:0 0 0 3px rgb(228 44 66/.35)}"
+    },
+    {
+      "name": "Selector con filete",
+      "kind": "chip",
+      "refersTo": "chip-selector",
+      "description": "Opción elegible (vehículo, franja); lo elegido lleva borde rojo y filete.",
+      "html": "<label class=\"ds-chip ds-chip--on\">Camioneta</label>",
+      "css": ".ds-chip{display:inline-grid;place-items:center;min-height:52px;padding:0 18px;border:1px solid #3a4047;border-radius:6px;background:#121518;color:#b6bdc4;font:600 1rem Archivo,system-ui,sans-serif;cursor:pointer}.ds-chip:hover{border-color:#59616a;color:#f7f8f9}.ds-chip--on{border-color:#e42c42;background:#22161a;color:#f7f8f9;box-shadow:inset 0 -3px 0 -1px #e42c42}"
+    }
+  ],
+  "narrative": {
+    "northStar": "El cartel fileteado",
+    "overview": "Cartel pintado sobre un panel grafito: filete rojo de un trazo, volutas, rombos y letra con luz y sombra. La marca vive en el material, no en fotos; el ornamento enmarca y marca estado, nunca va detrás del texto.",
+    "keyCharacteristics": [
+      "Grafito con reflejo de luz fijo",
+      "Filete rojo con sombra, brillo y luz paralela",
+      "Cromo solo en logo, H1 y la frase",
+      "Lo elegido se marca con un filete que se dibuja"
+    ],
+    "rules": [
+      { "name": "La regla del acento único", "body": "El rojo es el único color de marca saturado.", "section": "colors" },
+      { "name": "La regla del cromo escaso", "body": "Cromo solo en logo, H1 y la frase.", "section": "typography" }
+    ],
+    "dos": [
+      "Do marcar estado en el filete o el borde del propio elemento",
+      "Do dejar el contenido visible por defecto"
+    ],
+    "donts": [
+      "Don't usar fotos de stock ni imágenes IA",
+      "Don't poner eyebrows sobre los títulos",
+      "Don't extender el cromo a títulos de sección"
+    ]
+  }
+}
