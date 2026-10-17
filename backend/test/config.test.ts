@@ -253,7 +253,9 @@ describe('avisos por WhatsApp', () => {
 });
 
 describe('avisos por Telegram', () => {
-  const TOKEN = '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw';
+  // Valor ficticio: tiene el formato que acepta la config pero no el de un token real,
+  // para que los escáneres de secretos (GitHub) no lo marquen.
+  const TOKEN = '123456:token-de-prueba-falso-no-real';
 
   it('con token y chat id queda activo', () => {
     const config = parseConfig({ WHATSAPP_PROVIDER: 'telegram', TELEGRAM_BOT_TOKEN: TOKEN, TELEGRAM_CHAT_ID: '987654321' });
