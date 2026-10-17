@@ -19,6 +19,20 @@ export interface RateLimitRule {
   limit: number;
 }
 
+/** Proveedor de avisos al dueño (WhatsApp o Telegram). `ownerPhone`: solo dígitos, con código de país (5493804781737). */
+export type WhatsappConfig =
+  | { provider: 'none' }
+  | { provider: 'callmebot'; ownerPhone: string; apikey: string }
+  | { provider: 'telegram'; botToken: string; chatId: string }
+  | {
+      provider: 'cloud';
+      ownerPhone: string;
+      token: string;
+      phoneNumberId: string;
+      template: string;
+      language: string;
+    };
+
 export interface AppConfig {
   nodeEnv: NodeEnv;
   isProduction: boolean;
@@ -48,6 +62,9 @@ export interface AppConfig {
     /** Intentos de login FALLIDOS, por IP. */
     loginFailures: RateLimitRule;
   };
+  whatsapp: WhatsappConfig;
+  /** Origen público del sitio (sin barra final), para el link al panel en los avisos. */
+  publicUrl: string | undefined;
   /** Avisos para mostrar al arrancar (ej.: JWT_SECRET generado al vuelo). */
   warnings: string[];
 }
@@ -190,6 +207,28 @@ const trustProxySchema = z.string().transform((raw, ctx): TrustProxySetting => {
   return entries;
 });
 
+const originSchema = z.string().transform((raw, ctx): string => {
+  const origin = parseOrigin(raw.trim());
+  if (origin === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'tiene que ser http(s)://host sin ruta (ej.: https://mgdetailing.com.ar)',
+    });
+    return z.NEVER;
+  }
+  return origin;
+});
+
+/** Teléfono para WhatsApp: se aceptan "+", espacios y guiones; queda solo con dígitos (8 a 15). */
+const whatsappPhoneSchema = z
+  .string()
+  .transform((raw) => raw.replace(/[\s+()-]/g, ''))
+  .pipe(
+    z.string().regex(/^\d{8,15}$/, {
+      error: 'tiene que ser un número con código de país, sin 0 ni 15 (ej.: 5493804781737)',
+    }),
+  );
+
 const envSchema = z.object({
   NODE_ENV: optionalEnv(
     z.enum(['development', 'test', 'production'], { error: 'tiene que ser development, test o production' }),
@@ -214,6 +253,32 @@ const envSchema = z.object({
   JWT_SECRET: optionalEnv(z.string().min(32, { error: 'tiene que tener al menos 32 caracteres' })),
   DB_PATH: optionalEnv(z.string().trim().max(500, { error: 'es demasiado larga' })),
   TRUST_PROXY: optionalEnv(trustProxySchema),
+  PUBLIC_URL: optionalEnv(originSchema),
+  WHATSAPP_PROVIDER: optionalEnv(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(['none', 'callmebot', 'cloud', 'telegram'], {
+        error: 'tiene que ser none, callmebot, cloud o telegram',
+      })),
+  ),
+  WHATSAPP_OWNER_PHONE: optionalEnv(whatsappPhoneSchema),
+  CALLMEBOT_APIKEY: optionalEnv(z.string().trim().max(100, { error: 'es demasiado larga' })),
+  TELEGRAM_BOT_TOKEN: optionalEnv(
+    z.string().trim().regex(/^\d{5,15}:[\w-]{20,100}$/, { error: 'no parece un token de bot (formato 123456:ABC...)' }),
+  ),
+  TELEGRAM_CHAT_ID: optionalEnv(
+    z.string().trim().regex(/^-?\d{4,20}$/, { error: 'tiene que ser numérico (el chat id que devuelve getUpdates)' }),
+  ),
+  WHATSAPP_CLOUD_TOKEN: optionalEnv(z.string().trim().max(1000, { error: 'es demasiado larga' })),
+  WHATSAPP_CLOUD_PHONE_NUMBER_ID: optionalEnv(
+    z.string().trim().regex(/^\d{5,30}$/, { error: 'tiene que ser numérico (el "Phone number ID" de Meta)' }),
+  ),
+  WHATSAPP_CLOUD_TEMPLATE: optionalEnv(
+    z.string().trim().regex(/^[a-z0-9_]{1,512}$/, { error: 'es el nombre de la plantilla (minúsculas, números y _)' }),
+  ),
+  WHATSAPP_CLOUD_LANGUAGE: optionalEnv(z.enum(['es_AR', 'es'], { error: 'tiene que ser es_AR o es' })),
   SERVE_FRONTEND: optionalEnv(
     z
       .string()
@@ -254,6 +319,66 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
       problems.push(
         'FRONTEND_ORIGIN: es obligatorio en producción (el origen público del sitio, ej.: https://mgdetailing.com.ar)',
       );
+    }
+  }
+
+  // Avisos por WhatsApp: cada proveedor exige sus variables.
+  let whatsapp: WhatsappConfig = { provider: 'none' };
+  if (values !== undefined) {
+    const provider = values.WHATSAPP_PROVIDER ?? 'none';
+    const ownerPhone = values.WHATSAPP_OWNER_PHONE;
+    if (provider === 'callmebot') {
+      const apikey = values.CALLMEBOT_APIKEY;
+      if (ownerPhone === undefined) {
+        problems.push('WHATSAPP_OWNER_PHONE: es obligatoria con WHATSAPP_PROVIDER=callmebot (ej.: 5493804781737)');
+      }
+      if (apikey === undefined && !isProduction && ownerPhone !== undefined) {
+        warnings.push(
+          'CALLMEBOT_APIKEY está vacía: los avisos por WhatsApp quedan desactivados hasta completarla (ver README, "Avisos por WhatsApp").',
+        );
+      } else if (apikey === undefined) {
+        problems.push(
+          'CALLMEBOT_APIKEY: es obligatoria con WHATSAPP_PROVIDER=callmebot (es la clave que te manda el bot de CallMeBot por WhatsApp)',
+        );
+      } else if (ownerPhone !== undefined) {
+        whatsapp = { provider, ownerPhone, apikey };
+      }
+    } else if (provider === 'telegram') {
+      const { TELEGRAM_BOT_TOKEN: botToken, TELEGRAM_CHAT_ID: chatId } = values;
+      if (botToken !== undefined && chatId !== undefined) {
+        whatsapp = { provider, botToken, chatId };
+      } else if (!isProduction) {
+        warnings.push(
+          'TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID están vacías: los avisos por Telegram quedan desactivados hasta completarlas (ver README, "Avisos de turnos").',
+        );
+      } else {
+        problems.push('TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID: son obligatorias con WHATSAPP_PROVIDER=telegram');
+      }
+    } else if (provider === 'cloud') {
+      const required = [
+        ['WHATSAPP_OWNER_PHONE', ownerPhone],
+        ['WHATSAPP_CLOUD_TOKEN', values.WHATSAPP_CLOUD_TOKEN],
+        ['WHATSAPP_CLOUD_PHONE_NUMBER_ID', values.WHATSAPP_CLOUD_PHONE_NUMBER_ID],
+        ['WHATSAPP_CLOUD_TEMPLATE', values.WHATSAPP_CLOUD_TEMPLATE],
+      ] as const;
+      for (const [name, value] of required) {
+        if (value === undefined) problems.push(`${name}: es obligatoria con WHATSAPP_PROVIDER=cloud`);
+      }
+      if (
+        ownerPhone !== undefined &&
+        values.WHATSAPP_CLOUD_TOKEN !== undefined &&
+        values.WHATSAPP_CLOUD_PHONE_NUMBER_ID !== undefined &&
+        values.WHATSAPP_CLOUD_TEMPLATE !== undefined
+      ) {
+        whatsapp = {
+          provider,
+          ownerPhone,
+          token: values.WHATSAPP_CLOUD_TOKEN,
+          phoneNumberId: values.WHATSAPP_CLOUD_PHONE_NUMBER_ID,
+          template: values.WHATSAPP_CLOUD_TEMPLATE,
+          language: values.WHATSAPP_CLOUD_LANGUAGE ?? 'es_AR',
+        };
+      }
     }
   }
 
@@ -306,6 +431,8 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     frontendDistPath: path.resolve(BACKEND_ROOT, '..', 'frontend', 'dist'),
     passwordHashing: { ...DEFAULT_SCRYPT_PARAMS },
     rateLimits: DEFAULT_RATE_LIMITS,
+    whatsapp,
+    publicUrl: values.PUBLIC_URL,
     warnings,
   };
 }

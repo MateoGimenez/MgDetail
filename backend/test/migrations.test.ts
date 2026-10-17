@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -126,5 +126,17 @@ describe('openDatabase', () => {
     expect(db.prepare('PRAGMA secure_delete').get()?.secure_delete).toBe(1);
     expect(db.prepare('PRAGMA busy_timeout').get()?.timeout).toBe(5000);
     expect(db.prepare('PRAGMA trusted_schema').get()?.trusted_schema).toBe(0);
+  });
+
+  // Los permisos POSIX no aplican en Windows.
+  it.skipIf(process.platform === 'win32')('la base y su archivo -wal quedan solo para el dueño (0600)', () => {
+    const file = path.join(tempDir(), 'mgdetailing.db');
+    const db = openDatabase(file);
+    databases.push(db);
+    migrate(db); // escribe: crea el -wal
+
+    for (const target of [file, `${file}-wal`]) {
+      expect(statSync(target).mode & 0o777, target).toBe(0o600);
+    }
   });
 });

@@ -5,6 +5,7 @@ import { createApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
 import { openDatabase } from '../src/db/connection.js';
 import { migrate } from '../src/db/migrations.js';
+import type { BookingNotifier } from '../src/domain/notifier.js';
 import type { Logger } from '../src/lib/logger.js';
 import type { ScryptParams } from '../src/lib/password.js';
 import { createSqliteRepositories } from '../src/repositories/index.js';
@@ -43,6 +44,8 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     frontendDistPath: '',
     passwordHashing: { ...TEST_SCRYPT_PARAMS },
     rateLimits: { api: NO_LIMIT, bookings: NO_LIMIT, loginFailures: NO_LIMIT },
+    whatsapp: { provider: 'none' },
+    publicUrl: undefined,
     warnings: [],
     ...overrides,
   };
@@ -80,13 +83,19 @@ export interface TestContext {
 
 const openContexts = new Set<TestContext>();
 
-export function createTestContext(options: { config?: Partial<AppConfig>; now?: Date } = {}): TestContext {
+export function createTestContext(options: { config?: Partial<AppConfig>; now?: Date; notifier?: BookingNotifier } = {}): TestContext {
   const db = openDatabase(':memory:');
   migrate(db);
   const logger = new MemoryLogger();
   const clock = { current: options.now ?? NOW };
   const config = testConfig(options.config);
-  const app = createApp({ config, db, logger, now: () => clock.current });
+  const app = createApp({
+    config,
+    db,
+    logger,
+    now: () => clock.current,
+    ...(options.notifier && { notifier: options.notifier }),
+  });
 
   const context: TestContext = {
     app,

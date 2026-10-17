@@ -1,4 +1,5 @@
 import { Rombo, SeparadorFilete } from '../components/Filete';
+import { MonogramaGiratorio } from './MonogramaGiratorio';
 import { whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 
@@ -62,14 +63,17 @@ export function Beneficios() {
   );
 }
 
-/** La frase del cartel: el único momento de cursiva cromada en grande. */
+/** Momento de marca: el monograma 3D animado y la frase en cursiva cromada. */
 export function Frase() {
   return (
     <div className="frase">
       <SeparadorFilete />
-      <p className="frase__texto">
-        <span className="cromo">Lo bueno se hace con tiempo.</span>
-      </p>
+      <div className="frase__cuerpo">
+        <MonogramaGiratorio />
+        <p className="frase__texto">
+          <span className="cromo">Lo bueno se hace con tiempo.</span>
+        </p>
+      </div>
       <SeparadorFilete className="separador--invertido" />
     </div>
   );

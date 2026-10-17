@@ -204,3 +204,69 @@ describe('resolveDbPath y loadDotEnv', () => {
     });
   });
 });
+
+describe('avisos por WhatsApp', () => {
+  const CALLMEBOT = { WHATSAPP_PROVIDER: 'callmebot', WHATSAPP_OWNER_PHONE: '+54 9 380 478-1737' };
+
+  it('por defecto están desactivados', () => {
+    expect(parseConfig({}).whatsapp).toEqual({ provider: 'none' });
+  });
+
+  it('callmebot completo: normaliza el teléfono a dígitos', () => {
+    const config = parseConfig({ ...CALLMEBOT, CALLMEBOT_APIKEY: '123456', PUBLIC_URL: 'https://mgdetailing.com.ar/' });
+    expect(config.whatsapp).toEqual({ provider: 'callmebot', ownerPhone: '5493804781737', apikey: '123456' });
+    expect(config.publicUrl).toBe('https://mgdetailing.com.ar');
+  });
+
+  it('callmebot sin apikey: en desarrollo avisa y queda desactivado; en producción no arranca', () => {
+    const dev = parseConfig({ ...CALLMEBOT, CALLMEBOT_APIKEY: '' });
+    expect(dev.whatsapp).toEqual({ provider: 'none' });
+    expect(dev.warnings.join('\n')).toContain('CALLMEBOT_APIKEY');
+
+    expect(problemsOf({ ...PRODUCTION, ...CALLMEBOT })).toContain('CALLMEBOT_APIKEY: es obligatoria');
+    expect(problemsOf({ WHATSAPP_PROVIDER: 'callmebot', CALLMEBOT_APIKEY: '1' })).toContain('WHATSAPP_OWNER_PHONE');
+  });
+
+  it('cloud exige todas sus variables', () => {
+    const message = problemsOf({ WHATSAPP_PROVIDER: 'cloud' });
+    for (const name of [
+      'WHATSAPP_OWNER_PHONE',
+      'WHATSAPP_CLOUD_TOKEN',
+      'WHATSAPP_CLOUD_PHONE_NUMBER_ID',
+      'WHATSAPP_CLOUD_TEMPLATE',
+    ]) {
+      expect(message).toContain(name);
+    }
+    const config = parseConfig({
+      WHATSAPP_PROVIDER: 'cloud',
+      WHATSAPP_OWNER_PHONE: '5493804781737',
+      WHATSAPP_CLOUD_TOKEN: 't',
+      WHATSAPP_CLOUD_PHONE_NUMBER_ID: '123456789',
+      WHATSAPP_CLOUD_TEMPLATE: 'nuevo_turno',
+    });
+    expect(config.whatsapp).toMatchObject({ provider: 'cloud', language: 'es_AR' });
+  });
+
+  it('rechaza un proveedor desconocido', () => {
+    expect(problemsOf({ WHATSAPP_PROVIDER: 'signal' })).toContain('none, callmebot, cloud o telegram');
+  });
+});
+
+describe('avisos por Telegram', () => {
+  const TOKEN = '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw';
+
+  it('con token y chat id queda activo', () => {
+    const config = parseConfig({ WHATSAPP_PROVIDER: 'telegram', TELEGRAM_BOT_TOKEN: TOKEN, TELEGRAM_CHAT_ID: '987654321' });
+    expect(config.whatsapp).toEqual({ provider: 'telegram', botToken: TOKEN, chatId: '987654321' });
+  });
+
+  it('incompleto: en desarrollo avisa y queda desactivado; en producción no arranca', () => {
+    const dev = parseConfig({ WHATSAPP_PROVIDER: 'telegram', TELEGRAM_BOT_TOKEN: TOKEN });
+    expect(dev.whatsapp).toEqual({ provider: 'none' });
+    expect(dev.warnings.join('\n')).toContain('TELEGRAM_CHAT_ID');
+    expect(problemsOf({ ...PRODUCTION, WHATSAPP_PROVIDER: 'telegram' })).toContain('TELEGRAM_BOT_TOKEN');
+    expect(problemsOf({ WHATSAPP_PROVIDER: 'telegram', TELEGRAM_BOT_TOKEN: 'basura', TELEGRAM_CHAT_ID: 'x' })).toContain(
+      'TELEGRAM_CHAT_ID',
+    );
+  });
+});

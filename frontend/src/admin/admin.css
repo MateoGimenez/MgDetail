@@ -30,7 +30,7 @@
 }
 
 .admin-pantalla__titulo {
-  font-family: var(--f-romana);
+  font-family: var(--f-display);
   font-weight: 800;
   font-size: 1.8rem;
   color: var(--texto);
@@ -54,7 +54,7 @@
 }
 
 .login__titulo {
-  font-family: var(--f-romana);
+  font-family: var(--f-display);
   font-weight: 800;
   font-size: 1.7rem;
 }
@@ -216,7 +216,7 @@
 }
 
 .panel__titulo {
-  font-family: var(--f-romana);
+  font-family: var(--f-display);
   font-weight: 800;
   font-size: clamp(1.7rem, 1.4rem + 1.2vw, 2.3rem);
   line-height: 1.1;
@@ -606,7 +606,7 @@
 }
 
 .confirmar__titulo {
-  font-family: var(--f-romana);
+  font-family: var(--f-display);
   font-weight: 800;
   font-size: 1.45rem;
   line-height: 1.2;

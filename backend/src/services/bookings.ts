@@ -1,10 +1,13 @@
-import type { BookingRepository, NewBooking, PublicBooking } from '../domain/booking.js';
+import type { Booking, BookingRepository, NewBooking, PublicBooking } from '../domain/booking.js';
+import { type BookingNotifier, NotifyError } from '../domain/notifier.js';
 import { nombreDeServicio } from '../domain/servicios.js';
 import type { Logger } from '../lib/logger.js';
 
 export interface BookingServiceDeps {
   bookings: BookingRepository;
   logger: Logger;
+  /** Aviso al dueño por cada turno nuevo. Sin notificador, no se avisa. */
+  notifier?: BookingNotifier;
 }
 
 /**
@@ -23,6 +26,9 @@ export class BookingService {
       `Turno creado id=${saved.id} servicio="${nombreDeServicio(data.servicioId)}" fecha=${saved.fechaPreferida}`,
     );
 
+    // Fire-and-forget: el aviso nunca demora ni hace fallar la respuesta al cliente.
+    void this.notify(saved);
+
     // Respuesta pública mínima: nada de datos personales ni timestamps.
     return {
       id: saved.id,
@@ -31,5 +37,18 @@ export class BookingService {
       franja: saved.franja,
       estado: 'pendiente',
     };
+  }
+
+  /** Nunca rechaza. Solo se loguea el id del turno y el status: ni mensaje, ni datos personales, ni URL. */
+  private async notify(booking: Booking): Promise<void> {
+    const { notifier, logger } = this.deps;
+    if (notifier === undefined) return;
+    try {
+      await notifier.notifyNewBooking(booking);
+      logger.info(`Aviso de turno enviado id=${booking.id}`);
+    } catch (error) {
+      const detail = error instanceof NotifyError ? `status ${String(error.status)}` : 'sin respuesta';
+      logger.warn(`Aviso de turno falló id=${booking.id} (${detail})`);
+    }
   }
 }

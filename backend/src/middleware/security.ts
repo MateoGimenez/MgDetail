@@ -12,7 +12,7 @@ const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()
  * - /api: respuestas JSON. CSP "none": no pueden cargar ni ejecutar nada ni embeberse en un frame.
  * - resto (solo si SERVE_FRONTEND=true): la SPA. CSP restrictiva y ajustada a lo que el frontend realmente usa:
  *   todo del mismo origen ('self'), sin scripts ni estilos inline, fuentes autoalojadas (sin Google Fonts),
- *   imágenes propias o data:, sin iframes (Google Maps va solo como link) ni plugins.
+ *   imágenes y video propios o data:, sin iframes (Google Maps va solo como link) ni plugins.
  *   Si el frontend pasa a cargar recursos de otro dominio, hay que agregarlos acá a propósito.
  */
 export function securityHeaders(config: Pick<AppConfig, 'isProduction'>): RequestHandler {
@@ -40,6 +40,7 @@ export function securityHeaders(config: Pick<AppConfig, 'isProduction'>): Reques
         styleSrc: ["'self'"],
         fontSrc: ["'self'"],
         imgSrc: ["'self'", 'data:'],
+        mediaSrc: ["'self'"], // <video> mp4 propio servido desde /fotos/
         connectSrc: ["'self'"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],

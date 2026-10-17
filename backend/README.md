@@ -15,6 +15,7 @@ Stack: Node 24 + TypeScript (strict, ESM) + Express 5, SQLite con el módulo nat
 - [Crear el administrador](#crear-el-administrador)
 - [Endpoints con ejemplos curl](#endpoints-con-ejemplos-curl)
 - [Contrato de la API](#contrato-de-la-api)
+- [Avisos por WhatsApp](#avisos-por-whatsapp)
 - [Operación](#operación)
 - [Seguridad](#seguridad)
 - [Estructura del proyecto](#estructura-del-proyecto)
@@ -55,6 +56,12 @@ Copiá `.env.example` a `.env` (está ignorado por git; nunca subas uno con secr
 | `JWT_SECRET` | aleatorio por arranque (solo fuera de producción) | Secreto de las sesiones, mínimo 32 caracteres. **Obligatorio en producción.** Cambiarlo cierra todas las sesiones. |
 | `DB_PATH` | `./storage/mgdetailing.db` | Archivo SQLite. Las rutas relativas se resuelven desde `backend/`. La carpeta se crea sola. |
 | `TRUST_PROXY` | `false` | Cuántos proxies hay delante (`1`) o una lista de IP/CIDR de confianza, para que el rate limit vea la IP real. `true` se rechaza a propósito (permite falsear la IP). |
+| `PUBLIC_URL` | (vacía) | Origen público del sitio (ej. `https://mgdetailing.com.ar`). Opcional: si está, el aviso de WhatsApp incluye el link al panel. |
+| `WHATSAPP_PROVIDER` | `none` | `none`, `callmebot`, `cloud` o `telegram`. Ver [Avisos por WhatsApp](#avisos-por-whatsapp). |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | | Solo con `telegram`. Vacías = avisos desactivados (advertencia en desarrollo; en producción no arranca). |
+| `WHATSAPP_OWNER_PHONE` | | Número del dueño, con código de país y solo dígitos (`5493804781737`). |
+| `CALLMEBOT_APIKEY` | | Solo con `callmebot`. Con la apikey vacía los avisos quedan desactivados (advertencia en desarrollo; en producción no arranca). |
+| `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID`, `WHATSAPP_CLOUD_TEMPLATE`, `WHATSAPP_CLOUD_LANGUAGE` | idioma `es_AR` | Solo con `cloud` (el idioma puede ser `es_AR` o `es`). |
 | `SERVE_FRONTEND` | `false` | `true`: la API también sirve `../frontend/dist` con fallback SPA a `index.html` para rutas que no empiezan con `/api`. |
 
 Generar un `JWT_SECRET`:
@@ -275,6 +282,61 @@ Body estricto `{ "estado": "pendiente" | "confirmado" | "completado" | "cancelad
 
 `204` sin body. `404 NOT_FOUND` si no existe. Exige `Content-Type: application/json` aunque no lleve body.
 
+## Avisos por WhatsApp
+
+Cuando entra una solicitud de turno, el dueño recibe un WhatsApp con el servicio, la fecha, la franja, el cliente, su teléfono, un link `wa.me` para escribirle (si el teléfono es interpretable), el comentario (máx. 200 caracteres) y, si existe `PUBLIC_URL`, el link al panel. El aviso se manda **después** de guardar el turno y **sin esperar**: si el proveedor falla o tarda (timeout de 5 s), el cliente igual recibe su `201`. Los turnos descartados por honeypot no avisan. En el log solo queda `Aviso de WhatsApp enviado id=<id>` o `Aviso de WhatsApp falló id=<id> (status X)`; nunca el texto, la apikey, el token ni la URL.
+
+**Privacidad:** con un proveedor activo, los datos del cliente (nombre, teléfono, vehículo, comentario) salen del sistema hacia ese proveedor (CallMeBot o Meta). Con `WHATSAPP_PROVIDER=none` no sale nada; al arrancar se loguea que los avisos están desactivados.
+
+### Opción 1: CallMeBot (gratis, no oficial)
+
+1. Desde el WhatsApp del número que va a recibir los avisos (3804781737), agregá a tus contactos el número del bot que indica https://www.callmebot.com/blog/free-api-whatsapp-messages/ (cambia con el tiempo; si dice que está lleno, reintentá más tarde).
+2. Mandale por WhatsApp a ese contacto exactamente: `I allow callmebot to send me messages`.
+3. El bot responde con tu **apikey** (si no llega en 2 minutos, reintentá pasadas 24 horas).
+4. En `backend/.env` completá `CALLMEBOT_APIKEY=<la apikey>` (ya están `WHATSAPP_PROVIDER=callmebot` y `WHATSAPP_OWNER_PHONE=5493804781737`). En producción, definí esas tres variables en el entorno.
+5. Reiniciá el servidor: debe loguear `Avisos por WhatsApp activados (callmebot)`.
+
+Es un servicio de terceros, gratuito y pensado para uso personal: sin garantías de disponibilidad ni cupos publicados, y puede cambiar o cortarse.
+
+### Opción 2: WhatsApp Cloud API (oficial, de Meta)
+
+Para cuando el negocio crezca. Requiere una cuenta de Meta Business, un número registrado en WhatsApp Business Platform y una **plantilla aprobada** (categoría utilidad, idioma `es_AR` o `es`) con **una sola variable** en el cuerpo, por ejemplo: `Nuevo turno: {{1}}`. El backend manda el resumen en esa variable, en una línea y con las partes separadas por ` | ` (Meta no admite saltos de línea en variables). Variables:
+
+```
+WHATSAPP_PROVIDER=cloud
+WHATSAPP_OWNER_PHONE=5493804781737
+WHATSAPP_CLOUD_TOKEN=<token permanente del usuario del sistema>
+WHATSAPP_CLOUD_PHONE_NUMBER_ID=<Phone number ID>
+WHATSAPP_CLOUD_TEMPLATE=nuevo_turno
+WHATSAPP_CLOUD_LANGUAGE=es_AR
+```
+
+Se envía `POST https://graph.facebook.com/v23.0/<PHONE_NUMBER_ID>/messages` con el token como `Bearer`. Mensajes iniciados por el negocio fuera de la ventana de 24 h solo pueden ser plantillas, y Meta los cobra según su tarifa vigente.
+
+### Opción 3: Telegram (gratis, oficial, sin riesgo de baneo)
+
+Respaldo si CallMeBot no tiene plazas y no se quiere pagar la Cloud API: el mismo aviso llega a un chat de Telegram del dueño, al instante y sin costo. Se activa con `WHATSAPP_PROVIDER=telegram`.
+
+1. En Telegram, buscá `@BotFather` (el oficial, con tilde azul), mandale `/newbot`, elegí un nombre y un usuario que termine en `bot`. Te responde con el **token** (`123456789:AAH...`). Es una clave: no la compartas.
+2. Abrí el bot nuevo (el link `t.me/<usuario>` que te dio BotFather) y mandale `/start` y cualquier mensaje (ej. `hola`). Sin esto el bot no puede escribirte.
+3. En el navegador abrí `https://api.telegram.org/bot<TOKEN>/getUpdates` (reemplazando `<TOKEN>`). Buscá `"chat":{"id":123456789` : ese número es el **chat id**.
+4. En `backend/.env` poné `WHATSAPP_PROVIDER=telegram`, `TELEGRAM_BOT_TOKEN=<token>` y `TELEGRAM_CHAT_ID=<chat id>`.
+5. Reiniciá el servidor: debe loguear `Avisos de turnos activados (telegram)`.
+
+El token va en la URL de la API de Telegram, por eso nunca se loguea. Los datos del cliente salen hacia Telegram.
+
+### Comparación (octubre 2026, para 10-50 avisos por mes)
+
+| Opción | Costo | Alta | Riesgo |
+|---|---|---|---|
+| CallMeBot | Gratis | Fácil, pero hoy sin plazas | Servicio no oficial de terceros, sin garantías ni límites publicados |
+| WhatsApp Cloud API (Meta) | Plantilla utility en Argentina: unos US$0,026 por aviso (cifra de guías, verificar en la tarifa de Meta), o sea alrededor de US$1 por mes. El número de prueba es gratis pero solo permite hasta 5 destinatarios y plantillas fijas | Media/alta: cuenta Meta Business, número propio, plantilla aprobada y token de System User | Oficial, sin baneo |
+| Twilio WhatsApp | Tarifa de Meta + US$0,005 por mensaje; el sandbox cobra igual y los destinatarios deben unirse otra vez cada pocos días | Media | Oficial |
+| Green-API / Whapi.cloud / UltraMsg (vinculan tu WhatsApp por QR) | Plan gratis muy limitado (pocos chats); pago desde US$8-12 (Green-API) o US$29 (Whapi) por mes | Fácil (QR) | No oficial: riesgo de baneo del número |
+| Baileys / whatsapp-web.js (propio) | Gratis más un servidor siempre encendido | Técnica, con sesión persistente | No oficial: riesgo de baneo; conviene un segundo número |
+| Telegram (bot) | Gratis | Fácil (5 pasos) | Oficial, sin baneo; el aviso llega a Telegram y no a WhatsApp |
+| Email | Gratis con SMTP | Pide dependencia o cuenta SMTP | Puede caer en spam |
+
 ## Operación
 
 ### Despliegue objetivo
@@ -298,7 +360,7 @@ Con mismo origen no hay CORS de por medio, la cookie `SameSite=Strict` funciona 
 | `JWT_SECRET` | Aleatorio, de 32 caracteres o más. Guardalo en el gestor de secretos del servidor, no en el repo. |
 | `HOST` | Con Caddy/nginx en la misma máquina dejá el default `127.0.0.1`. **En un PaaS o en Docker poné `0.0.0.0`**, si no la plataforma no llega al proceso. |
 | `PORT` | El que indique la plataforma (muchos PaaS lo inyectan). |
-| `TRUST_PROXY` | `1` si hay un proxy delante (Caddy, nginx o el balanceador del PaaS). Sin esto, el rate limit ve la IP del proxy y **todos los visitantes comparten el mismo cupo**. |
+| `TRUST_PROXY` | Con Caddy/nginx **en la misma máquina**: `loopback` (y `HOST=127.0.0.1`), así solo se cree el `X-Forwarded-For` que llega del proxy local. En un PaaS: `1` (el balanceador de la plataforma), siempre que el proceso no sea alcanzable sin pasar por él. Sin esto, el rate limit ve la IP del proxy y **todos los visitantes comparten el mismo cupo**; con un número y el puerto de Node expuesto a Internet, cualquiera puede conectarse directo, inventar su `X-Forwarded-For` y saltear el rate limit. |
 | `DB_PATH` | Ruta absoluta dentro de un **volumen persistente** (ej.: `/data/mgdetailing.db`). Sin volumen, la base se pierde en cada despliegue. |
 | `SERVE_FRONTEND` | `true` para el despliegue de un solo proceso. |
 
@@ -324,7 +386,7 @@ Sin la CLI de `sqlite3`, con Node 24 (bash):
 node -e "const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(process.argv[1]); db.exec(\"VACUUM INTO '\" + process.argv[2].replaceAll(\"'\", \"''\") + \"'\"); db.close()" /data/mgdetailing.db /backups/mgdetailing-2026-10-16.db
 ```
 
-La copia contiene datos personales y hashes de contraseña: guardala cifrada y con acceso restringido. Para restaurar, detené el servidor y reemplazá el archivo de `DB_PATH`. Conviene programarlo con cron / el programador de tareas y borrar las copias viejas.
+La copia contiene datos personales y hashes de contraseña: guardala cifrada y con acceso restringido. `VACUUM INTO` crea el archivo con la `umask` de la shell: en Linux corré el backup con `umask 077` (o `chmod 600` a la copia) para que no quede legible por otros usuarios. Para restaurar, detené el servidor y reemplazá el archivo de `DB_PATH`. Conviene programarlo con cron / el programador de tareas y borrar las copias viejas.
 
 ### Alta del primer administrador en producción
 
@@ -352,8 +414,8 @@ ADMIN_PASSWORD='una clave larga y unica' npm run crear-admin -- --email dueno@mg
 - **CSRF**: `SameSite=Strict` + chequeo de `Origin` + `Content-Type: application/json` obligatorio en métodos que modifican.
 - **Rate limits**: general por IP, 5 turnos / 15 min, 5 logins fallidos / 15 min.
 - **Entrada**: zod estricto (rechaza campos desconocidos), body máximo de 10 kb, sin cuerpos comprimidos. SQL siempre parametrizado, y una regla de ESLint prohíbe construir SQL con interpolación o concatenación.
-- **Cabeceras**: helmet (CSP, HSTS en producción, `nosniff`, `X-Frame-Options: DENY`...), `Permissions-Policy`, `Cache-Control: no-store` en la API.
-- **Datos personales**: nunca se escriben en los logs (una línea por request: método, ruta sin query, status y milisegundos; al crear un turno solo `id + servicio + fecha`). Al borrar un turno se sobrescribe su contenido en la base (`secure_delete`).
+- **Cabeceras**: helmet (CSP, HSTS en producción, `nosniff`, `X-Frame-Options: DENY`...), `Permissions-Policy`, `Cache-Control: no-store` en la API. El panel (`/admin`) lleva `X-Robots-Tag: noindex, nofollow`. Con `SERVE_FRONTEND`, lo que cuelga de `/assets`, `/fotos` y `/marca` y no existe da 404 (nunca el HTML de la SPA), igual que los dotfiles.
+- **Datos personales**: nunca se escriben en los logs (una línea por request: método, ruta sin query, status y milisegundos; al crear un turno solo `id + servicio + fecha`; el aviso de WhatsApp solo `id` y status). Al borrar un turno se sobrescribe su contenido en la base (`secure_delete`).
 - **Errores**: formato único, sin stack traces ni detalles internos.
 - **Quien muestre estos datos debe escaparlos** (React lo hace por defecto): nunca `innerHTML` / `dangerouslySetInnerHTML` con nombre, modelo o comentario.
 
@@ -369,6 +431,7 @@ backend/
     repositories/       implementación SQLite de esas interfaces
     services/           casos de uso con lógica (auth, alta de turno, alta de admin)
     routes/             rutas HTTP (health, bookings, auth, admin)
+    notifications/      avisos de WhatsApp al dueño (CallMeBot, Cloud API) y formato del mensaje
     middleware/         seguridad, CSRF, rate limit, errores, logger, estáticos
     schemas/            validación de entrada con zod
     db/                 conexión SQLite, migraciones (PRAGMA user_version), chequeo de salud

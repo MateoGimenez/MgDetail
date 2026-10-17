@@ -24,7 +24,7 @@ src/
 | WhatsApp, Instagram, dirección, horarios, Maps, URL pública, logo | `src/config/sitio.ts` (lo vacío se oculta solo) |
 | Textos, duraciones y precios de los servicios | `src/data/servicios.ts` (`precioDesde: null` muestra "Consultá") |
 | Fotos de trabajos y pares antes/después | archivos en `public/fotos/` + entradas en `src/data/galeria.ts` |
-| Logo | subí `public/logo.png` y poné `logo: '/logo.png'` en `sitio.ts` |
+| Logo y archivos de marca | originales en `public/fotos/MgDetailing-*`; `npm run marca` genera las versiones livianas en `public/marca/` (logo, póster del monograma, og.jpg, favicon). El logo se elige en `sitio.ts` |
 | Preguntas frecuentes | `src/data/preguntas.ts` |
 
 Buscá `COMPLETAR` para ver todo lo pendiente.
@@ -39,6 +39,7 @@ Buscá `COMPLETAR` para ver todo lo pendiente.
 | `npm run preview` | sirve el build en http://localhost:4173 |
 | `npm run typecheck` | solo TypeScript |
 | `npm run lint` | ESLint (incluye accesibilidad con jsx-a11y) |
+| `npm run marca` | regenera las imágenes livianas de marca con sharp (los originales no se tocan) |
 | `npm test` | tests de fechas y del esquema del turno (vitest) |
 
 ## Probar desde el celular

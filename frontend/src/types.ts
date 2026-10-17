@@ -54,4 +54,7 @@ export interface DatosSitio {
   readonly url: string;
   /** Ruta del logo dentro de public, ej.: '/logo.png'. Vacío: se muestra el logo tipográfico. */
   readonly logo: string;
+  /** Tamaño real del archivo del logo en píxeles (evita saltos al cargar). 0 si no se sabe. */
+  readonly logoAncho: number;
+  readonly logoAlto: number;
 }

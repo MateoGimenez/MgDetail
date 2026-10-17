@@ -40,6 +40,8 @@ describe('SERVE_FRONTEND=true', () => {
       expect(response.headers['content-type']).toMatch(/text\/html/);
       expect(response.text, url).toContain('id="root"');
       expect(response.headers['cache-control'], url).toBe('no-cache');
+      // El panel no se indexa aunque robots.txt impida ver su <meta robots>.
+      expect(response.headers['x-robots-tag'], url).toBe(url.startsWith('/admin') ? 'noindex, nofollow' : undefined);
     }
   });
 
@@ -68,7 +70,8 @@ describe('SERVE_FRONTEND=true', () => {
   it('un archivo con extensión que no existe da 404, no el HTML de la SPA', async () => {
     const { app } = frontendApp();
 
-    for (const url of ['/assets/viejo.js', '/imagen.png', '/robots.txt']) {
+    // Las carpetas de estáticos tampoco caen en la SPA (ni redirigen a la barra final).
+    for (const url of ['/assets/viejo.js', '/imagen.png', '/robots.txt', '/assets', '/assets/', '/assets/sin-extension', '/fotos/', '/marca/x']) {
       const response = await request(app).get(url);
       expect(response.status, url).toBe(404);
       expect(response.text, url).not.toContain('id="root"');

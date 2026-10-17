@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { logoUrl } from '../config/enlaces';
+import { sitio } from '../config/sitio';
 
 /**
  * Logo de MgDetailing. Si en `sitio.ts` está cargado `logo` (ej.: '/logo.png'),
@@ -23,6 +24,8 @@ export function Logo({ className, tamano = 'normal' }: Props) {
         <img
           className="logo__imagen"
           src={ruta}
+          width={sitio.logoAncho || undefined}
+          height={sitio.logoAlto || undefined}
           alt="MgDetailing"
           decoding="async"
           onError={() => {

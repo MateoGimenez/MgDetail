@@ -21,8 +21,10 @@ export const sitio: DatosSitio = {
   // COMPLETAR: dirección pública de la web, sin barra final. Ej.: 'https://mgdetailing.com.ar'
   // (se usa para canonical, og:url y, más adelante, og:image; vacía, esas etiquetas no se emiten)
   url: '',
-  // COMPLETAR: '/logo.png' cuando subas el archivo a public/logo.png
-  logo: '',
+  // Logo plano para fondo oscuro, versión liviana generada con `npm run marca` (vacío: wordmark tipográfico).
+  logo: '/marca/logo-fondo-oscuro.png',
+  logoAncho: 303,
+  logoAlto: 120,
 };
 
 /** Datos fijos de la marca. No cambiar. */
@@ -31,4 +33,18 @@ export const negocio = {
   ciudad: 'La Rioja',
   provincia: 'La Rioja',
   pais: 'Argentina',
+} as const;
+
+/**
+ * Archivos de marca que usa la web (originales en public/fotos/, versiones
+ * livianas en public/marca/ con `npm run marca`).
+ */
+export const marca = {
+  /** Monograma 3D animado (1080 × 1080, 16 s). Se reproduce solo cuando se ve. */
+  video: '/fotos/MgDetailing-monograma-3D.mp4',
+  /** Cuadro fijo del monograma: póster del video y reemplazo con "menos movimiento". */
+  poster: '/marca/monograma-poster.webp',
+  /** Dorso del cuadro que gira: el logo 3D completo. */
+  dorso: '/marca/monograma-dorso.webp',
+  posterLado: 720,
 } as const;

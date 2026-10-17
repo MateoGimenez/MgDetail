@@ -10,6 +10,8 @@ import { mountFrontend } from './middleware/frontend.js';
 import { createRateLimiters } from './middleware/rate-limit.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security.js';
+import type { BookingNotifier } from './domain/notifier.js';
+import { type FetchFn, createNotifier } from './notifications/index.js';
 import { createSqliteRepositories } from './repositories/index.js';
 import { createApiRouter } from './routes/index.js';
 import { AuthService } from './services/auth.js';
@@ -22,6 +24,10 @@ export interface AppDeps {
   logger?: Logger;
   /** Reloj inyectable (los tests lo fijan). */
   now?: () => Date;
+  /** fetch inyectable para los avisos (los tests nunca tocan la red). */
+  fetch?: FetchFn;
+  /** Pisa al notificador elegido por la config (tests). */
+  notifier?: BookingNotifier;
 }
 
 /**
@@ -35,7 +41,11 @@ export function createApp(deps: AppDeps): Express {
   const now = deps.now ?? (() => new Date());
 
   const { bookings, admins, sessions } = createSqliteRepositories(db);
-  const bookingService = new BookingService({ bookings, logger });
+  const bookingService = new BookingService({
+    bookings,
+    logger,
+    notifier: deps.notifier ?? createNotifier(config.whatsapp, config.publicUrl, deps.fetch),
+  });
   const auth = new AuthService({
     admins,
     sessions,

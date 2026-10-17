@@ -13,7 +13,7 @@ export function Pie() {
     <footer className="pie">
       <div className="contenedor pie__grilla">
         <div className="pie__marca">
-          <Logo />
+          <Logo tamano="grande" />
           <p className="pie__frase">Lo bueno se hace con tiempo.</p>
         </div>
         <nav className="pie__nav" aria-label="Pie de página">

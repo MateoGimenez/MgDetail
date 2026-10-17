@@ -16,6 +16,12 @@ export function openDatabase(dbPath: string): DatabaseSync {
 
   const db = new DatabaseSync(dbPath, { enableForeignKeyConstraints: true });
 
+  // Permisos ANTES de activar WAL: SQLite crea los archivos -wal y -shm (que también tienen datos personales)
+  // copiando los permisos del .db. Si se restringieran después, esos archivos quedarían legibles por otros usuarios.
+  if (!inMemory && process.platform !== 'win32') {
+    chmodSync(dbPath, 0o600); // contiene datos personales y hashes de contraseña
+  }
+
   // WAL: lecturas y escrituras concurrentes (el servidor y el script crear-admin pueden coincidir).
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');
@@ -24,10 +30,6 @@ export function openDatabase(dbPath: string): DatabaseSync {
   // Al borrar un turno se sobrescribe su contenido (datos personales) en vez de dejarlo en páginas libres.
   db.exec('PRAGMA secure_delete = ON');
   db.exec('PRAGMA trusted_schema = OFF');
-
-  if (!inMemory && process.platform !== 'win32') {
-    chmodSync(dbPath, 0o600); // contiene datos personales y hashes de contraseña
-  }
 
   return db;
 }

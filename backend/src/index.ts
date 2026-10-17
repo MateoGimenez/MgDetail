@@ -26,6 +26,11 @@ function main(): void {
   for (const warning of config.warnings) {
     logger.warn(warning);
   }
+  logger.info(
+    config.whatsapp.provider === 'none'
+      ? 'Avisos de turnos desactivados (WHATSAPP_PROVIDER=none)'
+      : `Avisos de turnos activados (${config.whatsapp.provider})`,
+  );
 
   // 2) Base de datos + migraciones.
   let db: DatabaseSync;

@@ -9,8 +9,9 @@
     "build": "npm --prefix frontend run build && npm --prefix backend run build",
     "start": "npm --prefix backend start",
     "crear-admin": "npm --prefix backend run crear-admin --",
-    "test": "npm --prefix backend test",
-    "verificar": "npm --prefix backend run typecheck && npm --prefix backend run lint && npm --prefix backend test && npm --prefix frontend run typecheck && npm --prefix frontend run lint && npm --prefix frontend run build"
+    "crear-admin:dev": "npm --prefix backend run crear-admin:dev --",
+    "test": "npm --prefix backend test && npm --prefix frontend test",
+    "verificar": "npm --prefix backend run typecheck && npm --prefix backend run lint && npm --prefix backend test && npm --prefix frontend run typecheck && npm --prefix frontend run lint && npm --prefix frontend test && npm --prefix frontend run build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

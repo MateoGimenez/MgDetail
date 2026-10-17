@@ -51,11 +51,24 @@ function datosDelNegocio(): Plugin {
         injectTo: 'head',
       };
       const etiquetas: HtmlTagDescriptor[] = [etiqueta];
-      // Con la URL pública cargada se emiten canonical y og:url (og:image, cuando haya una imagen real).
-      if (/^https:\/\//i.test(url)) {
+      // Con la URL pública cargada se emiten canonical, og:url y la imagen para compartir
+      // (los crawlers exigen URLs absolutas). Sin URL, la tarjeta queda chica y sin imagen.
+      const conUrl = /^https:\/\//i.test(url);
+      etiquetas.push({
+        tag: 'meta',
+        attrs: { name: 'twitter:card', content: conUrl ? 'summary_large_image' : 'summary' },
+        injectTo: 'head',
+      });
+      if (conUrl) {
+        const imagen = `${url}/marca/og.jpg`;
         etiquetas.push(
           { tag: 'link', attrs: { rel: 'canonical', href: `${url}/` }, injectTo: 'head' },
           { tag: 'meta', attrs: { property: 'og:url', content: `${url}/` }, injectTo: 'head' },
+          { tag: 'meta', attrs: { property: 'og:image', content: imagen }, injectTo: 'head' },
+          { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' }, injectTo: 'head' },
+          { tag: 'meta', attrs: { property: 'og:image:height', content: '630' }, injectTo: 'head' },
+          { tag: 'meta', attrs: { property: 'og:image:alt', content: 'Logo de MgDetailing' }, injectTo: 'head' },
+          { tag: 'meta', attrs: { name: 'twitter:image', content: imagen }, injectTo: 'head' },
         );
       }
       return etiquetas;
@@ -103,7 +116,7 @@ export default defineConfig({
   plugins: [
     react(),
     datosDelNegocio(),
-    precargaDeFuentes(['bodoni-moda-latin-wght-normal', 'archivo-latin-wght-normal']),
+    precargaDeFuentes(['barlow-condensed-latin-800-normal', 'archivo-latin-wght-normal']),
   ],
   server: {
     port: 5173,

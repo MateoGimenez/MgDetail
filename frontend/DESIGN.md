@@ -17,24 +17,24 @@ colors:
   tinta-panel: "#15181b"
 typography:
   display:
-    fontFamily: "Bodoni Moda, Bodoni 72, Didot, Georgia, serif"
+    fontFamily: "Barlow Condensed, Arial Narrow, sans-serif"
     fontSize: "clamp(2.85rem, 1.25rem + 6.6vw, 6rem)"
-    fontWeight: 900
+    fontWeight: 800
     lineHeight: 1.02
     letterSpacing: "-0.02em"
   headline:
-    fontFamily: "Bodoni Moda, Georgia, serif"
+    fontFamily: "Barlow Condensed, Arial Narrow, sans-serif"
     fontSize: "clamp(2.1rem, 1.45rem + 2.7vw, 3.6rem)"
     fontWeight: 800
     lineHeight: 1.05
     letterSpacing: "-0.015em"
   title:
-    fontFamily: "Bodoni Moda, Georgia, serif"
+    fontFamily: "Barlow Condensed, Arial Narrow, sans-serif"
     fontSize: "clamp(1.3rem, 1.15rem + 0.6vw, 1.6rem)"
-    fontWeight: 700
+    fontWeight: 800
     lineHeight: 1.2
   script:
-    fontFamily: "Yellowtail, Brush Script MT, cursive"
+    fontFamily: "Kaushan Script, Brush Script MT, cursive"
     fontSize: "clamp(2.6rem, 1.3rem + 6vw, 6rem)"
     fontWeight: 400
     lineHeight: 1.25
@@ -124,17 +124,17 @@ Grafito, gris y blanco con el rojo como único acento: estrategia restringida co
 
 ## Typography
 
-**Display Font:** Bodoni Moda (variable, peso 400–900, subset latin)
-**Script Font:** Yellowtail
+**Display Font:** Barlow Condensed 800 (subset latin)
+**Script Font:** Kaushan Script
 **Body Font:** Archivo (variable, peso 100–900, subset latin)
 
-**Character:** romana de cartel para lo que se lee de lejos, cursiva de cartel para la marca y la frase, y una grotesca sobria para todo lo que se lee de cerca.
+**Character:** condensada pesada de señalética de ruta, con el mismo ángulo y peso que el monograma del logo; script de pincel como el "Detailing" del logo para la frase; y una grotesca sobria para todo lo que se lee de cerca. Elegida entre tres propuestas (ver `.capturas/tipografias-comparacion.png`); los tokens `--f-display` y `--f-acento` y las caras de `src/styles/fuentes.css` permiten volver atrás.
 
 ### Hierarchy
 - **Display** (900, clamp 2.85–6rem, 1.02): solo el H1 del cartel, cromado.
 - **Headline** (800, clamp 2.1–3.6rem, 1.05): títulos de sección.
 - **Title** (700, 1.3–1.6rem, 1.2): servicios, pasos, beneficios, grupos del formulario.
-- **Script** (Yellowtail, hasta 6rem): "Detailing" del logo y "Lo bueno se hace con tiempo."
+- **Script** (Kaushan Script, hasta 5rem): "Detailing" del logo y "Lo bueno se hace con tiempo."
 - **Body** (400, 1.0625rem, 1.6): texto corrido, medida máxima ~40rem.
 - **Label** (650, 0.75rem, 0.12em, mayúsculas): rótulos de datos (Duración, Precio, Incluye). Nunca encima de un título.
 
