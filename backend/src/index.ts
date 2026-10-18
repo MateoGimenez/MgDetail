@@ -1,14 +1,12 @@
 import type { Server } from 'node:http';
-import type { DatabaseSync } from 'node:sqlite';
 import { createApp } from './app.js';
 import { ConfigError, loadConfig } from './config.js';
-import { openDatabase } from './db/connection.js';
-import { migrate } from './db/migrations.js';
+import { type Database, openConfiguredDatabase } from './db/database.js';
 import { createLogger } from './lib/logger.js';
 
 const SHUTDOWN_GRACE_MS = 10_000;
 
-function main(): void {
+async function main(): Promise<void> {
   const logger = createLogger();
 
   // 1) Configuración: si algo obligatorio falta o es inválido, se corta acá con un mensaje claro.
@@ -32,19 +30,23 @@ function main(): void {
       : `Avisos de turnos activados (${config.whatsapp.provider})`,
   );
 
-  // 2) Base de datos + migraciones.
-  let db: DatabaseSync;
+  // 2) Base de datos: SQLite (abre y migra) o Postgres (conecta y verifica el esquema). Ver db/database.ts.
+  let database: Database;
   try {
-    db = openDatabase(config.dbPath);
-    const version = migrate(db);
-    logger.info(`Base de datos lista (${config.dbPath}, esquema v${String(version)})`);
+    database = await openConfiguredDatabase(config.database, logger);
+    logger.info(`Base de datos lista: ${database.description}`);
   } catch (error) {
-    logger.error('No se pudo abrir o migrar la base de datos', error);
+    logger.error('No se pudo abrir, migrar o verificar la base de datos', error);
     process.exit(1);
   }
 
   // 3) Servidor HTTP.
-  const app = createApp({ config, db, logger });
+  const app = createApp({
+    config,
+    repositories: database.repositories,
+    checkDatabase: database.checkDatabase,
+    logger,
+  });
   const server: Server = app.listen(config.port, config.host);
   // Timeouts contra conexiones lentas que tienen el socket ocupado (slowloris).
   server.headersTimeout = 15_000;
@@ -56,20 +58,16 @@ function main(): void {
   });
   server.once('error', (error) => {
     logger.error(`No se pudo escuchar en ${config.host}:${String(config.port)}`, error);
-    closeDatabase();
-    process.exit(1);
+    void closeDatabase().finally(() => process.exit(1));
   });
 
   // 4) Apagado prolijo: dejar de aceptar conexiones, esperar las en curso y recién ahí cerrar la base.
-  let closed = false;
-  function closeDatabase(): void {
-    if (closed) return;
-    closed = true;
-    try {
-      db.close();
-    } catch (error) {
+  let closing: Promise<void> | undefined;
+  function closeDatabase(): Promise<void> {
+    closing ??= database.close().catch((error: unknown) => {
       logger.error('Error al cerrar la base de datos', error);
-    }
+    });
+    return closing;
   }
 
   let shuttingDown = false;
@@ -81,7 +79,7 @@ function main(): void {
     const forceTimer = setTimeout(() => {
       logger.error('Cierre forzado: había conexiones abiertas que no terminaron a tiempo');
       server.closeAllConnections();
-      closeDatabase();
+      void closeDatabase();
       process.exit(1);
     }, SHUTDOWN_GRACE_MS);
     forceTimer.unref();
@@ -89,9 +87,10 @@ function main(): void {
     server.close((error) => {
       clearTimeout(forceTimer);
       if (error) logger.error('Error al cerrar el servidor', error);
-      closeDatabase();
-      logger.info('Servidor y base de datos cerrados');
-      process.exitCode = error ? 1 : 0;
+      void closeDatabase().then(() => {
+        logger.info('Servidor y base de datos cerrados');
+        process.exitCode = error ? 1 : 0;
+      });
     });
     server.closeIdleConnections();
   }
@@ -106,14 +105,14 @@ function main(): void {
   // Errores no previstos: se registran y se corta (un proceso en estado desconocido no debe seguir sirviendo).
   process.on('uncaughtException', (error) => {
     logger.error('Excepción no capturada', error);
-    closeDatabase();
+    void closeDatabase();
     process.exit(1);
   });
   process.on('unhandledRejection', (reason) => {
     logger.error('Promesa rechazada sin manejar', reason);
-    closeDatabase();
+    void closeDatabase();
     process.exit(1);
   });
 }
 
-main();
+await main();

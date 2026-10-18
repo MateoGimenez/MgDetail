@@ -33,6 +33,29 @@ export type WhatsappConfig =
       language: string;
     };
 
+/**
+ * Base de datos. SQLite (archivo local, desarrollo y tests) o Postgres (Supabase, producción).
+ * `connection` de Postgres tiene la contraseña: no se loguea nunca; para mostrar está `label`.
+ */
+export type DatabaseConfig =
+  | { driver: 'sqlite'; /** Ruta absoluta del archivo SQLite, o ':memory:'. */ path: string }
+  | {
+      driver: 'postgres';
+      connection: PostgresConnection;
+      /** CA raíz para verificar el certificado TLS del servidor (Supabase Root 2021 CA). undefined = sin verificar. */
+      sslCaFile: string | undefined;
+      /** host:puerto/base (usuario), sin contraseña: para logs. */
+      label: string;
+    };
+
+export interface PostgresConnection {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  database: string;
+}
+
 export interface AppConfig {
   nodeEnv: NodeEnv;
   isProduction: boolean;
@@ -47,8 +70,8 @@ export interface AppConfig {
   jwtSecret: string;
   /** Duración de la sesión en segundos (8 h). */
   sessionTtlSeconds: number;
-  /** Ruta absoluta del archivo SQLite, o ':memory:'. */
-  dbPath: string;
+  /** Motor de base de datos y cómo conectarse (ver databaseConfigFromEnv). */
+  database: DatabaseConfig;
   trustProxy: TrustProxySetting;
   serveFrontend: boolean;
   /** Carpeta con el build del frontend (../frontend/dist). */
@@ -251,7 +274,6 @@ const envSchema = z.object({
   ),
   FRONTEND_ORIGIN: optionalEnv(originListSchema),
   JWT_SECRET: optionalEnv(z.string().min(32, { error: 'tiene que tener al menos 32 caracteres' })),
-  DB_PATH: optionalEnv(z.string().trim().max(500, { error: 'es demasiado larga' })),
   TRUST_PROXY: optionalEnv(trustProxySchema),
   PUBLIC_URL: optionalEnv(originSchema),
   WHATSAPP_PROVIDER: optionalEnv(
@@ -289,6 +311,157 @@ const envSchema = z.object({
   ),
 });
 
+// ---------------------------------------------------------------------------------------------
+// Base de datos: SQLite o Postgres
+// ---------------------------------------------------------------------------------------------
+
+const PASSWORD_PLACEHOLDER = /your-password/i;
+
+/**
+ * DATABASE_URL: postgres://usuario:contraseña@host:puerto/base (la cadena del pooler de Supabase).
+ * Se desarma en sus partes: así ningún parámetro de la URL (sslmode, sslrootcert...) pisa la configuración
+ * TLS del backend. Los mensajes de error NUNCA incluyen la URL (tiene la contraseña).
+ */
+const databaseUrlSchema = z.string().transform((raw, ctx): { connection: PostgresConnection; label: string } => {
+  const fail = (message: string) => {
+    ctx.addIssue({ code: 'custom', message });
+    return z.NEVER;
+  };
+  const value = raw.trim();
+  if (PASSWORD_PLACEHOLDER.test(value)) {
+    return fail('todavía tiene el texto [YOUR-PASSWORD]: reemplazalo por la contraseña de la base (sin corchetes)');
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return fail(
+      'no es una URL válida. Tiene que ser postgresql://usuario:contraseña@host:puerto/base. Si la contraseña ' +
+        'tiene caracteres especiales (@ : / ? # % [ ]), codificalos o generá una nueva solo con letras y números.',
+    );
+  }
+  if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
+    return fail('tiene que empezar con postgresql:// (o postgres://)');
+  }
+  let user: string;
+  let password: string;
+  let database: string;
+  try {
+    user = decodeURIComponent(url.username);
+    password = decodeURIComponent(url.password);
+    database = decodeURIComponent(url.pathname.replace(/^\//, ''));
+  } catch {
+    return fail('tiene caracteres mal codificados (%) en el usuario, la contraseña o la base');
+  }
+  if (url.hostname === '' || user === '' || password === '') {
+    return fail('le falta el host, el usuario o la contraseña (postgresql://usuario:contraseña@host:puerto/base)');
+  }
+  if (database === '' || database.includes('/')) {
+    return fail('le falta el nombre de la base al final (en Supabase es /postgres)');
+  }
+  const port = url.port === '' ? 5432 : Number(url.port);
+  const host = url.hostname.replace(/^\[(.*)\]$/, '$1'); // IPv6 literal sin corchetes
+  return {
+    connection: { host, port, user, password, database },
+    label: `${host}:${String(port)}/${database} (usuario ${user})`,
+  };
+});
+
+/** Postgres en esta misma máquina (desarrollo con un Postgres local): el único caso donde se tolera TLS sin verificar. */
+function isLoopbackHost(host: string): boolean {
+  const lower = host.toLowerCase();
+  return lower === 'localhost' || lower === '::1' || (isIP(lower) === 4 && lower.startsWith('127.'));
+}
+
+const databaseEnvSchema = z.object({
+  DB_DRIVER: optionalEnv(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(['sqlite', 'postgres'], { error: 'tiene que ser sqlite o postgres' })),
+  ),
+  DB_PATH: optionalEnv(z.string().trim().max(500, { error: 'es demasiado larga' })),
+  DATABASE_URL: optionalEnv(databaseUrlSchema),
+  DATABASE_SSL_CA_FILE: optionalEnv(z.string().trim().max(500, { error: 'es demasiado larga' })),
+});
+
+export interface DatabaseConfigResult {
+  database: DatabaseConfig | undefined;
+  problems: string[];
+  warnings: string[];
+}
+
+/**
+ * Elige el motor de base de datos:
+ *  - DB_DRIVER=postgres => Postgres (exige DATABASE_URL).
+ *  - DB_DRIVER=sqlite   => SQLite en DB_PATH (si hay DATABASE_URL, se ignora con un aviso).
+ *  - Sin DB_DRIVER      => Postgres si hay DATABASE_URL; si no, SQLite (desarrollo y tests sin internet).
+ * En producción DB_DRIVER es obligatorio: si faltara el secreto DATABASE_URL, el servidor no debe caer en
+ * silencio a una base SQLite vacía. Con Postgres remoto (en cualquier entorno) también se exige DATABASE_SSL_CA_FILE
+ * (sin el CA, la conexión va cifrada pero sin verificar al servidor: expuesta a un intermediario).
+ * La usan parseConfig (servidor) y el script crear-admin.
+ */
+export function databaseConfigFromEnv(env: NodeJS.ProcessEnv, isProduction: boolean): DatabaseConfigResult {
+  const problems: string[] = [];
+  const warnings: string[] = [];
+  const parsed = databaseEnvSchema.safeParse(env);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      problems.push(`${issue.path.join('.')}: ${issue.message}`);
+    }
+    return { database: undefined, problems, warnings };
+  }
+  const values = parsed.data;
+
+  if (isProduction && values.DB_DRIVER === undefined) {
+    problems.push(
+      'DB_DRIVER: es obligatorio en producción. Usá DB_DRIVER=postgres (con DATABASE_URL) o DB_DRIVER=sqlite (con DB_PATH).',
+    );
+  }
+  const driver = values.DB_DRIVER ?? (values.DATABASE_URL === undefined ? 'sqlite' : 'postgres');
+
+  if (driver === 'sqlite') {
+    if (values.DATABASE_URL !== undefined) {
+      warnings.push('DB_DRIVER=sqlite: se ignora DATABASE_URL y se usa la base SQLite local.');
+    }
+    return { database: { driver, path: resolveDbPath(values.DB_PATH) }, problems, warnings };
+  }
+
+  if (values.DATABASE_URL === undefined) {
+    problems.push(
+      'DATABASE_URL: es obligatoria con DB_DRIVER=postgres (la cadena de conexión del pooler de Supabase; ver README, "Conectar Supabase").',
+    );
+    return { database: undefined, problems, warnings };
+  }
+
+  let sslCaFile: string | undefined;
+  if (values.DATABASE_SSL_CA_FILE !== undefined) {
+    sslCaFile = path.resolve(BACKEND_ROOT, values.DATABASE_SSL_CA_FILE);
+    if (!existsSync(sslCaFile)) {
+      problems.push(`DATABASE_SSL_CA_FILE: no existe el archivo ${sslCaFile}`);
+    }
+  } else if (isProduction || !isLoopbackHost(values.DATABASE_URL.connection.host)) {
+    // Sin el CA, un intermediario en la red (Wi-Fi pública, router comprometido) puede hacerse pasar por Supabase,
+    // reenviar la autenticación y quedarse con la sesión de la base. Importa igual en la PC del dueño que en el
+    // servidor (crear-admin y `npm run dev` apuntan a la base REAL): se exige siempre que el host no sea local.
+    problems.push(
+      'DATABASE_SSL_CA_FILE: es obligatoria con Postgres remoto (el certificado raíz de Supabase, para verificar al servidor; ' +
+        'ver README, "Conectar Supabase").',
+    );
+  } else {
+    warnings.push(
+      'DATABASE_SSL_CA_FILE no está definida: la conexión a Postgres local va cifrada pero SIN verificar el certificado del servidor.',
+    );
+  }
+
+  return {
+    database: { driver, connection: values.DATABASE_URL.connection, label: values.DATABASE_URL.label, sslCaFile },
+    problems,
+    warnings,
+  };
+}
+
 /**
  * Valida el entorno y arma la configuración. Función pura (recibe el env), por eso es testeable.
  * Lanza ConfigError con TODOS los problemas juntos, en español.
@@ -307,6 +480,10 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
 
   const nodeEnv: NodeEnv = values?.NODE_ENV ?? 'development';
   const isProduction = nodeEnv === 'production';
+
+  const databaseResult = databaseConfigFromEnv(env, isProduction);
+  problems.push(...databaseResult.problems);
+  warnings.push(...databaseResult.warnings);
 
   // Obligatorias en producción (en desarrollo hay valores por defecto seguros).
   if (parsed.success && isProduction) {
@@ -382,7 +559,8 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     }
   }
 
-  if (problems.length > 0 || values === undefined) {
+  const database = databaseResult.database;
+  if (problems.length > 0 || values === undefined || database === undefined) {
     throw new ConfigError(problems);
   }
 
@@ -425,7 +603,7 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     frontendOrigins,
     jwtSecret,
     sessionTtlSeconds: SESSION_TTL_SECONDS,
-    dbPath: resolveDbPath(values.DB_PATH),
+    database,
     trustProxy,
     serveFrontend: values.SERVE_FRONTEND ?? false,
     frontendDistPath: path.resolve(BACKEND_ROOT, '..', 'frontend', 'dist'),

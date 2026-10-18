@@ -1,7 +1,5 @@
-import type { DatabaseSync } from 'node:sqlite';
 import express, { type Express } from 'express';
 import type { AppConfig } from './config.js';
-import { createDatabaseCheck } from './db/health.js';
 import { SessionCookies } from './lib/cookies.js';
 import { type Logger, createLogger } from './lib/logger.js';
 import { SessionTokens } from './lib/session-token.js';
@@ -12,15 +10,17 @@ import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security.js';
 import type { BookingNotifier } from './domain/notifier.js';
 import { type FetchFn, createNotifier } from './notifications/index.js';
-import { createSqliteRepositories } from './repositories/index.js';
+import type { Repositories } from './repositories/index.js';
 import { createApiRouter } from './routes/index.js';
 import { AuthService } from './services/auth.js';
 import { BookingService } from './services/bookings.js';
 
 export interface AppDeps {
   config: AppConfig;
-  /** Base ya abierta y migrada (ver db/connection.ts y db/migrations.ts). */
-  db: DatabaseSync;
+  /** Repositorios sobre una base ya abierta y migrada, SQLite o Postgres (ver db/database.ts). */
+  repositories: Repositories;
+  /** Resuelve si la base responde; se rechaza si no (para /api/health). */
+  checkDatabase: () => Promise<void>;
   logger?: Logger;
   /** Reloj inyectable (los tests lo fijan). */
   now?: () => Date;
@@ -32,15 +32,15 @@ export interface AppDeps {
 
 /**
  * Arma la aplicación Express SIN ponerla a escuchar (index.ts hace el listen; los tests usan supertest).
- * Es el único lugar (junto con index.ts y scripts/) que conoce SQLite: de acá para adelante, rutas y servicios
- * trabajan contra las interfaces de domain/. No abre ni cierra la base: quien la crea la administra.
+ * No conoce el motor de base de datos: recibe los repositorios (SQLite o Postgres, ver db/database.ts) y rutas y
+ * servicios trabajan contra las interfaces de domain/. No abre ni cierra la base: quien la crea la administra.
  */
 export function createApp(deps: AppDeps): Express {
-  const { config, db } = deps;
+  const { config, checkDatabase } = deps;
   const logger = deps.logger ?? createLogger();
   const now = deps.now ?? (() => new Date());
 
-  const { bookings, admins, sessions } = createSqliteRepositories(db);
+  const { bookings, admins, sessions } = deps.repositories;
   const bookingService = new BookingService({
     bookings,
     logger,
@@ -70,7 +70,7 @@ export function createApp(deps: AppDeps): Express {
       config,
       logger,
       now,
-      checkDatabase: createDatabaseCheck(db),
+      checkDatabase,
       bookings,
       bookingService,
       auth,

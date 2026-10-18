@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { BACKEND_ROOT } from '../src/config.js';
 import { openDatabase } from '../src/db/connection.js';
+import { sqliteDatabase } from '../src/db/database.js';
 import { migrate } from '../src/db/migrations.js';
 import { runCrearAdmin } from '../src/scripts/crear-admin-cli.js';
 import { TEST_SCRYPT_PARAMS, createClient, testConfig } from './helpers.js';
@@ -41,7 +42,13 @@ function run(argv: string[], env: Record<string, string> = {}) {
 function appOnScriptDatabase() {
   const db = openDatabase(dbFile);
   migrate(db);
-  const app = createApp({ config: testConfig(), db, logger: { info: () => undefined, warn: () => undefined, error: () => undefined } });
+  const { repositories, checkDatabase } = sqliteDatabase(db, dbFile);
+  const app = createApp({
+    config: testConfig(),
+    repositories,
+    checkDatabase,
+    logger: { info: () => undefined, warn: () => undefined, error: () => undefined },
+  });
   return { db, client: createClient(app) };
 }
 

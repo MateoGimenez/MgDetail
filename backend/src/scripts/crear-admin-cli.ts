@@ -1,9 +1,8 @@
 import { parseArgs } from 'node:util';
-import { resolveDbPath } from '../config.js';
-import { openDatabase } from '../db/connection.js';
-import { migrate } from '../db/migrations.js';
+import { type DatabaseConfig, databaseConfigFromEnv } from '../config.js';
+import { type Database, openConfiguredDatabase } from '../db/database.js';
+import type { Logger } from '../lib/logger.js';
 import type { ScryptParams } from '../lib/password.js';
-import { createSqliteRepositories } from '../repositories/index.js';
 import { emailSchema, newPasswordSchema } from '../schemas/auth.js';
 import { saveAdmin } from '../services/admin-accounts.js';
 
@@ -14,6 +13,8 @@ const USAGE = `Uso:
 La contraseña se lee de la variable de entorno ADMIN_PASSWORD (recomendado).
 También se puede pasar con --password <contraseña>, pero queda en el historial de la terminal.
 Si el email ya existe, se actualiza su contraseña y se cierran sus sesiones abiertas.
+Usa la misma base que el servidor: Postgres si backend/.env tiene DATABASE_URL (o DB_DRIVER=postgres);
+si no, el archivo SQLite de DB_PATH.
 
 Opciones:
   --email <email>        Email del administrador (también se acepta la variable ADMIN_EMAIL)
@@ -33,6 +34,8 @@ export interface CliIo {
 export interface CliOptions {
   /** Parámetros de scrypt (los tests usan unos baratos). */
   passwordParams?: ScryptParams;
+  /** Abre la base (los tests inyectan una Postgres en memoria). Por defecto, la que indica el entorno. */
+  openDatabase?: (config: DatabaseConfig, logger: Logger) => Promise<Database>;
 }
 
 /** Ejecuta el script. Devuelve el código de salida (0 = ok). No imprime nunca la contraseña. */
@@ -92,11 +95,38 @@ export async function runCrearAdmin(
     return 1;
   }
 
-  const dbPath = resolveDbPath(env.DB_PATH);
-  const db = openDatabase(dbPath);
+  const dbConfig = databaseConfigFromEnv(env, env.NODE_ENV?.trim() === 'production');
+  if (dbConfig.database === undefined || dbConfig.problems.length > 0) {
+    io.err(`Configuración de la base inválida:\n${dbConfig.problems.map((problem) => `  - ${problem}`).join('\n')}`);
+    return 1;
+  }
+  for (const warning of dbConfig.warnings) {
+    io.err(`Aviso: ${warning}`);
+  }
+
+  // Solo para errores de conexiones inactivas del pool de Postgres (el script dura segundos).
+  const logger: Logger = {
+    info: (message) => {
+      io.out(message);
+    },
+    warn: (message) => {
+      io.err(`Aviso: ${message}`);
+    },
+    error: (message) => {
+      io.err(message);
+    },
+  };
+
+  let database: Database;
   try {
-    migrate(db);
-    const { admins, sessions } = createSqliteRepositories(db);
+    database = await (options.openDatabase ?? openConfiguredDatabase)(dbConfig.database, logger);
+  } catch (error) {
+    io.err(`No se pudo abrir la base de datos: ${error instanceof Error ? error.message : 'error desconocido'}`);
+    return 1;
+  }
+
+  try {
+    const { admins, sessions } = database.repositories;
     const result = await saveAdmin(
       { admins, sessions },
       { email: email.data, password: password.data },
@@ -109,12 +139,12 @@ export async function runCrearAdmin(
         `Contraseña actualizada para ${email.data}. Sesiones abiertas cerradas: ${String(result.revokedSessions)}.`,
       );
     }
-    io.out(`Base de datos: ${dbPath}`);
+    io.out(`Base de datos: ${database.description}`);
     return 0;
   } catch (error) {
     io.err(`No se pudo guardar el administrador: ${error instanceof Error ? error.message : 'error desconocido'}`);
     return 1;
   } finally {
-    db.close();
+    await database.close();
   }
 }

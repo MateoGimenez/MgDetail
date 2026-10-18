@@ -3,14 +3,17 @@ import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
-// Selector común: por donde entra SQL a node:sqlite.
-//  - `.prepare(...)` (en cualquier objeto), y
-//  - `.exec(...)` cuando el receptor se llama db / database (db.exec, this.db.exec). Un `regex.exec()` no es SQL.
+// Selector común: por donde entra SQL a node:sqlite, node-postgres y PGlite.
+//  - `.prepare(...)` (en cualquier objeto),
+//  - `.exec(...)` cuando el receptor se llama db / database / pg (db.exec, this.db.exec). Un `regex.exec()` no es SQL.
+//  - `.query(...)` cuando el receptor se llama sql / client / pool / pg / db (this.sql.query, pool.query).
 const SQL_CALL =
   'CallExpression:matches(' +
   '[callee.property.name="prepare"], ' +
-  '[callee.property.name="exec"][callee.object.name=/^(db|database)$/], ' +
-  '[callee.property.name="exec"][callee.object.property.name=/^(db|database)$/])';
+  '[callee.property.name="exec"][callee.object.name=/^(db|database|pg)$/], ' +
+  '[callee.property.name="exec"][callee.object.property.name=/^(db|database|pg)$/], ' +
+  '[callee.property.name="query"][callee.object.name=/^(sql|client|pool|pg|db)$/], ' +
+  '[callee.property.name="query"][callee.object.property.name=/^(sql|client|pool|pg|db)$/])';
 
 export default defineConfig(
   globalIgnores(['dist/', 'coverage/', 'node_modules/', 'storage/']),
@@ -33,15 +36,15 @@ export default defineConfig(
         'error',
         {
           selector: `${SQL_CALL} > TemplateLiteral[expressions.length>0]`,
-          message: 'No interpoles valores en SQL: usá parámetros (?) en la consulta.',
+          message: 'No interpoles valores en SQL: usá parámetros (? en SQLite, $1 en Postgres).',
         },
         {
           selector: `${SQL_CALL} > BinaryExpression`,
-          message: 'No concatenes SQL: usá un literal y parámetros (?).',
+          message: 'No concatenes SQL: usá un literal y parámetros (? / $1).',
         },
         {
           selector: `${SQL_CALL}[arguments.0.type!=/^(Literal|TemplateLiteral)$/]`,
-          message: 'El SQL de prepare()/exec() tiene que ser un literal, nunca una variable.',
+          message: 'El SQL de prepare()/exec()/query() tiene que ser un literal, nunca una variable.',
         },
       ],
       // Arquitectura: SQLite queda encapsulado. El resto del código (rutas, servicios, middlewares, dominio)
@@ -54,6 +57,14 @@ export default defineConfig(
               name: 'node:sqlite',
               message:
                 'SQLite solo se usa en db/, repositories/, app.ts, index.ts y scripts/. El resto trabaja contra las interfaces de domain/.',
+            },
+            {
+              name: 'pg',
+              message: 'node-postgres solo se usa en db/. El resto trabaja contra las interfaces de domain/.',
+            },
+            {
+              name: '@electric-sql/pglite',
+              message: 'PGlite es solo para los tests.',
             },
           ],
         },
@@ -71,8 +82,8 @@ export default defineConfig(
   },
 
   {
-    // Los puntos de entrada y las capas que SÍ pueden conocer SQLite (los tests prueban la capa de datos y
-    // arman bases en memoria).
+    // Los puntos de entrada y las capas que SÍ pueden conocer la base (los tests prueban la capa de datos y
+    // arman bases en memoria, SQLite y PGlite).
     files: ['src/db/**/*.ts', 'src/repositories/**/*.ts', 'src/app.ts', 'src/index.ts', 'src/scripts/**/*.ts', 'test/**/*.ts'],
     rules: { 'no-restricted-imports': 'off' },
   },

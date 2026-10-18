@@ -10,6 +10,13 @@ build/
 .env.*
 !.env.example
 
+# Claves privadas y configuración local de Claude Code (los .crt de CA son públicos: se pueden versionar)
+*.key
+*.pem
+*.p12
+*.pfx
+.claude/settings.local.json
+
 # Bases de datos locales (SQLite)
 *.db
 *.db-journal

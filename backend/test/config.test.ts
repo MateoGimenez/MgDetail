@@ -10,6 +10,7 @@ const PRODUCTION = {
   JWT_SECRET: SECRET,
   FRONTEND_ORIGIN: 'https://mgdetailing.com.ar',
   TRUST_PROXY: '1',
+  DB_DRIVER: 'sqlite',
 };
 
 function problemsOf(env: NodeJS.ProcessEnv): string {
@@ -37,7 +38,7 @@ describe('desarrollo: defaults seguros', () => {
       serveFrontend: false,
       rateLimits: DEFAULT_RATE_LIMITS,
     });
-    expect(config.dbPath).toBe(path.join(BACKEND_ROOT, 'storage', 'mgdetailing.db'));
+    expect(config.database).toEqual({ driver: 'sqlite', path: path.join(BACKEND_ROOT, 'storage', 'mgdetailing.db') });
     expect(DEFAULT_RATE_LIMITS.bookings).toEqual({ windowMs: 15 * 60 * 1000, limit: 5 });
     expect(DEFAULT_RATE_LIMITS.loginFailures).toEqual({ windowMs: 15 * 60 * 1000, limit: 5 });
   });
@@ -170,6 +171,85 @@ describe('validación de cada variable', () => {
     const message = problemsOf({ PORT: 'abc', TRUST_PROXY: 'true', FRONTEND_ORIGIN: '*' });
 
     for (const name of ['PORT', 'TRUST_PROXY', 'FRONTEND_ORIGIN']) expect(message).toContain(name);
+  });
+});
+
+describe('base de datos: SQLite o Postgres', () => {
+  const URL_OK = 'postgresql://postgres.abcdefghijklmnopqrst:Cl4ve%40segura@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=disable';
+
+  it('con DATABASE_URL elige Postgres, separa las partes (decodifica la contraseña, ignora sslmode) y no la muestra', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'mg-ca-'));
+    const caFile = path.join(directory, 'supabase-ca.crt');
+    writeFileSync(caFile, '-----BEGIN CERTIFICATE-----\n');
+    const config = parseConfig({ DATABASE_URL: URL_OK, DATABASE_SSL_CA_FILE: caFile });
+    rmSync(directory, { recursive: true, force: true });
+
+    expect(config.database).toEqual({
+      driver: 'postgres',
+      connection: {
+        host: 'aws-0-us-east-1.pooler.supabase.com',
+        port: 5432,
+        user: 'postgres.abcdefghijklmnopqrst',
+        password: 'Cl4ve@segura',
+        database: 'postgres',
+      },
+      sslCaFile: caFile,
+      label: 'aws-0-us-east-1.pooler.supabase.com:5432/postgres (usuario postgres.abcdefghijklmnopqrst)',
+    });
+    expect(config.warnings.join('\n')).not.toContain('Cl4ve');
+  });
+
+  it('exige el CA con un Postgres remoto también fuera de producción; sin CA solo se tolera un Postgres local', () => {
+    const remote = problemsOf({ DATABASE_URL: URL_OK });
+    expect(remote).toMatch(/DATABASE_SSL_CA_FILE: es obligatoria con Postgres remoto/);
+    expect(remote).not.toContain('Cl4ve');
+
+    const local = parseConfig({ DATABASE_URL: 'postgresql://postgres:clave@127.0.0.1:5432/postgres' });
+    expect(local.database).toMatchObject({ driver: 'postgres', sslCaFile: undefined });
+    expect(local.warnings.join('\n')).toMatch(/Postgres local va cifrada pero SIN verificar/);
+  });
+
+  it('DB_DRIVER manda: sqlite ignora DATABASE_URL (con aviso); postgres sin DATABASE_URL falla', () => {
+    const sqlite = parseConfig({ DB_DRIVER: 'sqlite', DATABASE_URL: URL_OK });
+    expect(sqlite.database.driver).toBe('sqlite');
+    expect(sqlite.warnings.join('\n')).toMatch(/se ignora DATABASE_URL/);
+
+    expect(problemsOf({ DB_DRIVER: 'postgres' })).toMatch(/DATABASE_URL: es obligatoria con DB_DRIVER=postgres/);
+    expect(problemsOf({ DB_DRIVER: 'mysql' })).toMatch(/DB_DRIVER: tiene que ser sqlite o postgres/);
+  });
+
+  it('rechaza una DATABASE_URL inválida o con [YOUR-PASSWORD] sin repetir su contenido', () => {
+    const placeholder = problemsOf({ DATABASE_URL: 'postgresql://postgres.ref:[YOUR-PASSWORD]@host:5432/postgres' });
+    expect(placeholder).toMatch(/\[YOUR-PASSWORD\]: reemplazalo/);
+
+    for (const bad of ['mysql://u:secretito@host/db', 'postgresql://u@host/db', 'postgresql://u:secretito@host', 'no es url secretito']) {
+      const message = problemsOf({ DATABASE_URL: bad });
+      expect(message, bad).toMatch(/DATABASE_URL:/);
+      expect(message, bad).not.toContain('secretito');
+    }
+  });
+
+  it('en producción exige DB_DRIVER y, con Postgres, el certificado CA de Supabase', () => {
+    const { DB_DRIVER: _omitted, ...withoutDriver } = PRODUCTION;
+    expect(problemsOf(withoutDriver)).toMatch(/DB_DRIVER: es obligatorio en producción/);
+
+    expect(problemsOf({ ...PRODUCTION, DB_DRIVER: 'postgres', DATABASE_URL: URL_OK })).toMatch(
+      /DATABASE_SSL_CA_FILE: es obligatoria con Postgres remoto/,
+    );
+
+    const directory = mkdtempSync(path.join(tmpdir(), 'mg-ca-'));
+    try {
+      const caFile = path.join(directory, 'supabase-ca.crt');
+      expect(problemsOf({ ...PRODUCTION, DB_DRIVER: 'postgres', DATABASE_URL: URL_OK, DATABASE_SSL_CA_FILE: caFile })).toMatch(
+        /DATABASE_SSL_CA_FILE: no existe el archivo/,
+      );
+      writeFileSync(caFile, '-----BEGIN CERTIFICATE-----\n');
+      const config = parseConfig({ ...PRODUCTION, DB_DRIVER: 'postgres', DATABASE_URL: URL_OK, DATABASE_SSL_CA_FILE: caFile });
+      expect(config.database).toMatchObject({ driver: 'postgres', sslCaFile: caFile });
+      expect(config.warnings).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 

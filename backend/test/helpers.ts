@@ -4,6 +4,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
 import { openDatabase } from '../src/db/connection.js';
+import { sqliteDatabase } from '../src/db/database.js';
 import { migrate } from '../src/db/migrations.js';
 import type { BookingNotifier } from '../src/domain/notifier.js';
 import type { Logger } from '../src/lib/logger.js';
@@ -38,7 +39,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     frontendOrigins: [ORIGIN],
     jwtSecret: JWT_SECRET,
     sessionTtlSeconds: 8 * 60 * 60,
-    dbPath: ':memory:',
+    database: { driver: 'sqlite', path: ':memory:' },
     trustProxy: false,
     serveFrontend: false,
     frontendDistPath: '',
@@ -89,9 +90,11 @@ export function createTestContext(options: { config?: Partial<AppConfig>; now?: 
   const logger = new MemoryLogger();
   const clock = { current: options.now ?? NOW };
   const config = testConfig(options.config);
+  const { repositories, checkDatabase } = sqliteDatabase(db, 'SQLite :memory:');
   const app = createApp({
     config,
-    db,
+    repositories,
+    checkDatabase,
     logger,
     now: () => clock.current,
     ...(options.notifier && { notifier: options.notifier }),
