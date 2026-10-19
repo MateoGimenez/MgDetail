@@ -7,6 +7,8 @@ import * as z from 'zod/mini';
  *   aunque no haya datos: el backend lo exige como defensa CSRF (si falta, 415).
  * - 204 sin leer el cuerpo; cuerpos que no son JSON (un 502 del proxy) y
  *   fallas de red terminan en un ApiError con un mensaje en español.
+ *
+ * La lógica de sesión del panel (refresh y 403) está en sesion.ts, que solo carga /admin.
  */
 
 export class ApiError extends Error {
@@ -27,9 +29,9 @@ export function esAbortado(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-type Metodo = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+export type Metodo = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
-interface Opciones<T> {
+export interface Opciones<T> {
   method?: Metodo;
   body?: unknown;
   signal?: AbortSignal;
@@ -41,7 +43,7 @@ const BASE = '/api';
 
 function mensajePorEstado(status: number): string {
   if (status === 401) return 'Tu sesión venció. Ingresá de nuevo.';
-  if (status === 403) return 'No pudimos procesar el pedido desde este sitio.';
+  if (status === 403) return 'No tenés permiso para hacer esto.';
   if (status === 404) return 'No encontramos lo que buscabas.';
   if (status === 429) return 'Hubo muchos intentos seguidos. Esperá un momento y probá de nuevo.';
   if (status === 502 || status === 503 || status === 504) {
@@ -73,8 +75,8 @@ function leerError(datos: unknown): { code?: string; message?: string; fields?: 
   };
 }
 
-export async function request<T = void>(ruta: string, opciones: Opciones<T> = {}): Promise<T> {
-  const { method = 'GET', body, signal, schema } = opciones;
+/** Un pedido HTTP, sin lógica de sesión. Devuelve el JSON ya leído (o null). */
+export async function ejecutar(ruta: string, method: Metodo, body: unknown, signal?: AbortSignal): Promise<unknown> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   let cuerpo: string | undefined;
   if (method !== 'GET') {
@@ -84,19 +86,13 @@ export async function request<T = void>(ruta: string, opciones: Opciones<T> = {}
 
   let respuesta: Response;
   try {
-    respuesta = await fetch(`${BASE}${ruta}`, {
-      method,
-      headers,
-      body: cuerpo,
-      signal,
-      credentials: 'same-origin',
-    });
+    respuesta = await fetch(`${BASE}${ruta}`, { method, headers, body: cuerpo, signal, credentials: 'same-origin' });
   } catch {
     if (signal?.aborted) throw new DOMException('Pedido cancelado', 'AbortError');
     throw new ApiError(0, 'NETWORK_ERROR', 'No pudimos conectarnos. Revisá tu conexión y probá de nuevo.');
   }
 
-  if (respuesta.status === 204) return undefined as T;
+  if (respuesta.status === 204) return null;
 
   let datos: unknown = null;
   const texto = await respuesta.text().catch(() => '');
@@ -117,12 +113,21 @@ export async function request<T = void>(ruta: string, opciones: Opciones<T> = {}
       error.fields,
     );
   }
+  return datos;
+}
 
+export async function request<T = void>(ruta: string, opciones: Opciones<T> = {}): Promise<T> {
+  const { method = 'GET', body, signal, schema } = opciones;
+  return validarRespuesta(await ejecutar(ruta, method, body, signal), schema);
+}
+
+/** Valida la respuesta con su esquema (sin esquema, se descarta). */
+export function validarRespuesta<T>(datos: unknown, schema: z.ZodMiniType<T> | undefined): T {
   if (!schema) return undefined as T;
   const resultado = z.safeParse(schema, datos);
   if (!resultado.success) {
     throw new ApiError(
-      respuesta.status,
+      200,
       'INVALID_RESPONSE',
       'Recibimos una respuesta inesperada del servidor. Probá de nuevo en unos minutos.',
     );

@@ -1,31 +1,39 @@
 import { ApiError, request } from './client';
-import {
-  listaDeTurnosSchema,
-  respuestaAdminSchema,
-  respuestaTurnoSchema,
-  type Estado,
-  type Turno,
-} from './contract';
+import { requestAdmin } from './sesion';
+import { listaDeTurnosSchema, respuestaTurnoSchema, type Estado, type Turno } from './contract';
+import { listaDeUsuariosSchema, respuestaSesionSchema, respuestaUsuarioSchema, type CambiosUsuario, type UsuarioPanel, type UsuarioSesion } from './contract-panel';
 
-/** GET /api/auth/me → email del admin, o null si no hay sesión (401). */
-export async function sesionActual(signal?: AbortSignal): Promise<string | null> {
+export type ResultadoSesion = { usuario: UsuarioSesion } | { usuario: null; aviso?: string };
+
+/** GET /api/auth/me → usuario de la sesión; null con 401, o con aviso si el usuario no tiene acceso (403). */
+export async function sesionActual(signal?: AbortSignal): Promise<ResultadoSesion> {
   try {
-    const { admin } = await request('/auth/me', { signal, schema: respuestaAdminSchema });
-    return admin.email;
+    const { usuario } = await request('/auth/me', { signal, schema: respuestaSesionSchema });
+    return { usuario };
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) return null;
+    if (error instanceof ApiError && error.status === 401) return { usuario: null };
+    if (error instanceof ApiError && error.status === 403) return { usuario: null, aviso: error.message };
     throw error;
   }
 }
 
-/** POST /api/auth/login → email del admin. La cookie de sesión la pone el backend. */
-export async function iniciarSesion(email: string, password: string): Promise<string> {
-  const { admin } = await request('/auth/login', {
-    method: 'POST',
-    body: { email, password },
-    schema: respuestaAdminSchema,
-  });
-  return admin.email;
+const MENSAJE_SIN_SERVICIO = 'El servicio de acceso no responde, probá en un rato.';
+
+/** POST /api/auth/login → usuario. Las cookies de sesión las pone el backend. */
+export async function iniciarSesion(email: string, password: string): Promise<UsuarioSesion> {
+  try {
+    const { usuario } = await request('/auth/login', {
+      method: 'POST',
+      body: { email, password },
+      schema: respuestaSesionSchema,
+    });
+    return usuario;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 503) {
+      throw new ApiError(503, error.code, MENSAJE_SIN_SERVICIO);
+    }
+    throw error;
+  }
 }
 
 /** POST /api/auth/logout → 204. */
@@ -46,7 +54,7 @@ export async function listarTurnos(
 ): Promise<{ turnos: Turno[]; total: number }> {
   const parametros = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (estado) parametros.set('estado', estado);
-  const { bookings, total } = await request(`/admin/bookings?${parametros.toString()}`, {
+  const { bookings, total } = await requestAdmin(`/admin/bookings?${parametros.toString()}`, {
     signal,
     schema: listaDeTurnosSchema,
   });
@@ -61,7 +69,7 @@ export async function contarTurnos(estado: Estado, signal?: AbortSignal): Promis
 
 /** PATCH /api/admin/bookings/:id → turno actualizado. */
 export async function cambiarEstado(id: string, estado: Estado): Promise<Turno> {
-  const { booking } = await request(`/admin/bookings/${encodeURIComponent(id)}`, {
+  const { booking } = await requestAdmin(`/admin/bookings/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: { estado },
     schema: respuestaTurnoSchema,
@@ -71,5 +79,21 @@ export async function cambiarEstado(id: string, estado: Estado): Promise<Turno> 
 
 /** DELETE /api/admin/bookings/:id → 204. */
 export async function eliminarTurno(id: string): Promise<void> {
-  await request(`/admin/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await requestAdmin(`/admin/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** GET /api/admin/usuarios (solo superadmin) → los más viejos primero. */
+export async function listarUsuarios(signal?: AbortSignal): Promise<UsuarioPanel[]> {
+  const { usuarios } = await requestAdmin('/admin/usuarios', { signal, schema: listaDeUsuariosSchema });
+  return usuarios;
+}
+
+/** PATCH /api/admin/usuarios/:id → usuario actualizado. 409 CONFLICT trae un mensaje para mostrar. */
+export async function actualizarUsuario(id: string, cambios: CambiosUsuario): Promise<UsuarioPanel> {
+  const { usuario } = await requestAdmin(`/admin/usuarios/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: cambios,
+    schema: respuestaUsuarioSchema,
+  });
+  return usuario;
 }

@@ -1,53 +1,29 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { openDatabase } from '../src/db/connection.js';
-import { migrate } from '../src/db/migrations.js';
 import type { NewBooking } from '../src/domain/booking.js';
-import { type Repositories, createPostgresRepositories, createSqliteRepositories } from '../src/repositories/index.js';
+import { SinSuperadminError } from '../src/domain/perfil.js';
+import { type Repositories, createPostgresRepositories } from '../src/repositories/index.js';
 import { NOW } from './helpers.js';
-import { createPgliteDatabase } from './pglite.js';
+import { type PgliteDatabase, createPgliteDatabase } from './pglite.js';
 
 /**
- * Contrato de los repositorios: la MISMA batería corre contra SQLite y contra Postgres (PGlite en memoria, con las
- * migraciones de supabase/migrations/). Si un motor se comporta distinto, rutas y servicios dejarían de valer.
+ * Repositorios sobre Postgres (PGlite en memoria con las migraciones de supabase/migrations/), usados como el rol
+ * dedicado de producción (mgdetailing_app): si le faltara un GRANT o una policy, estos tests fallan.
  */
 
-interface Engine {
-  repositories: Repositories;
-  close: () => Promise<void>;
-}
-
-const ENGINES: readonly [string, () => Promise<Engine>][] = [
-  [
-    'SQLite',
-    () => {
-      const db = openDatabase(':memory:');
-      migrate(db);
-      return Promise.resolve({
-        repositories: createSqliteRepositories(db),
-        close: () => {
-          db.close();
-          return Promise.resolve();
-        },
-      });
-    },
-  ],
-  [
-    'Postgres (PGlite, rol mgdetailing_app)',
-    async () => {
-      // Como el rol dedicado de producción: si le faltara un GRANT o una policy, el contrato falla.
-      const database = await createPgliteDatabase({ asAppRole: true });
-      return { repositories: createPostgresRepositories(database.sql), close: database.close };
-    },
-  ],
-];
-
-const opened: Engine[] = [];
+const opened: PgliteDatabase[] = [];
 afterEach(async () => {
-  for (const engine of opened.splice(0)) await engine.close();
+  for (const database of opened.splice(0)) await database.close();
 });
 
-const NOW_SECONDS = Math.floor(NOW.getTime() / 1000);
-const HASH = '$scrypt$ln=10,r=8,p=1$c2FsdHNhbHQ$aGFzaGhhc2hoYXNoaGFzaA';
+async function open(): Promise<{ repositories: Repositories; db: PgliteDatabase }> {
+  const db = await createPgliteDatabase();
+  opened.push(db);
+  return { repositories: createPostgresRepositories(db.appSql), db };
+}
+
+async function repos(): Promise<Repositories> {
+  return (await open()).repositories;
+}
 
 function newBooking(overrides: Partial<NewBooking> = {}): NewBooking {
   return {
@@ -64,13 +40,7 @@ function newBooking(overrides: Partial<NewBooking> = {}): NewBooking {
   };
 }
 
-describe.each(ENGINES)('contrato de repositorios: %s', (_name, open) => {
-  async function repos(): Promise<Repositories> {
-    const engine = await open();
-    opened.push(engine);
-    return engine.repositories;
-  }
-
+describe('turnos', () => {
   it('crea un turno pendiente y lo devuelve con el mismo mapeo (camelCase, fechas ISO, telefonoWhatsapp)', async () => {
     const { bookings } = await repos();
 
@@ -141,57 +111,77 @@ describe.each(ENGINES)('contrato de repositorios: %s', (_name, open) => {
     expect((await bookings.list({ limit: 50, offset: 0 })).total).toBe(0);
   });
 
-  it('admins: busca por email sin distinguir mayúsculas; guardar de nuevo actualiza la contraseña', async () => {
-    const { admins } = await repos();
-
-    const first = await admins.save('Dueno@MgDetailing.com', HASH, NOW);
-    expect(first.created).toBe(true);
-    expect(await admins.findByEmail('DUENO@mgdetailing.COM')).toEqual({
-      id: first.id,
-      email: 'dueno@mgdetailing.com',
-      passwordHash: HASH,
-    });
-
-    const second = await admins.save('dueno@mgdetailing.com', `${HASH}x`, NOW);
-    expect(second).toEqual({ id: first.id, created: false });
-    expect((await admins.findByEmail('dueno@mgdetailing.com'))?.passwordHash).toBe(`${HASH}x`);
-    expect(await admins.findByEmail('otro@mgdetailing.com')).toBeUndefined();
-  });
-
-  it('sesiones: crear, encontrar vigente, vencer, revocar una o todas, y purgar las vencidas', async () => {
-    const { admins, sessions } = await repos();
-    const { id: adminId } = await admins.save('dueno@mgdetailing.com', HASH, NOW);
-    const [a, b, c] = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333'];
-
-    await sessions.create(a, adminId, NOW_SECONDS + 3600, NOW);
-    await sessions.create(b, adminId, NOW_SECONDS + 7200, NOW);
-    await sessions.create(c, adminId, NOW_SECONDS + 60, NOW);
-
-    expect(await sessions.findActive(a, adminId, NOW_SECONDS)).toEqual({ sessionId: a, adminId, email: 'dueno@mgdetailing.com' });
-    expect(await sessions.findActive(a, adminId + 1, NOW_SECONDS)).toBeUndefined(); // otro admin
-    expect(await sessions.findActive(a, adminId, NOW_SECONDS + 3600)).toBeUndefined(); // vencida justo en exp
-    expect(await sessions.findActive('no-es-un-uuid', adminId, NOW_SECONDS)).toBeUndefined();
-
-    expect(await sessions.purgeExpired(NOW_SECONDS + 60)).toBe(1); // solo c
-    await sessions.delete(a);
-    expect(await sessions.findActive(a, adminId, NOW_SECONDS)).toBeUndefined();
-    expect(await sessions.findActive(b, adminId, NOW_SECONDS)).toBeDefined();
-
-    expect(await sessions.deleteAllForAdmin(adminId)).toBe(1);
-    expect(await sessions.findActive(b, adminId, NOW_SECONDS)).toBeUndefined();
-  });
 });
 
-describe('Postgres: integridad que SQLite no tiene', () => {
+describe('integridad en la base', () => {
   it('un turno con un servicio que no está en mgdetailing.servicios se rechaza por la FK', async () => {
-    const database = await createPgliteDatabase();
-    opened.push({ repositories: createPostgresRepositories(database.sql), close: database.close });
-    const { bookings } = createPostgresRepositories(database.sql);
+    const { bookings } = await repos();
 
     // El cast salta el tipo ServicioId a propósito: zod lo frena antes, esto prueba la última línea de defensa.
     await expect(bookings.create(newBooking({ servicioId: 'teletransporte' as 'pulido' }), NOW)).rejects.toThrow(
       /bookings_servicio_id_fkey/,
     );
     expect((await bookings.list({ limit: 50, offset: 0 })).total).toBe(0);
+  });
+});
+
+describe('perfiles', () => {
+  async function usuario(db: PgliteDatabase, email: string, rol = 'empleado', activo = false): Promise<string> {
+    const { rows } = await db.sql.query('INSERT INTO auth.users (email) VALUES ($1) RETURNING id::text AS id', [email]);
+    const id = String(rows[0]?.id);
+    await db.sql.query('UPDATE mgdetailing.perfiles SET rol_id = $2, activo = $3 WHERE id = $1::uuid', [id, rol, activo]);
+    return id;
+  }
+
+  it('findForSession devuelve el perfil y si la sesión sigue en auth.sessions; un id mal formado no existe', async () => {
+    const { repositories, db } = await open();
+    const id = await usuario(db, 'Ana@MgDetailing.test', 'admin', true);
+    const sessionId = '11111111-1111-4111-8111-111111111111';
+
+    expect(await repositories.perfiles.findForSession(id, sessionId)).toEqual({
+      perfil: {
+        id,
+        email: 'ana@mgdetailing.test',
+        nombre: null,
+        rol: 'admin',
+        activo: true,
+        createdAt: expect.stringMatching(/Z$/),
+        updatedAt: expect.stringMatching(/Z$/),
+      },
+      sesionVigente: false,
+    });
+
+    await db.sql.query('INSERT INTO auth.sessions (id, user_id) VALUES ($1::uuid, $2::uuid)', [sessionId, id]);
+    expect((await repositories.perfiles.findForSession(id, sessionId))?.sesionVigente).toBe(true);
+    await db.sql.query("UPDATE auth.sessions SET not_after = '2000-01-01T00:00:00Z'");
+    expect((await repositories.perfiles.findForSession(id, sessionId))?.sesionVigente).toBe(false);
+
+    expect(await repositories.perfiles.findForSession('no-es-un-uuid', sessionId)).toBeUndefined();
+    expect(await repositories.perfiles.findForSession('22222222-2222-4222-8222-222222222222', sessionId)).toBeUndefined();
+  });
+
+  it('update cambia solo lo indicado, borra el nombre con null y no deja el sistema sin superadmin activo', async () => {
+    const { repositories, db } = await open();
+    const jefe = await usuario(db, 'jefe@mgdetailing.test', 'superadmin', true);
+    const ana = await usuario(db, 'ana@mgdetailing.test');
+    const later = new Date('2026-10-17T10:30:00.000Z');
+
+    expect(await repositories.perfiles.update(ana, { nombre: 'Ana', activo: true }, later)).toMatchObject({
+      rol: 'empleado',
+      activo: true,
+      nombre: 'Ana',
+      updatedAt: later.toISOString(),
+    });
+    expect(await repositories.perfiles.update(ana, { nombre: null }, later)).toMatchObject({ nombre: null, activo: true });
+    expect(await repositories.perfiles.update('22222222-2222-4222-8222-222222222222', { activo: true }, later)).toBeUndefined();
+
+    await expect(repositories.perfiles.update(jefe, { rol: 'admin' }, later)).rejects.toBeInstanceOf(SinSuperadminError);
+    await repositories.perfiles.update(ana, { rol: 'superadmin' }, later);
+    expect(await repositories.perfiles.update(jefe, { activo: false }, later)).toMatchObject({ activo: false });
+
+    expect((await repositories.perfiles.list()).map((perfil) => perfil.email)).toEqual([
+      'jefe@mgdetailing.test',
+      'ana@mgdetailing.test',
+    ]);
   });
 });

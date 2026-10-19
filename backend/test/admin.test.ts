@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
-import { SqliteBookingRepository } from '../src/repositories/bookings.js';
+import { PostgresBookingRepository } from '../src/repositories/postgres/bookings.js';
 import {
   NOW,
   type Client,
@@ -10,6 +10,7 @@ import {
   closeAllContexts,
   countRows,
   createClient,
+  cookieHeader,
   createTestContext,
   loginClient,
   validBooking,
@@ -20,7 +21,7 @@ afterEach(closeAllContexts);
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 async function adminContext(): Promise<{ context: TestContext; admin: Client }> {
-  const context = createTestContext();
+  const context = await createTestContext();
   await addAdmin(context);
   const admin = await loginClient(context);
   return { context, admin };
@@ -40,7 +41,7 @@ async function createBookings(context: TestContext, names: string[], overrides: 
 
 describe('rutas /api/admin sin sesión', () => {
   it('GET, PATCH y DELETE de turnos devuelven 401 UNAUTHORIZED', async () => {
-    const context = createTestContext();
+    const context = await createTestContext();
     await addAdmin(context);
     const anonymous = createClient(context.app);
     const id = randomUUID();
@@ -99,7 +100,11 @@ describe('GET /api/admin/bookings', () => {
     const { context, admin } = await adminContext();
     const [id] = await createBookings(context, ['Cliente'], { telefono: '+1 415 555 2671' });
 
-    const columns = context.db.prepare('PRAGMA table_info(bookings)').all().map((column) => column.name);
+    const { rows } = await context.db.sql.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'mgdetailing' AND table_name = 'bookings'",
+    );
+    const columns = rows.map((column) => column.column_name);
+    expect(columns).toContain('telefono');
     expect(columns).not.toContain('telefono_whatsapp');
     expect(columns).not.toContain('telefonoWhatsapp');
 
@@ -157,7 +162,7 @@ describe('GET /api/admin/bookings', () => {
 
   it('el límite por defecto es 50 y el máximo 100', async () => {
     const { context, admin } = await adminContext();
-    const repository = new SqliteBookingRepository(context.db);
+    const repository = new PostgresBookingRepository(context.db.sql);
     for (let index = 0; index < 120; index++) {
       await repository.create(
         {
@@ -304,7 +309,7 @@ describe('defensa CSRF en las rutas de administración', () => {
       email: 'dueno@mgdetailing.test',
       password: 'clave-de-prueba-123',
     });
-    const cookie = (login.headers['set-cookie'] as unknown as string[])[0]?.split(';')[0] ?? '';
+    const cookie = cookieHeader(login);
 
     const patch = await request(context.app)
       .patch(`/api/admin/bookings/${id ?? ''}`)
@@ -322,7 +327,7 @@ describe('defensa CSRF en las rutas de administración', () => {
       .set('Cookie', cookie);
     expect(del.status).toBe(403);
 
-    expect(countRows(context.db, 'bookings')).toBe(1); // sigue ahí, sin modificar
+    expect(await countRows(context.db, 'bookings')).toBe(1); // sigue ahí, sin modificar
   });
 
   it('un formulario clásico (application/x-www-form-urlencoded) con sesión => 415', async () => {
@@ -332,7 +337,7 @@ describe('defensa CSRF en las rutas de administración', () => {
       email: 'dueno@mgdetailing.test',
       password: 'clave-de-prueba-123',
     });
-    const cookie = (login.headers['set-cookie'] as unknown as string[])[0]?.split(';')[0] ?? '';
+    const cookie = cookieHeader(login);
 
     const response = await request(context.app)
       .patch(`/api/admin/bookings/${id ?? ''}`)

@@ -29,7 +29,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 describe('aviso de turno nuevo', () => {
   it('notifica tras guardar el turno y el honeypot no notifica', async () => {
     const notifyNewBooking = vi.fn<BookingNotifier['notifyNewBooking']>().mockResolvedValue();
-    const { app, logger } = createTestContext({ notifier: { notifyNewBooking } });
+    const { app, logger } = await createTestContext({ notifier: { notifyNewBooking } });
 
     await rawPost(app, '/api/bookings').send(validBooking({ website: 'http://spam.example' })).expect(201);
     await tick();
@@ -53,12 +53,12 @@ describe('aviso de turno nuevo', () => {
         },
       },
     ]) {
-      const { app, db, logger } = createTestContext({ notifier });
+      const { app, db, logger } = await createTestContext({ notifier });
       const started = Date.now();
       await rawPost(app, '/api/bookings').send(validBooking()).expect(201);
       expect(Date.now() - started).toBeLessThan(1000);
       await tick();
-      expect(countRows(db, 'bookings')).toBe(1);
+      expect(await countRows(db, 'bookings')).toBe(1);
       expect(logger.text).not.toMatch(/SECRETA|Juan|Corolla/);
     }
   });

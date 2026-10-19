@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import type { BookingRepository } from '../domain/booking.js';
+import { puedeBorrarTurnos, puedeCambiarEstado } from '../domain/permisos.js';
 import { AppError } from '../lib/errors.js';
+import { getUsuario } from '../middleware/require-session.js';
 import { bookingIdSchema, listBookingsQuerySchema, updateEstadoSchema } from '../schemas/admin.js';
 import { parseOrThrow } from '../schemas/common.js';
 
@@ -16,8 +18,10 @@ function parseBookingId(raw: string): string {
 }
 
 /**
- * Rutas de gestión de turnos. Se montan detrás de requireAdmin.
- * Listar, cambiar el estado y borrar van directo al repositorio: no hay lógica de negocio que justifique un servicio.
+ * Rutas de gestión de turnos. Se montan detrás de requireSession. Permisos (domain/permisos.ts):
+ *  - listar: todos los roles;
+ *  - cambiar el estado: empleado solo a "completado"; admin y superadmin, a cualquiera;
+ *  - borrar: solo admin y superadmin.
  */
 export function adminBookingsRouter(deps: { bookings: BookingRepository; now: () => Date }): Router {
   const { bookings, now } = deps;
@@ -33,6 +37,9 @@ export function adminBookingsRouter(deps: { bookings: BookingRepository; now: ()
   router.patch('/:id', async (req, res) => {
     const id = parseBookingId(req.params.id);
     const { estado } = parseOrThrow(updateEstadoSchema, req.body ?? {});
+    if (!puedeCambiarEstado(getUsuario(res).rol, estado)) {
+      throw AppError.forbidden('Con tu rol solo podés marcar los turnos como completados.');
+    }
     const booking = await bookings.updateEstado(id, estado, now());
     if (!booking) {
       throw AppError.notFound(NOT_FOUND_MESSAGE);
@@ -42,6 +49,9 @@ export function adminBookingsRouter(deps: { bookings: BookingRepository; now: ()
 
   // DELETE /api/admin/bookings/:id => 204
   router.delete('/:id', async (req, res) => {
+    if (!puedeBorrarTurnos(getUsuario(res).rol)) {
+      throw AppError.forbidden('Con tu rol no podés borrar turnos.');
+    }
     const id = parseBookingId(req.params.id);
     if (!(await bookings.delete(id))) {
       throw AppError.notFound(NOT_FOUND_MESSAGE);

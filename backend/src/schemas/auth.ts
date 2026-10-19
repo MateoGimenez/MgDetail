@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../lib/password.js';
+
+/** Tope de largo de la contraseña que se acepta en el login (Supabase Auth admite hasta 72 bytes con bcrypt). */
+export const PASSWORD_MAX_LENGTH = 128;
 
 /** Email normalizado: sin espacios, en minúsculas, máx. 120 caracteres. */
 export const emailSchema = z
@@ -16,9 +18,3 @@ export const loginSchema = z.strictObject({
     .min(1, { error: 'Ingresá tu contraseña.' })
     .max(PASSWORD_MAX_LENGTH, { error: 'La contraseña es demasiado larga.' }),
 });
-
-/** Política para contraseñas NUEVAS (la usa el script crear-admin). */
-export const newPasswordSchema = z
-  .string({ error: 'Falta la contraseña.' })
-  .min(PASSWORD_MIN_LENGTH, { error: `La contraseña tiene que tener al menos ${String(PASSWORD_MIN_LENGTH)} caracteres.` })
-  .max(PASSWORD_MAX_LENGTH, { error: `La contraseña no puede tener más de ${String(PASSWORD_MAX_LENGTH)} caracteres.` });

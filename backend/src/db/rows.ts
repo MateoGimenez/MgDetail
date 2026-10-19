@@ -1,5 +1,5 @@
 /**
- * Lectura tipada de filas (node:sqlite y node-postgres). En vez de castear (`row as Booking`), cada columna se
+ * Lectura tipada de filas (node-postgres y PGlite). En vez de castear (`row as Booking`), cada columna se
  * verifica en tiempo de ejecución: si el esquema y el código se desalinean, falla fuerte y claro.
  */
 export type Row = Readonly<Record<string, unknown>>;
@@ -40,7 +40,7 @@ export function oneOf<T extends string>(allowed: readonly T[], row: Row, key: st
 
 /**
  * Fecha y hora en ISO 8601 UTC (`2026-10-16T15:00:00.000Z`), el formato del contrato. Postgres devuelve los
- * `timestamptz` como Date; SQLite los guarda ya como texto ISO.
+ * `timestamptz` como Date (se acepta también texto ISO).
  */
 export function isoTimestamp(row: Row, key: string): string {
   const value = row[key];

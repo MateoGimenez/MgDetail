@@ -19,7 +19,7 @@ const EVIL_ORIGIN = 'https://sitio-malicioso.example';
 
 describe('defensa CSRF: Content-Type', () => {
   it('POST sin Content-Type JSON => 415 UNSUPPORTED_MEDIA_TYPE', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await request(app)
       .post('/api/bookings')
       .set('Origin', ORIGIN)
@@ -33,22 +33,22 @@ describe('defensa CSRF: Content-Type', () => {
         message: 'El formato de la solicitud no es válido. Tiene que enviarse como JSON.',
       },
     });
-    expect(countRows(db, 'bookings')).toBe(0);
+    expect(await countRows(db, 'bookings')).toBe(0);
   });
 
   it('text/plain (el truco clásico para enviar JSON sin preflight) => 415', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await request(app)
       .post('/api/bookings')
       .set('Content-Type', 'text/plain')
       .send(JSON.stringify(validBooking()));
 
     expect(response.status).toBe(415);
-    expect(countRows(db, 'bookings')).toBe(0);
+    expect(await countRows(db, 'bookings')).toBe(0);
   });
 
   it('application/json con charset y mayúsculas es válido', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await request(app)
       .post('/api/bookings')
       .set('Content-Type', 'Application/JSON; charset=UTF-8')
@@ -60,7 +60,7 @@ describe('defensa CSRF: Content-Type', () => {
 
 describe('defensa CSRF: Origin', () => {
   it('Origin ajeno => 403 FORBIDDEN_ORIGIN y no se hace nada', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await request(app)
       .post('/api/bookings')
       .set('Origin', EVIL_ORIGIN)
@@ -71,11 +71,11 @@ describe('defensa CSRF: Origin', () => {
     expect(response.body).toEqual({
       error: { code: 'FORBIDDEN_ORIGIN', message: 'No podemos procesar la solicitud desde este sitio.' },
     });
-    expect(countRows(db, 'bookings')).toBe(0);
+    expect(await countRows(db, 'bookings')).toBe(0);
   });
 
   it('Origin ajeno en el login => 403, sin cookie', async () => {
-    const context = createTestContext();
+    const context = await createTestContext();
     await addAdmin(context);
     const response = await request(context.app)
       .post('/api/auth/login')
@@ -88,7 +88,7 @@ describe('defensa CSRF: Origin', () => {
   });
 
   it('el Origin tiene que coincidir exactamente: otro puerto, otro esquema, subdominio o "null" se rechazan', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     for (const origin of [
       'http://localhost:5174',
       'https://localhost:5173',
@@ -110,14 +110,14 @@ describe('defensa CSRF: Origin', () => {
   });
 
   it('sin cabecera Origin (curl, scripts) se acepta: no es un navegador cross-origin', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await request(app).post('/api/bookings').set('Content-Type', 'application/json').send(validBooking());
 
     expect(response.status).toBe(201);
   });
 
   it('GET con Origin ajeno no es bloqueado por la defensa CSRF pero no recibe cabeceras CORS', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await request(app).get('/api/health').set('Origin', EVIL_ORIGIN);
 
     expect(response.status).toBe(200);
@@ -128,7 +128,7 @@ describe('defensa CSRF: Origin', () => {
 
 describe('CORS', () => {
   it('al origen del frontend le permite credenciales y refleja SOLO ese origen', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await request(app).get('/api/health').set('Origin', ORIGIN);
 
     expect(response.headers['access-control-allow-origin']).toBe(ORIGIN);
@@ -137,7 +137,7 @@ describe('CORS', () => {
   });
 
   it('preflight del origen permitido: 204 con métodos y cabeceras acotados', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await request(app)
       .options('/api/admin/bookings/abc')
       .set('Origin', ORIGIN)
@@ -153,7 +153,7 @@ describe('CORS', () => {
   });
 
   it('preflight de un origen ajeno: sin ninguna cabecera CORS (el navegador lo bloquea)', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await request(app)
       .options('/api/bookings')
       .set('Origin', EVIL_ORIGIN)
@@ -168,7 +168,7 @@ describe('CORS', () => {
 
 describe('errores de parseo del body', () => {
   it('JSON mal formado => 400 INVALID_JSON (sin eco del contenido ni del error de parseo)', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send('{"nombre": "Juan", ');
 
     expect(response.status).toBe(400);
@@ -180,18 +180,18 @@ describe('errores de parseo del body', () => {
   });
 
   it('body de más de 10 kb => 413 PAYLOAD_TOO_LARGE', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send(JSON.stringify(validBooking({ comentario: 'x'.repeat(11 * 1024) })));
 
     expect(response.status).toBe(413);
     expect(response.body).toEqual({
       error: { code: 'PAYLOAD_TOO_LARGE', message: 'Los datos enviados son demasiado grandes.' },
     });
-    expect(countRows(db, 'bookings')).toBe(0);
+    expect(await countRows(db, 'bookings')).toBe(0);
   });
 
   it('un body comprimido (Content-Encoding: gzip) se rechaza: no se descomprime nada', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await request(app)
       .post('/api/bookings')
       .set('Origin', ORIGIN)
@@ -204,7 +204,7 @@ describe('errores de parseo del body', () => {
   });
 
   it('ninguna respuesta de error incluye stack traces ni rutas de archivos', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const responses = await Promise.all([
       rawPost(app, '/api/bookings').send('{'),
       rawPost(app, '/api/bookings').send({}),
@@ -223,7 +223,7 @@ describe('errores de parseo del body', () => {
 
 describe('rate limit de solicitudes de turno (5 por IP cada 15 min)', () => {
   it('permite 5 turnos y el 6.º recibe 429 RATE_LIMITED', async () => {
-    const { app, db } = createTestContext({ config: { rateLimits: DEFAULT_RATE_LIMITS } });
+    const { app, db } = await createTestContext({ config: { rateLimits: DEFAULT_RATE_LIMITS } });
 
     for (let index = 1; index <= 5; index++) {
       const response = await rawPost(app, '/api/bookings').send(validBooking());
@@ -240,11 +240,11 @@ describe('rate limit de solicitudes de turno (5 por IP cada 15 min)', () => {
       },
     });
     expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
-    expect(countRows(db, 'bookings')).toBe(5);
+    expect(await countRows(db, 'bookings')).toBe(5);
   });
 
   it('los pedidos rechazados por validación no gastan cupo', async () => {
-    const { app } = createTestContext({ config: { rateLimits: DEFAULT_RATE_LIMITS } });
+    const { app } = await createTestContext({ config: { rateLimits: DEFAULT_RATE_LIMITS } });
 
     for (let index = 0; index < 8; index++) {
       const invalid = await rawPost(app, '/api/bookings').send(validBooking({ telefono: 'x' }));
@@ -258,7 +258,7 @@ describe('rate limit de solicitudes de turno (5 por IP cada 15 min)', () => {
   });
 
   it('los envíos descartados por honeypot SÍ cuentan (un bot no puede spamear gratis)', async () => {
-    const { app } = createTestContext({ config: { rateLimits: DEFAULT_RATE_LIMITS } });
+    const { app } = await createTestContext({ config: { rateLimits: DEFAULT_RATE_LIMITS } });
 
     for (let index = 0; index < 5; index++) {
       const response = await rawPost(app, '/api/bookings').send(validBooking({ website: 'spam' }));
@@ -268,7 +268,7 @@ describe('rate limit de solicitudes de turno (5 por IP cada 15 min)', () => {
   });
 
   it('el límite es por IP: con TRUST_PROXY=1 otra IP real tiene su propio cupo', async () => {
-    const { app } = createTestContext({ config: { rateLimits: DEFAULT_RATE_LIMITS, trustProxy: 1 } });
+    const { app } = await createTestContext({ config: { rateLimits: DEFAULT_RATE_LIMITS, trustProxy: 1 } });
 
     for (let index = 0; index < 5; index++) {
       await rawPost(app, '/api/bookings').set('X-Forwarded-For', '198.51.100.10').send(validBooking());
@@ -280,7 +280,7 @@ describe('rate limit de solicitudes de turno (5 por IP cada 15 min)', () => {
 
 describe('rate limit general de la API', () => {
   it('al superar el tope por IP responde 429 aunque la ruta sea inocua', async () => {
-    const { app } = createTestContext({
+    const { app } = await createTestContext({
       config: {
         rateLimits: { ...DEFAULT_RATE_LIMITS, api: { windowMs: 60_000, limit: 5 } },
       },
@@ -295,7 +295,7 @@ describe('rate limit general de la API', () => {
   });
 
   it('el tope general se aplica antes que el parseo del body y la defensa CSRF', async () => {
-    const { app } = createTestContext({
+    const { app } = await createTestContext({
       config: {
         rateLimits: { ...DEFAULT_RATE_LIMITS, api: { windowMs: 60_000, limit: 2 } },
       },
@@ -313,7 +313,7 @@ describe('varios orígenes permitidos (FRONTEND_ORIGIN con una lista, ej.: proba
   const twoOrigins = { frontendOrigins: [ORIGIN, LAN_ORIGIN] };
 
   it('los dos orígenes pueden crear turnos; uno que no está en la lista recibe 403', async () => {
-    const { app, db } = createTestContext({ config: twoOrigins });
+    const { app, db } = await createTestContext({ config: twoOrigins });
 
     for (const origin of [ORIGIN, LAN_ORIGIN]) {
       const response = await request(app)
@@ -333,11 +333,11 @@ describe('varios orígenes permitidos (FRONTEND_ORIGIN con una lista, ej.: proba
       expect(response.status, origin).toBe(403);
       expect(response.body.error.code).toBe('FORBIDDEN_ORIGIN');
     }
-    expect(countRows(db, 'bookings')).toBe(2);
+    expect(await countRows(db, 'bookings')).toBe(2);
   });
 
   it('CORS refleja únicamente el origen que coincide (nunca la lista completa ni *)', async () => {
-    const { app } = createTestContext({ config: twoOrigins });
+    const { app } = await createTestContext({ config: twoOrigins });
 
     for (const origin of [ORIGIN, LAN_ORIGIN]) {
       const response = await request(app).get('/api/health').set('Origin', origin);

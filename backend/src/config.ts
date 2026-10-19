@@ -1,10 +1,8 @@
-import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { DEFAULT_SCRYPT_PARAMS, type ScryptParams } from './lib/password.js';
 
 /** Carpeta raíz del backend. Vale tanto desde src/ (tsx) como desde dist/ (build): ambas están un nivel abajo. */
 export const BACKEND_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -34,19 +32,31 @@ export type WhatsappConfig =
     };
 
 /**
- * Base de datos. SQLite (archivo local, desarrollo y tests) o Postgres (Supabase, producción).
- * `connection` de Postgres tiene la contraseña: no se loguea nunca; para mostrar está `label`.
+ * Base de datos: Postgres en Supabase (único motor).
+ * `connection` tiene la contraseña: no se loguea nunca; para mostrar está `label`.
  */
-export type DatabaseConfig =
-  | { driver: 'sqlite'; /** Ruta absoluta del archivo SQLite, o ':memory:'. */ path: string }
-  | {
-      driver: 'postgres';
-      connection: PostgresConnection;
-      /** CA raíz para verificar el certificado TLS del servidor (Supabase Root 2021 CA). undefined = sin verificar. */
-      sslCaFile: string | undefined;
-      /** host:puerto/base (usuario), sin contraseña: para logs. */
-      label: string;
-    };
+export interface DatabaseConfig {
+  connection: PostgresConnection;
+  /** CA raíz para verificar el certificado TLS del servidor (Supabase Root 2021 CA). undefined = sin verificar. */
+  sslCaFile: string | undefined;
+  /** host:puerto/base (usuario), sin contraseña: para logs. */
+  label: string;
+}
+
+/**
+ * Supabase Auth (login del panel). Todo se deriva de SUPABASE_URL; la clave publishable la usa SOLO el backend
+ * (el navegador nunca habla con Supabase).
+ */
+export interface SupabaseAuthConfig {
+  /** Origen del proyecto, sin barra final: https://<ref>.supabase.co */
+  url: string;
+  /** <url>/auth/v1: base de los endpoints de Auth y valor exacto del claim `iss` de los access tokens. */
+  authUrl: string;
+  /** <url>/auth/v1/.well-known/jwks.json: claves públicas con las que se verifican los access tokens. */
+  jwksUrl: string;
+  /** sb_publishable_...: va en la cabecera `apikey` de las llamadas a Auth. No es un secreto, pero no se loguea. */
+  publishableKey: string;
+}
 
 export interface PostgresConnection {
   host: string;
@@ -67,16 +77,15 @@ export interface AppConfig {
    * el celular por la red local (http://192.168.x.x:5173).
    */
   frontendOrigins: readonly string[];
-  jwtSecret: string;
-  /** Duración de la sesión en segundos (8 h). */
-  sessionTtlSeconds: number;
-  /** Motor de base de datos y cómo conectarse (ver databaseConfigFromEnv). */
+  /** Vida de las cookies de sesión en segundos (8 h desde el último login o refresco). */
+  sessionCookieMaxAgeSeconds: number;
+  /** Conexión a Postgres (ver databaseConfigFromEnv). */
   database: DatabaseConfig;
+  supabase: SupabaseAuthConfig;
   trustProxy: TrustProxySetting;
   serveFrontend: boolean;
   /** Carpeta con el build del frontend (../frontend/dist). */
   frontendDistPath: string;
-  passwordHashing: ScryptParams;
   rateLimits: {
     /** Tope general para toda la API, por IP. */
     api: RateLimitRule;
@@ -88,14 +97,13 @@ export interface AppConfig {
   whatsapp: WhatsappConfig;
   /** Origen público del sitio (sin barra final), para el link al panel en los avisos. */
   publicUrl: string | undefined;
-  /** Avisos para mostrar al arrancar (ej.: JWT_SECRET generado al vuelo). */
+  /** Avisos para mostrar al arrancar (ej.: variables que ya no se usan). */
   warnings: string[];
 }
 
-const DEFAULT_DB_PATH = './storage/mgdetailing.db';
 const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:5173';
 const MAX_FRONTEND_ORIGINS = 10;
-const SESSION_TTL_SECONDS = 8 * 60 * 60;
+const SESSION_COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
 
 export const DEFAULT_RATE_LIMITS: AppConfig['rateLimits'] = {
   api: { windowMs: 60 * 1000, limit: 300 },
@@ -118,12 +126,6 @@ export function loadDotEnv(file: string = path.join(BACKEND_ROOT, '.env')): void
   if (existsSync(file)) {
     process.loadEnvFile(file);
   }
-}
-
-/** Ruta absoluta de la base. Las rutas relativas se resuelven desde la raíz del backend, no desde el cwd. */
-export function resolveDbPath(raw: string | undefined): string {
-  const value = raw?.trim() ? raw.trim() : DEFAULT_DB_PATH;
-  return value === ':memory:' ? value : path.resolve(BACKEND_ROOT, value);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -273,7 +275,8 @@ const envSchema = z.object({
       }),
   ),
   FRONTEND_ORIGIN: optionalEnv(originListSchema),
-  JWT_SECRET: optionalEnv(z.string().min(32, { error: 'tiene que tener al menos 32 caracteres' })),
+  SUPABASE_URL: optionalEnv(z.string()),
+  SUPABASE_PUBLISHABLE_KEY: optionalEnv(z.string()),
   TRUST_PROXY: optionalEnv(trustProxySchema),
   PUBLIC_URL: optionalEnv(originSchema),
   WHATSAPP_PROVIDER: optionalEnv(
@@ -312,7 +315,7 @@ const envSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------------------------
-// Base de datos: SQLite o Postgres
+// Base de datos: Postgres (Supabase)
 // ---------------------------------------------------------------------------------------------
 
 const PASSWORD_PLACEHOLDER = /your-password/i;
@@ -374,14 +377,20 @@ function isLoopbackHost(host: string): boolean {
 }
 
 const databaseEnvSchema = z.object({
+  // SQLite se retiró: Postgres es el único motor. Se sigue aceptando DB_DRIVER=postgres para no romper los .env
+  // existentes; cualquier otro valor se rechaza con una explicación.
   DB_DRIVER: optionalEnv(
     z
       .string()
       .trim()
       .toLowerCase()
-      .pipe(z.enum(['sqlite', 'postgres'], { error: 'tiene que ser sqlite o postgres' })),
+      .pipe(
+        z.literal('postgres', {
+          error: 'el único motor es postgres (SQLite se retiró: el panel usa Supabase Auth). Borrá DB_DRIVER o poné postgres',
+        }),
+      ),
   ),
-  DB_PATH: optionalEnv(z.string().trim().max(500, { error: 'es demasiado larga' })),
+  DB_PATH: optionalEnv(z.string()),
   DATABASE_URL: optionalEnv(databaseUrlSchema),
   DATABASE_SSL_CA_FILE: optionalEnv(z.string().trim().max(500, { error: 'es demasiado larga' })),
 });
@@ -393,14 +402,9 @@ export interface DatabaseConfigResult {
 }
 
 /**
- * Elige el motor de base de datos:
- *  - DB_DRIVER=postgres => Postgres (exige DATABASE_URL).
- *  - DB_DRIVER=sqlite   => SQLite en DB_PATH (si hay DATABASE_URL, se ignora con un aviso).
- *  - Sin DB_DRIVER      => Postgres si hay DATABASE_URL; si no, SQLite (desarrollo y tests sin internet).
- * En producción DB_DRIVER es obligatorio: si faltara el secreto DATABASE_URL, el servidor no debe caer en
- * silencio a una base SQLite vacía. Con Postgres remoto (en cualquier entorno) también se exige DATABASE_SSL_CA_FILE
- * (sin el CA, la conexión va cifrada pero sin verificar al servidor: expuesta a un intermediario).
- * La usan parseConfig (servidor) y el script crear-admin.
+ * Conexión a Postgres (Supabase): DATABASE_URL es obligatoria en todos los entornos (el panel usa Supabase Auth y
+ * no funciona sin Supabase). Con Postgres remoto también se exige DATABASE_SSL_CA_FILE: sin el CA, la conexión va
+ * cifrada pero sin verificar al servidor (expuesta a un intermediario). Solo un Postgres local se tolera sin CA.
  */
 export function databaseConfigFromEnv(env: NodeJS.ProcessEnv, isProduction: boolean): DatabaseConfigResult {
   const problems: string[] = [];
@@ -414,23 +418,14 @@ export function databaseConfigFromEnv(env: NodeJS.ProcessEnv, isProduction: bool
   }
   const values = parsed.data;
 
-  if (isProduction && values.DB_DRIVER === undefined) {
-    problems.push(
-      'DB_DRIVER: es obligatorio en producción. Usá DB_DRIVER=postgres (con DATABASE_URL) o DB_DRIVER=sqlite (con DB_PATH).',
-    );
-  }
-  const driver = values.DB_DRIVER ?? (values.DATABASE_URL === undefined ? 'sqlite' : 'postgres');
-
-  if (driver === 'sqlite') {
-    if (values.DATABASE_URL !== undefined) {
-      warnings.push('DB_DRIVER=sqlite: se ignora DATABASE_URL y se usa la base SQLite local.');
-    }
-    return { database: { driver, path: resolveDbPath(values.DB_PATH) }, problems, warnings };
+  if (values.DB_PATH !== undefined) {
+    warnings.push('DB_PATH ya no se usa (SQLite se retiró; la base es Postgres en Supabase): podés borrarla del .env.');
   }
 
   if (values.DATABASE_URL === undefined) {
     problems.push(
-      'DATABASE_URL: es obligatoria con DB_DRIVER=postgres (la cadena de conexión del pooler de Supabase; ver README, "Conectar Supabase").',
+      'DATABASE_URL: es obligatoria (la cadena de conexión del Session pooler de Supabase con el rol mgdetailing_app; ' +
+        'ver README, "Conectar Supabase").',
     );
     return { database: undefined, problems, warnings };
   }
@@ -444,7 +439,7 @@ export function databaseConfigFromEnv(env: NodeJS.ProcessEnv, isProduction: bool
   } else if (isProduction || !isLoopbackHost(values.DATABASE_URL.connection.host)) {
     // Sin el CA, un intermediario en la red (Wi-Fi pública, router comprometido) puede hacerse pasar por Supabase,
     // reenviar la autenticación y quedarse con la sesión de la base. Importa igual en la PC del dueño que en el
-    // servidor (crear-admin y `npm run dev` apuntan a la base REAL): se exige siempre que el host no sea local.
+    // servidor (`npm run dev` apunta a la base REAL): se exige siempre que el host no sea local.
     problems.push(
       'DATABASE_SSL_CA_FILE: es obligatoria con Postgres remoto (el certificado raíz de Supabase, para verificar al servidor; ' +
         'ver README, "Conectar Supabase").',
@@ -456,10 +451,67 @@ export function databaseConfigFromEnv(env: NodeJS.ProcessEnv, isProduction: bool
   }
 
   return {
-    database: { driver, connection: values.DATABASE_URL.connection, label: values.DATABASE_URL.label, sslCaFile },
+    database: { connection: values.DATABASE_URL.connection, label: values.DATABASE_URL.label, sslCaFile },
     problems,
     warnings,
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Supabase Auth
+// ---------------------------------------------------------------------------------------------
+
+/** https://<ref>.supabase.co (o un dominio propio), sin ruta. http solo para un Supabase local (supabase start). */
+function parseSupabaseUrl(raw: string): string | undefined {
+  const origin = parseOrigin(raw.trim().replace(/\/+$/, ''));
+  if (origin === undefined) return undefined;
+  const { protocol, hostname } = new URL(origin);
+  if (protocol === 'https:') return origin;
+  return isLoopbackHost(hostname.replace(/^\[(.*)\]$/, '$1')) ? origin : undefined;
+}
+
+/** Claves publishable nuevas (sb_publishable_...). La secret (sb_secret_...) nunca va en el backend del panel. */
+const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{10,200}$/;
+
+function supabaseConfigFromValues(
+  url: string | undefined,
+  key: string | undefined,
+  allProblems: string[],
+): SupabaseAuthConfig | undefined {
+  const problems: string[] = [];
+  let origin: string | undefined;
+  if (url === undefined) {
+    problems.push(
+      'SUPABASE_URL: es obligatoria (la URL del proyecto, ej.: https://iclsiweaqhupxvxbpekl.supabase.co). El login del panel usa Supabase Auth.',
+    );
+  } else {
+    origin = parseSupabaseUrl(url);
+    if (origin === undefined) {
+      problems.push('SUPABASE_URL: tiene que ser https://<id-del-proyecto>.supabase.co, sin ruta ni barra final.');
+    }
+  }
+
+  const trimmedKey = key?.trim();
+  if (trimmedKey === undefined) {
+    problems.push(
+      'SUPABASE_PUBLISHABLE_KEY: es obligatoria (Project Settings > API Keys > Publishable key, empieza con sb_publishable_).',
+    );
+  } else if (trimmedKey.startsWith('sb_secret_')) {
+    // Nunca se repite el valor: si es una secret key, el mensaje no debe filtrarla.
+    problems.push(
+      'SUPABASE_PUBLISHABLE_KEY: tiene una SECRET key (sb_secret_...). El backend solo necesita la publishable: ' +
+        'reemplazala y, por las dudas, rotá la secret en el panel de Supabase.',
+    );
+  } else if (!PUBLISHABLE_KEY.test(trimmedKey)) {
+    problems.push('SUPABASE_PUBLISHABLE_KEY: no parece una clave publishable (tiene que empezar con sb_publishable_).');
+  }
+
+  allProblems.push(...problems);
+  if (origin === undefined || trimmedKey === undefined || problems.length > 0) {
+    return undefined;
+  }
+  const authUrl = `${origin}/auth/v1`;
+  return { url: origin, authUrl, jwksUrl: `${authUrl}/.well-known/jwks.json`, publishableKey: trimmedKey };
 }
 
 /**
@@ -485,13 +537,25 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
   problems.push(...databaseResult.problems);
   warnings.push(...databaseResult.warnings);
 
+  const supabase = supabaseConfigFromValues(values?.SUPABASE_URL, values?.SUPABASE_PUBLISHABLE_KEY, problems);
+
+  if (env.JWT_SECRET !== undefined && env.JWT_SECRET.trim() !== '') {
+    warnings.push('JWT_SECRET ya no se usa (las sesiones son de Supabase Auth): podés borrarla del .env.');
+  }
+  // Una clave secreta de Supabase salta RLS en todo el proyecto. El backend no la usa: tenerla en el entorno solo
+  // agranda lo que se filtra si alguien lee el .env o las variables del proceso. Se avisa sin mostrar el valor.
+  const secretKeyVars = ['SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET'].filter(
+    (name) => (env[name]?.trim() ?? '') !== '',
+  );
+  if (secretKeyVars.length > 0) {
+    warnings.push(
+      `${secretKeyVars.join(', ')}: el backend NO usa claves secretas de Supabase. Borralas del .env (y del entorno del ` +
+        'servidor): saltan RLS en todo el proyecto y solo suman riesgo si se filtran.',
+    );
+  }
+
   // Obligatorias en producción (en desarrollo hay valores por defecto seguros).
   if (parsed.success && isProduction) {
-    if (values?.JWT_SECRET === undefined) {
-      problems.push(
-        "JWT_SECRET: es obligatorio en producción (mínimo 32 caracteres). Generá uno con: node -e \"console.log(require('node:crypto').randomBytes(48).toString('base64url'))\"",
-      );
-    }
     if (values?.FRONTEND_ORIGIN === undefined) {
       problems.push(
         'FRONTEND_ORIGIN: es obligatorio en producción (el origen público del sitio, ej.: https://mgdetailing.com.ar)',
@@ -560,17 +624,8 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
   }
 
   const database = databaseResult.database;
-  if (problems.length > 0 || values === undefined || database === undefined) {
+  if (problems.length > 0 || values === undefined || database === undefined || supabase === undefined) {
     throw new ConfigError(problems);
-  }
-
-  let jwtSecret = values.JWT_SECRET;
-  if (jwtSecret === undefined) {
-    jwtSecret = randomBytes(48).toString('base64url');
-    warnings.push(
-      'JWT_SECRET no está definido: se generó uno aleatorio solo para esta ejecución. ' +
-        'Las sesiones iniciadas se pierden cada vez que se reinicia el servidor.',
-    );
   }
 
   const frontendOrigins = values.FRONTEND_ORIGIN ?? [DEFAULT_FRONTEND_ORIGIN];
@@ -583,7 +638,7 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     });
     if (insecure.length > 0) {
       warnings.push(
-        `FRONTEND_ORIGIN incluye orígenes sin https (${insecure.join(', ')}): la cookie de sesión es Secure en ` +
+        `FRONTEND_ORIGIN incluye orígenes sin https (${insecure.join(', ')}): las cookies de sesión son Secure en ` +
           'producción y el navegador no la va a guardar desde ahí.',
       );
     }
@@ -601,13 +656,12 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     host: values.HOST ?? '127.0.0.1',
     port: values.PORT ?? 4000,
     frontendOrigins,
-    jwtSecret,
-    sessionTtlSeconds: SESSION_TTL_SECONDS,
+    sessionCookieMaxAgeSeconds: SESSION_COOKIE_MAX_AGE_SECONDS,
     database,
+    supabase,
     trustProxy,
     serveFrontend: values.SERVE_FRONTEND ?? false,
     frontendDistPath: path.resolve(BACKEND_ROOT, '..', 'frontend', 'dist'),
-    passwordHashing: { ...DEFAULT_SCRYPT_PARAMS },
     rateLimits: DEFAULT_RATE_LIMITS,
     whatsapp,
     publicUrl: values.PUBLIC_URL,

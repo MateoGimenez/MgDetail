@@ -1,21 +1,37 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { BACKEND_ROOT, ConfigError, DEFAULT_RATE_LIMITS, loadDotEnv, parseConfig, resolveDbPath } from '../src/config.js';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { ConfigError, DEFAULT_RATE_LIMITS, loadDotEnv, parseConfig as parseRaw } from '../src/config.js';
 
-const SECRET = 'a-very-long-and-random-secret-for-tests-0123456789';
+// Certificado CA "de mentira": la config solo verifica que el archivo exista.
+const caDirectory = mkdtempSync(path.join(tmpdir(), 'mg-ca-'));
+const CA_FILE = path.join(caDirectory, 'supabase-ca.crt');
+writeFileSync(CA_FILE, '-----BEGIN CERTIFICATE-----\n');
+afterAll(() => {
+  rmSync(caDirectory, { recursive: true, force: true });
+});
+
+const URL_OK =
+  'postgresql://mgdetailing_app.abcdefghijklmnopqrst:Cl4ve%40segura@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=disable';
+const SUPABASE = {
+  SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_AbCdEf0123456789_xyz',
+};
+/** Lo mínimo para arrancar: Postgres (con su CA) y Supabase Auth. */
+const BASE = { DATABASE_URL: URL_OK, DATABASE_SSL_CA_FILE: CA_FILE, ...SUPABASE };
 const PRODUCTION = {
   NODE_ENV: 'production',
-  JWT_SECRET: SECRET,
   FRONTEND_ORIGIN: 'https://mgdetailing.com.ar',
   TRUST_PROXY: '1',
-  DB_DRIVER: 'sqlite',
 };
 
-function problemsOf(env: NodeJS.ProcessEnv): string {
+/** parseConfig con lo obligatorio ya cargado: cada test agrega o pisa lo que prueba. */
+const parseConfig = (env: NodeJS.ProcessEnv) => parseRaw({ ...BASE, ...env });
+
+function problemsOfRaw(env: NodeJS.ProcessEnv): string {
   try {
-    parseConfig(env);
+    parseRaw(env);
   } catch (error) {
     expect(error).toBeInstanceOf(ConfigError);
     return (error as ConfigError).message;
@@ -23,8 +39,10 @@ function problemsOf(env: NodeJS.ProcessEnv): string {
   throw new Error('Se esperaba un ConfigError y no se lanzó');
 }
 
+const problemsOf = (env: NodeJS.ProcessEnv): string => problemsOfRaw({ ...BASE, ...env });
+
 describe('desarrollo: defaults seguros', () => {
-  it('sin ninguna variable arranca con los valores por defecto', () => {
+  it('con la base y Supabase configurados arranca con los valores por defecto y sin avisos', () => {
     const config = parseConfig({});
 
     expect(config).toMatchObject({
@@ -33,30 +51,68 @@ describe('desarrollo: defaults seguros', () => {
       host: '127.0.0.1',
       port: 4000,
       frontendOrigins: ['http://localhost:5173'],
-      sessionTtlSeconds: 8 * 60 * 60,
+      sessionCookieMaxAgeSeconds: 8 * 60 * 60,
       trustProxy: false,
       serveFrontend: false,
       rateLimits: DEFAULT_RATE_LIMITS,
+      warnings: [],
     });
-    expect(config.database).toEqual({ driver: 'sqlite', path: path.join(BACKEND_ROOT, 'storage', 'mgdetailing.db') });
     expect(DEFAULT_RATE_LIMITS.bookings).toEqual({ windowMs: 15 * 60 * 1000, limit: 5 });
     expect(DEFAULT_RATE_LIMITS.loginFailures).toEqual({ windowMs: 15 * 60 * 1000, limit: 5 });
   });
 
-  it('sin JWT_SECRET genera uno aleatorio (≥32) y avisa que las sesiones se pierden al reiniciar', () => {
-    const first = parseConfig({});
-
-    expect(first.jwtSecret.length).toBeGreaterThanOrEqual(32);
-    expect(first.jwtSecret).not.toBe(parseConfig({}).jwtSecret);
-    expect(first.warnings[0]).toMatch(/JWT_SECRET no está definido.*sesiones.*se pierden/);
-    expect(parseConfig({ JWT_SECRET: SECRET })).toMatchObject({ jwtSecret: SECRET, warnings: [] });
-  });
-
   it('las variables vacías (FOO=) cuentan como no definidas', () => {
-    const config = parseConfig({ PORT: '', HOST: ' ', FRONTEND_ORIGIN: '', TRUST_PROXY: '', SERVE_FRONTEND: '', DB_PATH: '' });
+    const config = parseConfig({ PORT: '', HOST: ' ', FRONTEND_ORIGIN: '', TRUST_PROXY: '', SERVE_FRONTEND: '' });
 
     expect(config).toMatchObject({ port: 4000, host: '127.0.0.1', trustProxy: false, serveFrontend: false });
     expect(config.frontendOrigins).toEqual(['http://localhost:5173']);
+  });
+
+  it('sin nada configurado no arranca y pide DATABASE_URL, SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY', () => {
+    const message = problemsOfRaw({});
+    expect(message).toMatch(/DATABASE_URL: es obligatoria/);
+    expect(message).toMatch(/SUPABASE_URL: es obligatoria/);
+    expect(message).toMatch(/SUPABASE_PUBLISHABLE_KEY: es obligatoria/);
+  });
+
+  it('variables viejas: DB_DRIVER=postgres se acepta, DB_DRIVER=sqlite se rechaza, DB_PATH y JWT_SECRET solo avisan', () => {
+    expect(parseConfig({ DB_DRIVER: 'postgres' }).warnings).toEqual([]);
+    expect(problemsOf({ DB_DRIVER: 'sqlite' })).toMatch(/DB_DRIVER: el único motor es postgres/);
+    const warnings = parseConfig({ DB_PATH: './storage/mgdetailing.db', JWT_SECRET: 'x'.repeat(40) }).warnings.join('\n');
+    expect(warnings).toMatch(/DB_PATH ya no se usa/);
+    expect(warnings).toMatch(/JWT_SECRET ya no se usa/);
+
+    // Una clave secreta de Supabase en el entorno se avisa (sin mostrar su valor).
+    const secret = parseConfig({ SUPABASE_SECRET_KEY: 'sb_secret_valor-que-no-se-muestra' }).warnings.join('\n');
+    expect(secret).toMatch(/SUPABASE_SECRET_KEY: el backend NO usa claves secretas/);
+    expect(secret).not.toContain('valor-que-no-se-muestra');
+  });
+});
+
+describe('Supabase Auth', () => {
+  it('deriva la URL de Auth (emisor de los tokens) y el JWKS de SUPABASE_URL, sin pedir otra variable', () => {
+    expect(parseConfig({ SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co/' }).supabase).toEqual({
+      url: 'https://abcdefghijklmnopqrst.supabase.co',
+      authUrl: 'https://abcdefghijklmnopqrst.supabase.co/auth/v1',
+      jwksUrl: 'https://abcdefghijklmnopqrst.supabase.co/auth/v1/.well-known/jwks.json',
+      publishableKey: SUPABASE.SUPABASE_PUBLISHABLE_KEY,
+    });
+  });
+
+  it('SUPABASE_URL: https sin ruta (http solo para un Supabase local)', () => {
+    for (const bad of ['http://abc.supabase.co', 'https://abc.supabase.co/auth/v1', 'no-es-url']) {
+      expect(problemsOf({ SUPABASE_URL: bad }), bad).toMatch(/SUPABASE_URL: tiene que ser https/);
+    }
+    expect(parseConfig({ SUPABASE_URL: 'http://127.0.0.1:54321' }).supabase.authUrl).toBe('http://127.0.0.1:54321/auth/v1');
+  });
+
+  it('SUPABASE_PUBLISHABLE_KEY: tiene que ser sb_publishable_; una secret key se rechaza sin repetirla', () => {
+    // Armada por partes para que los escáneres de secretos (GitHub) no la tomen por una clave real.
+    const secret = ['sb', 'secret', 'NoDeberiaEstarAca0123456789'].join('_');
+    const message = problemsOf({ SUPABASE_PUBLISHABLE_KEY: secret });
+    expect(message).toMatch(/SECRET key/);
+    expect(message).not.toContain(secret);
+    expect(problemsOf({ SUPABASE_PUBLISHABLE_KEY: 'eyJhbGciOiJIUzI1NiJ9.legacy' })).toMatch(/no parece una clave publishable/);
   });
 });
 
@@ -64,27 +120,16 @@ describe('producción', () => {
   it('con todo lo obligatorio arranca sin avisos', () => {
     expect(parseConfig(PRODUCTION)).toMatchObject({
       isProduction: true,
-      jwtSecret: SECRET,
       frontendOrigins: ['https://mgdetailing.com.ar'],
       trustProxy: 1,
       warnings: [],
     });
   });
 
-  it('sin JWT_SECRET ni FRONTEND_ORIGIN (o vacíos) falla y lista AMBOS problemas', () => {
-    for (const env of [{ NODE_ENV: 'production' }, { NODE_ENV: 'production', JWT_SECRET: '', FRONTEND_ORIGIN: '' }]) {
-      const message = problemsOf(env);
-      expect(message).toMatch(/JWT_SECRET: es obligatorio en producción \(mínimo 32 caracteres\)/);
-      expect(message).toMatch(/FRONTEND_ORIGIN: es obligatorio en producción/);
+  it('sin FRONTEND_ORIGIN (o vacío) falla', () => {
+    for (const env of [{ NODE_ENV: 'production' }, { NODE_ENV: 'production', FRONTEND_ORIGIN: '' }]) {
+      expect(problemsOf(env)).toMatch(/FRONTEND_ORIGIN: es obligatorio en producción/);
     }
-  });
-
-  it('un JWT_SECRET de menos de 32 caracteres se rechaza sin mostrar el valor', () => {
-    const short = 'x'.repeat(31);
-    const message = problemsOf({ ...PRODUCTION, JWT_SECRET: short });
-
-    expect(message).toMatch(/JWT_SECRET: tiene que tener al menos 32 caracteres/);
-    expect(message).not.toContain(short);
   });
 
   it('avisa por origen sin https (no localhost) y por falta de TRUST_PROXY', () => {
@@ -168,54 +213,43 @@ describe('validación de cada variable', () => {
   });
 
   it('informa todos los problemas juntos, no de a uno', () => {
-    const message = problemsOf({ PORT: 'abc', TRUST_PROXY: 'true', FRONTEND_ORIGIN: '*' });
+    const message = problemsOf({ PORT: 'abc', TRUST_PROXY: 'true', FRONTEND_ORIGIN: '*', SUPABASE_URL: 'x' });
 
-    for (const name of ['PORT', 'TRUST_PROXY', 'FRONTEND_ORIGIN']) expect(message).toContain(name);
+    for (const name of ['PORT', 'TRUST_PROXY', 'FRONTEND_ORIGIN', 'SUPABASE_URL']) expect(message).toContain(name);
   });
 });
 
-describe('base de datos: SQLite o Postgres', () => {
-  const URL_OK = 'postgresql://postgres.abcdefghijklmnopqrst:Cl4ve%40segura@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=disable';
-
-  it('con DATABASE_URL elige Postgres, separa las partes (decodifica la contraseña, ignora sslmode) y no la muestra', () => {
-    const directory = mkdtempSync(path.join(tmpdir(), 'mg-ca-'));
-    const caFile = path.join(directory, 'supabase-ca.crt');
-    writeFileSync(caFile, '-----BEGIN CERTIFICATE-----\n');
-    const config = parseConfig({ DATABASE_URL: URL_OK, DATABASE_SSL_CA_FILE: caFile });
-    rmSync(directory, { recursive: true, force: true });
+describe('base de datos: Postgres', () => {
+  it('separa las partes de DATABASE_URL (decodifica la contraseña, ignora sslmode) y no la muestra', () => {
+    const config = parseConfig({});
 
     expect(config.database).toEqual({
-      driver: 'postgres',
       connection: {
         host: 'aws-0-us-east-1.pooler.supabase.com',
         port: 5432,
-        user: 'postgres.abcdefghijklmnopqrst',
+        user: 'mgdetailing_app.abcdefghijklmnopqrst',
         password: 'Cl4ve@segura',
         database: 'postgres',
       },
-      sslCaFile: caFile,
-      label: 'aws-0-us-east-1.pooler.supabase.com:5432/postgres (usuario postgres.abcdefghijklmnopqrst)',
+      sslCaFile: CA_FILE,
+      label: 'aws-0-us-east-1.pooler.supabase.com:5432/postgres (usuario mgdetailing_app.abcdefghijklmnopqrst)',
     });
     expect(config.warnings.join('\n')).not.toContain('Cl4ve');
   });
 
-  it('exige el CA con un Postgres remoto también fuera de producción; sin CA solo se tolera un Postgres local', () => {
-    const remote = problemsOf({ DATABASE_URL: URL_OK });
+  it('exige el CA con un Postgres remoto en cualquier entorno; sin CA solo se tolera un Postgres local fuera de producción', () => {
+    const remote = problemsOfRaw({ ...SUPABASE, DATABASE_URL: URL_OK });
     expect(remote).toMatch(/DATABASE_SSL_CA_FILE: es obligatoria con Postgres remoto/);
     expect(remote).not.toContain('Cl4ve');
+    expect(problemsOf({ DATABASE_SSL_CA_FILE: path.join(caDirectory, 'no-existe.crt') })).toMatch(
+      /DATABASE_SSL_CA_FILE: no existe el archivo/,
+    );
 
-    const local = parseConfig({ DATABASE_URL: 'postgresql://postgres:clave@127.0.0.1:5432/postgres' });
-    expect(local.database).toMatchObject({ driver: 'postgres', sslCaFile: undefined });
+    const LOCAL = 'postgresql://postgres:clave@127.0.0.1:5432/postgres';
+    const local = parseRaw({ ...SUPABASE, DATABASE_URL: LOCAL });
+    expect(local.database).toMatchObject({ sslCaFile: undefined });
     expect(local.warnings.join('\n')).toMatch(/Postgres local va cifrada pero SIN verificar/);
-  });
-
-  it('DB_DRIVER manda: sqlite ignora DATABASE_URL (con aviso); postgres sin DATABASE_URL falla', () => {
-    const sqlite = parseConfig({ DB_DRIVER: 'sqlite', DATABASE_URL: URL_OK });
-    expect(sqlite.database.driver).toBe('sqlite');
-    expect(sqlite.warnings.join('\n')).toMatch(/se ignora DATABASE_URL/);
-
-    expect(problemsOf({ DB_DRIVER: 'postgres' })).toMatch(/DATABASE_URL: es obligatoria con DB_DRIVER=postgres/);
-    expect(problemsOf({ DB_DRIVER: 'mysql' })).toMatch(/DB_DRIVER: tiene que ser sqlite o postgres/);
+    expect(problemsOfRaw({ ...SUPABASE, ...PRODUCTION, DATABASE_URL: LOCAL })).toMatch(/DATABASE_SSL_CA_FILE: es obligatoria/);
   });
 
   it('rechaza una DATABASE_URL inválida o con [YOUR-PASSWORD] sin repetir su contenido', () => {
@@ -228,60 +262,29 @@ describe('base de datos: SQLite o Postgres', () => {
       expect(message, bad).not.toContain('secretito');
     }
   });
-
-  it('en producción exige DB_DRIVER y, con Postgres, el certificado CA de Supabase', () => {
-    const { DB_DRIVER: _omitted, ...withoutDriver } = PRODUCTION;
-    expect(problemsOf(withoutDriver)).toMatch(/DB_DRIVER: es obligatorio en producción/);
-
-    expect(problemsOf({ ...PRODUCTION, DB_DRIVER: 'postgres', DATABASE_URL: URL_OK })).toMatch(
-      /DATABASE_SSL_CA_FILE: es obligatoria con Postgres remoto/,
-    );
-
-    const directory = mkdtempSync(path.join(tmpdir(), 'mg-ca-'));
-    try {
-      const caFile = path.join(directory, 'supabase-ca.crt');
-      expect(problemsOf({ ...PRODUCTION, DB_DRIVER: 'postgres', DATABASE_URL: URL_OK, DATABASE_SSL_CA_FILE: caFile })).toMatch(
-        /DATABASE_SSL_CA_FILE: no existe el archivo/,
-      );
-      writeFileSync(caFile, '-----BEGIN CERTIFICATE-----\n');
-      const config = parseConfig({ ...PRODUCTION, DB_DRIVER: 'postgres', DATABASE_URL: URL_OK, DATABASE_SSL_CA_FILE: caFile });
-      expect(config.database).toMatchObject({ driver: 'postgres', sslCaFile: caFile });
-      expect(config.warnings).toEqual([]);
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
-  });
 });
 
-describe('resolveDbPath y loadDotEnv', () => {
-  it('resuelve las rutas relativas desde la raíz del backend, no desde el cwd', () => {
-    expect(resolveDbPath(undefined)).toBe(path.join(BACKEND_ROOT, 'storage', 'mgdetailing.db'));
-    expect(resolveDbPath('./datos/otra.db')).toBe(path.join(BACKEND_ROOT, 'datos', 'otra.db'));
-    expect(resolveDbPath(':memory:')).toBe(':memory:');
+describe('loadDotEnv', () => {
+  const touched = ['MG_TEST_FROM_FILE', 'MG_TEST_ALREADY_SET'];
+  let directory: string | undefined;
+
+  afterEach(() => {
+    for (const key of touched) Reflect.deleteProperty(process.env, key);
+    if (directory) rmSync(directory, { recursive: true, force: true });
+    directory = undefined;
   });
 
-  describe('loadDotEnv', () => {
-    const touched = ['MG_TEST_FROM_FILE', 'MG_TEST_ALREADY_SET'];
-    let directory: string | undefined;
+  it('carga el archivo pero NO pisa lo que ya está en el entorno; si no existe, no hace nada', () => {
+    directory = mkdtempSync(path.join(tmpdir(), 'mg-env-'));
+    const file = path.join(directory, '.env');
+    writeFileSync(file, 'MG_TEST_FROM_FILE=desde_archivo\nMG_TEST_ALREADY_SET=desde_archivo\n');
+    process.env.MG_TEST_ALREADY_SET = 'desde_entorno';
 
-    afterEach(() => {
-      for (const key of touched) Reflect.deleteProperty(process.env, key);
-      if (directory) rmSync(directory, { recursive: true, force: true });
-      directory = undefined;
-    });
+    loadDotEnv(file);
 
-    it('carga el archivo pero NO pisa lo que ya está en el entorno; si no existe, no hace nada', () => {
-      directory = mkdtempSync(path.join(tmpdir(), 'mg-env-'));
-      const file = path.join(directory, '.env');
-      writeFileSync(file, 'MG_TEST_FROM_FILE=desde_archivo\nMG_TEST_ALREADY_SET=desde_archivo\n');
-      process.env.MG_TEST_ALREADY_SET = 'desde_entorno';
-
-      loadDotEnv(file);
-
-      expect(process.env.MG_TEST_FROM_FILE).toBe('desde_archivo');
-      expect(process.env.MG_TEST_ALREADY_SET).toBe('desde_entorno');
-      expect(() => { loadDotEnv(path.join(tmpdir(), 'no-existe', '.env')); }).not.toThrow();
-    });
+    expect(process.env.MG_TEST_FROM_FILE).toBe('desde_archivo');
+    expect(process.env.MG_TEST_ALREADY_SET).toBe('desde_entorno');
+    expect(() => { loadDotEnv(path.join(tmpdir(), 'no-existe', '.env')); }).not.toThrow();
   });
 });
 

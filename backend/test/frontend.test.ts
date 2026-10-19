@@ -32,7 +32,7 @@ function frontendApp() {
 
 describe('SERVE_FRONTEND=true', () => {
   it('sirve index.html en / y hace fallback SPA en rutas que no son /api (ej.: /admin)', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
 
     for (const url of ['/', '/admin', '/admin/turnos', '/servicios/pulido']) {
       const response = await request(app).get(url);
@@ -46,7 +46,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('los archivos de /assets se sirven con caché larga e inmutable', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
     const response = await request(app).get('/assets/app.abc123.js');
 
     expect(response.status).toBe(200);
@@ -55,7 +55,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('las fotos de /fotos se cachean 7 días (sin hash en el nombre) y las demás rutas estáticas se revalidan', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
 
     const photo = await request(app).get('/fotos/taller.jpg');
     expect(photo.status).toBe(200);
@@ -68,7 +68,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('un archivo con extensión que no existe da 404, no el HTML de la SPA', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
 
     // Las carpetas de estáticos tampoco caen en la SPA (ni redirigen a la barra final).
     for (const url of ['/assets/viejo.js', '/imagen.png', '/robots.txt', '/assets', '/assets/', '/assets/sin-extension', '/fotos/', '/marca/x']) {
@@ -79,7 +79,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('las rutas /api desconocidas siguen dando 404 JSON (nunca el HTML de la SPA)', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
 
     for (const url of ['/api/no-existe', '/api', '/api/', '/API/no-existe', '/api/admin/algo']) {
       const response = await request(app).get(url);
@@ -90,7 +90,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('la API sigue funcionando al lado del frontend', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
     const health = await request(app).get('/api/health');
     expect(health.body).toEqual({ status: 'ok' });
 
@@ -99,7 +99,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('no sirve archivos ocultos (dotfiles) y tampoco los "simula" con el HTML de la SPA', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
 
     for (const url of ['/.secreto', '/.env', '/.git/config', '/assets/.secreto', '/admin/.hidden/x']) {
       const response = await request(app).get(url);
@@ -110,7 +110,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('no permite salir de la carpeta del build (path traversal)', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
     const attempts = [
       '/..%2f..%2fpackage.json',
       '/%2e%2e/%2e%2e/package.json',
@@ -127,7 +127,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('la SPA lleva una CSP restrictiva y la API la suya (default-src none)', async () => {
-    const { app } = frontendApp();
+    const { app } = await frontendApp();
 
     const page = await request(app).get('/admin');
     const csp = page.headers['content-security-policy'];
@@ -163,12 +163,14 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('comprime los estáticos grandes (gzip) pero nunca las respuestas de /api', async () => {
-    const context = frontendApp();
+    const context = await frontendApp();
     // Datos suficientes para que la API devuelva una respuesta grande (> umbral de compresión de 1 kb).
-    const insert = context.db.prepare(
-      "INSERT INTO bookings (id, nombre, telefono, vehiculo_tipo, servicio_id, fecha_preferida, franja, estado, created_at, updated_at) VALUES (?, ?, '3804123456', 'auto', 'pulido', '2026-10-20', 'manana', 'pendiente', 't', 't')",
-    );
-    for (let index = 0; index < 20; index++) insert.run(`id-${String(index)}`, `Cliente número ${String(index)}`);
+    for (let index = 0; index < 20; index++) {
+      await context.db.sql.query(
+        "INSERT INTO mgdetailing.bookings (nombre, telefono, vehiculo_tipo, servicio_id, fecha_preferida, franja) VALUES ($1, '3804123456', 'auto', 'pulido', '2026-10-20', 'manana')",
+        [`Cliente número ${String(index)}`],
+      );
+    }
     await addAdmin(context);
     const admin = await loginClient(context);
 
@@ -191,7 +193,7 @@ describe('SERVE_FRONTEND=true', () => {
   });
 
   it('en producción la CSP de la SPA agrega upgrade-insecure-requests', async () => {
-    const { app } = createTestContext({
+    const { app } = await createTestContext({
       config: { serveFrontend: true, frontendDistPath: dist, isProduction: true, nodeEnv: 'production' },
     });
     const response = await request(app).get('/');
@@ -199,16 +201,16 @@ describe('SERVE_FRONTEND=true', () => {
     expect(response.headers['content-security-policy']).toContain('upgrade-insecure-requests');
   });
 
-  it('si no existe el build del frontend, falla al crear la app con un mensaje claro', () => {
-    expect(() =>
+  it('si no existe el build del frontend, falla al crear la app con un mensaje claro', async () => {
+    await expect(
       createTestContext({ config: { serveFrontend: true, frontendDistPath: path.join(BACKEND_ROOT, 'no-existe', 'dist') } }),
-    ).toThrow(/SERVE_FRONTEND está activo pero no existe .*index\.html/);
+    ).rejects.toThrow(/SERVE_FRONTEND está activo pero no existe .*index\.html/);
   });
 });
 
 describe('SERVE_FRONTEND=false (por defecto)', () => {
   it('no sirve ningún archivo del frontend', async () => {
-    const { app } = createTestContext({ config: { frontendDistPath: dist } });
+    const { app } = await createTestContext({ config: { frontendDistPath: dist } });
 
     for (const url of ['/', '/admin', '/assets/app.abc123.js', '/favicon.svg']) {
       const response = await request(app).get(url);

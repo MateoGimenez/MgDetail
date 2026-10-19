@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { sesionActual } from '../api/admin';
 import { esAbortado } from '../api/client';
+import type { UsuarioSesion } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { Login } from './Login';
 import { Panel } from './Panel';
@@ -9,7 +10,7 @@ import './admin.css';
 type Sesion =
   | { estado: 'verificando' }
   | { estado: 'anonima'; aviso?: string }
-  | { estado: 'activa'; email: string }
+  | { estado: 'activa'; usuario: UsuarioSesion }
   | { estado: 'error'; mensaje: string };
 
 export default function AdminApp() {
@@ -28,8 +29,12 @@ export default function AdminApp() {
   useEffect(() => {
     const control = new AbortController();
     sesionActual(control.signal)
-      .then((email) => {
-        setSesion(email ? { estado: 'activa', email } : { estado: 'anonima' });
+      .then((resultado) => {
+        setSesion(
+          resultado.usuario
+            ? { estado: 'activa', usuario: resultado.usuario }
+            : { estado: 'anonima', aviso: resultado.aviso },
+        );
       })
       .catch((error: unknown) => {
         if (esAbortado(error)) return;
@@ -43,8 +48,8 @@ export default function AdminApp() {
     };
   }, [intento]);
 
-  const alVencerSesion = useCallback(() => {
-    setSesion({ estado: 'anonima', aviso: 'Tu sesión venció. Ingresá de nuevo.' });
+  const alVencerSesion = useCallback((mensaje: string) => {
+    setSesion({ estado: 'anonima', aviso: mensaje });
   }, []);
 
   return (
@@ -80,14 +85,14 @@ export default function AdminApp() {
       {sesion.estado === 'anonima' && (
         <Login
           aviso={sesion.aviso}
-          alIngresar={(email) => {
-            setSesion({ estado: 'activa', email });
+          alIngresar={(usuario) => {
+            setSesion({ estado: 'activa', usuario });
           }}
         />
       )}
       {sesion.estado === 'activa' && (
         <Panel
-          email={sesion.email}
+          usuario={sesion.usuario}
           alSalir={() => {
             setSesion({ estado: 'anonima' });
           }}

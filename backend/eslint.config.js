@@ -3,7 +3,7 @@ import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
-// Selector común: por donde entra SQL a node:sqlite, node-postgres y PGlite.
+// Selector común: por donde entra SQL a node-postgres y PGlite.
 //  - `.prepare(...)` (en cualquier objeto),
 //  - `.exec(...)` cuando el receptor se llama db / database / pg (db.exec, this.db.exec). Un `regex.exec()` no es SQL.
 //  - `.query(...)` cuando el receptor se llama sql / client / pool / pg / db (this.sql.query, pool.query).
@@ -30,33 +30,33 @@ export default defineConfig(
       },
     },
     rules: {
-      // Regla de seguridad: el SQL es siempre un literal; los valores van como parámetros (?).
+      // Regla de seguridad: el SQL es siempre un literal; los valores van como parámetros ($1, $2...).
       // Prohíbe interpolar (`${x}`), concatenar (+) o pasar variables a prepare()/exec().
       'no-restricted-syntax': [
         'error',
         {
           selector: `${SQL_CALL} > TemplateLiteral[expressions.length>0]`,
-          message: 'No interpoles valores en SQL: usá parámetros (? en SQLite, $1 en Postgres).',
+          message: 'No interpoles valores en SQL: usá parámetros ($1, $2...).',
         },
         {
           selector: `${SQL_CALL} > BinaryExpression`,
-          message: 'No concatenes SQL: usá un literal y parámetros (? / $1).',
+          message: 'No concatenes SQL: usá un literal y parámetros ($1, $2...).',
         },
         {
           selector: `${SQL_CALL}[arguments.0.type!=/^(Literal|TemplateLiteral)$/]`,
           message: 'El SQL de prepare()/exec()/query() tiene que ser un literal, nunca una variable.',
         },
       ],
-      // Arquitectura: SQLite queda encapsulado. El resto del código (rutas, servicios, middlewares, dominio)
-      // trabaja contra las interfaces async de domain/ (ver el override de más abajo para dónde sí se permite).
+      // Arquitectura: el driver de la base queda encapsulado. El resto del código (rutas, servicios, middlewares,
+      // dominio) trabaja contra las interfaces async de domain/ (ver el override de más abajo para dónde sí se permite).
+      // node:sqlite está prohibido en todo el proyecto: Postgres es el único motor.
       'no-restricted-imports': [
         'error',
         {
           paths: [
             {
               name: 'node:sqlite',
-              message:
-                'SQLite solo se usa en db/, repositories/, app.ts, index.ts y scripts/. El resto trabaja contra las interfaces de domain/.',
+              message: 'SQLite se retiró: Postgres (Supabase) es el único motor. En los tests se usa PGlite.',
             },
             {
               name: 'pg',
@@ -82,10 +82,15 @@ export default defineConfig(
   },
 
   {
-    // Los puntos de entrada y las capas que SÍ pueden conocer la base (los tests prueban la capa de datos y
-    // arman bases en memoria, SQLite y PGlite).
+    // Las capas que SÍ pueden conocer el driver (los tests arman bases Postgres en memoria con PGlite).
+    // node:sqlite sigue prohibido también acá.
     files: ['src/db/**/*.ts', 'src/repositories/**/*.ts', 'src/app.ts', 'src/index.ts', 'src/scripts/**/*.ts', 'test/**/*.ts'],
-    rules: { 'no-restricted-imports': 'off' },
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: [{ name: 'node:sqlite', message: 'SQLite se retiró: Postgres (Supabase) es el único motor.' }] },
+      ],
+    },
   },
 
   {
@@ -99,14 +104,6 @@ export default defineConfig(
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
     },
-  },
-
-  {
-    // Los repositorios SQLite implementan interfaces async (domain/) con node:sqlite, que es síncrono: sus métodos
-    // son `async` sin `await` a propósito, para que un error síncrono salga como promesa rechazada. En el resto
-    // del código la regla sigue activa.
-    files: ['src/repositories/**/*.ts'],
-    rules: { '@typescript-eslint/require-await': 'off' },
   },
 
   {

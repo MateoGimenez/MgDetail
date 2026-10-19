@@ -30,13 +30,15 @@ async function main(): Promise<void> {
       : `Avisos de turnos activados (${config.whatsapp.provider})`,
   );
 
-  // 2) Base de datos: SQLite (abre y migra) o Postgres (conecta y verifica el esquema). Ver db/database.ts.
+  logger.info(`Login del panel: Supabase Auth (${config.supabase.url})`);
+
+  // 2) Base de datos: Postgres en Supabase (conecta y verifica que las migraciones estén aplicadas).
   let database: Database;
   try {
     database = await openConfiguredDatabase(config.database, logger);
     logger.info(`Base de datos lista: ${database.description}`);
   } catch (error) {
-    logger.error('No se pudo abrir, migrar o verificar la base de datos', error);
+    logger.error('No se pudo conectar o verificar la base de datos', error);
     process.exit(1);
   }
 

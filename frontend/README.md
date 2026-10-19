@@ -49,6 +49,22 @@ Buscá `COMPLETAR` para ver todo lo pendiente.
    `FRONTEND_ORIGIN=http://localhost:5173,http://192.168.0.20:5173`
 3. Reiniciá el backend y abrí la dirección en el celular (misma red Wi-Fi).
 
+## Panel `/admin`: acceso, roles y usuarios
+
+El ingreso usa Supabase Auth a través del backend (modo BFF): el navegador solo habla con `/api` y la sesión vive en cookies httpOnly. No hay claves de Supabase en el frontend.
+
+- **Sesión:** si un pedido a `/api/admin/*` responde `401 SESSION_EXPIRED`, `src/api/sesion.ts` llama una sola vez a `POST /api/auth/refresh` (aunque fallen varios pedidos a la vez) y reintenta. Si el refresh falla, vuelve al ingreso con el mensaje. Un `403 FORBIDDEN` (rol sin permiso) muestra el mensaje y la sesión sigue; un `403 NO_ACCESS` (usuario desactivado) vuelve al ingreso, sin pedidos extra.
+- **Roles** (la regla real la aplica el backend; el panel solo esconde lo que no se puede hacer):
+
+| Rol | Ver turnos | Cambiar estado | Borrar | Usuarios |
+|---|---|---|---|---|
+| Superadmin | sí | a cualquier estado | sí | sí |
+| Admin | sí | a cualquier estado | sí | no |
+| Empleado | sí | solo "Marcar completado" | no | no |
+
+- **Usuarios** (solo superadmin, sección "Usuarios" del panel): lista con email, nombre, rol, estado y fecha de alta. Se puede cambiar el rol, activar o desactivar (con confirmación) y editar el nombre. Los inactivos aparecen arriba, en "Pendientes de activación", con el botón "Activar". Sobre tu propio usuario no podés cambiarte el rol ni desactivarte.
+- **Alta de usuarios:** se crean en Supabase (*Authentication → Add user*). Aparecen en el panel como empleado inactivo hasta que un superadmin los active. Los pasos completos están en `backend/README.md`.
+
 ## Notas
 
 - **ESLint 9 y no 10:** `eslint-plugin-jsx-a11y` todavía no soporta ESLint 10. Cuando lo haga, se pueden subir `eslint` y `@eslint/js`.

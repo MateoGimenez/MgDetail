@@ -176,15 +176,6 @@
   min-width: 0;
 }
 
-.panel__email {
-  display: none;
-  overflow: hidden;
-  color: var(--gris-300);
-  font-size: 0.875rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .panel .panel__riel .boton--fantasma:hover {
   color: #ffffff;
   background: rgb(255 255 255 / 0.08);
@@ -192,13 +183,6 @@
 
 .panel__riel :focus-visible {
   outline-color: #ffffff;
-}
-
-@media (min-width: 640px) {
-  .panel__email {
-    display: block;
-    max-width: 260px;
-  }
 }
 
 .panel__trabajo {
@@ -627,4 +611,172 @@
   justify-content: flex-end;
   gap: var(--e-2);
   margin-top: var(--e-5);
+}
+
+/* ---------- Usuario conectado y secciones ---------- */
+
+.panel__quien {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.panel__nombre {
+  overflow: hidden;
+  max-width: 34vw;
+  color: var(--gris-200);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel__rol {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+@media (min-width: 640px) {
+  .panel__nombre {
+    max-width: 260px;
+  }
+}
+
+.panel__secciones {
+  width: min(100% - 2 * var(--margen), 1100px);
+  margin-inline: auto;
+}
+
+.panel__secciones-lista {
+  display: flex;
+  gap: var(--e-1);
+}
+
+.panel__seccion {
+  position: relative;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--gris-300);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.panel__seccion:hover {
+  color: #ffffff;
+}
+
+.panel__seccion.activa {
+  color: #ffffff;
+}
+
+.panel__seccion.activa::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--rojo-500);
+}
+
+.panel__vista {
+  display: grid;
+}
+
+/* ---------- Usuarios ---------- */
+
+.usuarios__ayuda {
+  max-width: 62ch;
+  margin-top: var(--e-3);
+  color: var(--texto-2);
+}
+
+.usuarios__grupo {
+  margin-top: var(--e-6);
+}
+
+.usuarios__grupo--pendientes {
+  padding: var(--e-4);
+  border: 1px solid rgb(138 82 0 / 0.35);
+  border-radius: var(--radio-3);
+  background: #fff8ec;
+}
+
+.usuarios__subtitulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.4rem;
+  letter-spacing: var(--display-tracking);
+}
+
+.usuario--inactivo {
+  border-color: rgb(138 82 0 / 0.35);
+}
+
+.usuario__controles {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.usuario__nombre,
+.usuario__rol {
+  display: grid;
+  gap: 6px;
+}
+
+.usuario__fila {
+  display: flex;
+  gap: var(--e-2);
+}
+
+.usuario__controles .entrada {
+  min-height: 42px;
+}
+
+.usuario__nota {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+.usuario__datos dt {
+  display: inline;
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.usuario__datos dd {
+  display: inline;
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 760px) {
+  .usuario__controles {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: end;
+  }
+}
+
+@media (max-width: 519px) {
+  .panel__rotulo {
+    display: none;
+  }
+
+  .panel__nombre {
+    min-width: 5ch;
+    max-width: 30vw;
+  }
 }

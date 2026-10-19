@@ -185,8 +185,6 @@ export const listaDeTurnosSchema = z.object({
 
 export const respuestaTurnoSchema = z.object({ booking: turnoSchema });
 
-export const respuestaAdminSchema = z.object({ admin: z.object({ email: z.string() }) });
-
 /** POST /api/bookings: con un 2xx el turno ya quedó creado, así que se lee con tolerancia. */
 export const turnoCreadoSchema = z.catch(
   z.object({ booking: z.looseObject({ id: z.optional(z.string()) }) }),

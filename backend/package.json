@@ -15,8 +15,6 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "crear-admin": "node dist/scripts/crear-admin.js",
-    "crear-admin:dev": "tsx src/scripts/crear-admin.ts",
     "clave-db": "node dist/scripts/clave-db.js",
     "clave-db:dev": "tsx src/scripts/clave-db.ts"
   },

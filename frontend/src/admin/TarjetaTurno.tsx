@@ -1,37 +1,18 @@
 import { useId } from 'react';
-import {
-  ESTADOS,
-  ETIQUETA_ESTADO,
-  ETIQUETA_FRANJA,
-  ETIQUETA_VEHICULO,
-  FRANJA_EN_FRASE,
-  esEstado,
-  type Estado,
-  type Turno,
-} from '../api/contract';
+import { ESTADOS, ETIQUETA_ESTADO, ETIQUETA_FRANJA, ETIQUETA_VEHICULO, FRANJA_EN_FRASE, esEstado, type Estado, type Turno } from '../api/contract';
+import { type Rol } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { whatsappClienteUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 import { nombreDeServicio } from '../data/servicios';
 import { fechaCorta, fechaLarga, momentoEnLaRioja } from '../lib/fechas';
 import { referenciaDeTurno } from '../lib/turnos';
-
-/** La acción principal de cada estado: la que el dueño hace casi siempre. */
-const TRANSICIONES: Readonly<Record<Estado, readonly { a: Estado; texto: string; principal: boolean }[]>> = {
-  pendiente: [
-    { a: 'confirmado', texto: 'Confirmar', principal: true },
-    { a: 'cancelado', texto: 'Cancelar', principal: false },
-  ],
-  confirmado: [
-    { a: 'completado', texto: 'Marcar completado', principal: true },
-    { a: 'cancelado', texto: 'Cancelar', principal: false },
-  ],
-  completado: [],
-  cancelado: [{ a: 'pendiente', texto: 'Volver a pendiente', principal: false }],
-};
+import { accionesDeEstado, muestraSelectorDeEstado, puedeBorrarTurnos } from './permisos';
 
 interface Props {
   turno: Turno;
+  /** Rol de quien mira: esconde lo que no puede hacer (la regla real la aplica el backend). */
+  rol: Rol;
   nueva: boolean;
   cambiada: boolean;
   /** Estado nuevo (legible) si el turno ya no corresponde a la pestaña abierta. */
@@ -42,7 +23,7 @@ interface Props {
   alEliminar: () => void;
 }
 
-export function TarjetaTurno({ turno, nueva, cambiada, salioDelFiltro, ocupada, error, alCambiarEstado, alEliminar }: Props) {
+export function TarjetaTurno({ turno, rol, nueva, cambiada, salioDelFiltro, ocupada, error, alCambiarEstado, alEliminar }: Props) {
   const id = useId();
   const servicio = nombreDeServicio(turno.servicioId);
   const primerNombre = turno.nombre.trim().split(/\s+/)[0] ?? turno.nombre;
@@ -126,7 +107,7 @@ export function TarjetaTurno({ turno, nueva, cambiada, salioDelFiltro, ocupada, 
       )}
 
       <div className="turno__acciones">
-        {TRANSICIONES[turno.estado].map((transicion) => (
+        {accionesDeEstado(rol, turno.estado).map((transicion) => (
           <button
             key={transicion.a}
             type="button"
@@ -148,39 +129,47 @@ export function TarjetaTurno({ turno, nueva, cambiada, salioDelFiltro, ocupada, 
           </a>
         )}
 
-        <div className="turno__extra">
-          <label className="visualmente-oculto" htmlFor={`${id}-estado`}>
-            Cambiar estado de la solicitud de {turno.nombre}
-          </label>
-          <div className="desplegable turno__estado">
-            <select
-              id={`${id}-estado`}
-              className="entrada"
-              value={turno.estado}
-              disabled={ocupada}
-              onChange={(evento) => {
-                const valor = evento.target.value;
-                if (esEstado(valor) && valor !== turno.estado) alCambiarEstado(valor);
-              }}
-            >
-              {ESTADOS.map((estado) => (
-                <option key={estado} value={estado}>
-                  {ETIQUETA_ESTADO[estado]}
-                </option>
-              ))}
-            </select>
-            <Icono nombre="abajo" tamano={18} className="desplegable__icono" />
+        {(muestraSelectorDeEstado(rol) || puedeBorrarTurnos(rol)) && (
+          <div className="turno__extra">
+            {muestraSelectorDeEstado(rol) && (
+              <>
+                <label className="visualmente-oculto" htmlFor={`${id}-estado`}>
+                  Cambiar estado de la solicitud de {turno.nombre}
+                </label>
+                <div className="desplegable turno__estado">
+                  <select
+                    id={`${id}-estado`}
+                    className="entrada"
+                    value={turno.estado}
+                    disabled={ocupada}
+                    onChange={(evento) => {
+                      const valor = evento.target.value;
+                      if (esEstado(valor) && valor !== turno.estado) alCambiarEstado(valor);
+                    }}
+                  >
+                    {ESTADOS.map((estado) => (
+                      <option key={estado} value={estado}>
+                        {ETIQUETA_ESTADO[estado]}
+                      </option>
+                    ))}
+                  </select>
+                  <Icono nombre="abajo" tamano={18} className="desplegable__icono" />
+                </div>
+              </>
+            )}
+            {puedeBorrarTurnos(rol) && (
+              <button
+                type="button"
+                className="boton boton--fantasma boton--chico turno__eliminar"
+                disabled={ocupada}
+                onClick={alEliminar}
+              >
+                <Icono nombre="papelera" tamano={18} />
+                Eliminar
+              </button>
+            )}
           </div>
-          <button
-            type="button"
-            className="boton boton--fantasma boton--chico turno__eliminar"
-            disabled={ocupada}
-            onClick={alEliminar}
-          >
-            <Icono nombre="papelera" tamano={18} />
-            Eliminar
-          </button>
-        </div>
+        )}
       </div>
     </article>
   );

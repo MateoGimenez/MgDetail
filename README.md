@@ -3,7 +3,7 @@
 Web del taller de detailing de autos de MgDetailing, en La Rioja, Argentina. Tiene dos partes que se ven como una sola web:
 
 - **Landing** (`/`): explica los servicios en palabras simples y deja pedir un turno desde un formulario.
-- **Panel de administración** (`/admin`): donde el dueño ve las solicitudes de turno, las confirma, las marca como completadas, las cancela o las borra, y puede escribirle al cliente por WhatsApp.
+- **Panel de administración** (`/admin`): donde el equipo ve las solicitudes de turno, las confirma, las marca como completadas, las cancela o las borra (según su rol: `superadmin`, `admin` o `empleado`), y puede escribirle al cliente por WhatsApp.
 
 Estado: en desarrollo, todavía no publicada. Lo que falta para salir está en [reportes/2026-10-17_06_pendientes-del-dueno.md](reportes/2026-10-17_06_pendientes-del-dueno.md).
 
@@ -12,7 +12,7 @@ Estado: en desarrollo, todavía no publicada. Lo que falta para salir está en [
 | Carpeta | Qué es |
 |---|---|
 | `frontend/` | Lo que ve el visitante y el panel. Está hecho con React (librería para armar pantallas). |
-| `backend/` | La API: el servicio que guarda los turnos, maneja el login del dueño y envía los avisos. Usa Node.js (programa que corre JavaScript fuera del navegador) y una base SQLite (un archivo `.db`). |
+| `backend/` | La API: el servicio que guarda los turnos, maneja el login del panel (con Supabase Auth) y envía los avisos. Usa Node.js (programa que corre JavaScript fuera del navegador) y una base Postgres en Supabase. |
 | `reportes/` | Informes del proyecto: estado, decisiones, pendientes y capturas. |
 
 ## Requisitos
@@ -39,23 +39,11 @@ Levanta el backend (puerto 4000) y el frontend (puerto 5173) juntos.
 - Landing: http://localhost:5173
 - Panel: http://localhost:5173/admin
 
-Abrilo siempre como `localhost`, no como `127.0.0.1`: la API rechaza los pedidos que vienen de otro origen (responde 403). Para desarrollar no hace falta ningún archivo `.env`.
+Abrilo siempre como `localhost`, no como `127.0.0.1`: la API rechaza los pedidos que vienen de otro origen (responde 403). El backend necesita `backend/.env` con la conexión a Supabase (base y login): ver [backend/README.md](backend/README.md#conectar-supabase).
 
-## Crear el administrador
+## Usuarios del panel
 
-El panel no tiene registro público: el usuario del dueño se crea por consola. La contraseña tiene que tener al menos 10 caracteres.
-
-En PowerShell (Windows), con el proyecto instalado:
-
-```powershell
-$env:ADMIN_PASSWORD = "una clave larga y unica"
-npm run crear-admin:dev -- --email dueno@ejemplo.com
-Remove-Item Env:ADMIN_PASSWORD
-```
-
-- `crear-admin:dev` corre el código directo (sirve en desarrollo).
-- `npm run crear-admin` corre la versión compilada, así que primero hay que hacer `npm run build`. Es la que se usa en producción; ver [backend/README.md](backend/README.md#alta-del-primer-administrador-en-producción).
-- Si el email ya existe, el comando cambia su contraseña y cierra sus sesiones abiertas.
+El panel no tiene registro público: los usuarios se crean en el panel de Supabase (*Authentication > Users > Add user*, con "Auto Confirm User") y nacen **inactivos**. El primer superadmin se activa con una sentencia SQL; después, el superadmin activa a los demás y les asigna rol desde el panel web. Los pasos exactos están en [backend/README.md](backend/README.md#alta-de-usuarios-pasos-del-dueño).
 
 ## Verlo desde el celular
 
@@ -65,7 +53,7 @@ Remove-Item Env:ADMIN_PASSWORD
    npm --prefix frontend run dev:lan
    ```
 2. Vite muestra una dirección de red, por ejemplo `http://192.168.0.20:5173`.
-3. Creá `backend/.env` copiando `backend/.env.example` y agregá esa dirección a `FRONTEND_ORIGIN`, separada por coma:
+3. En `backend/.env` agregá esa dirección a `FRONTEND_ORIGIN`, separada por coma:
    ```
    FRONTEND_ORIGIN=http://localhost:5173,http://192.168.0.20:5173
    ```
@@ -81,8 +69,6 @@ Remove-Item Env:ADMIN_PASSWORD
 | `npm start` | Arranca el backend compilado (`node dist/index.js`). Requiere `npm run build` antes. |
 | `npm test` | Tests del backend y del frontend. |
 | `npm run verificar` | Chequeo completo: tipos, lint y tests de los dos, y build del frontend. |
-| `npm run crear-admin:dev -- --email <email>` | Crea o actualiza el administrador, en desarrollo (código fuente). |
-| `npm run crear-admin -- --email <email>` | Lo mismo, con la versión compilada (requiere `build`). Para producción. |
 
 ## Dónde se edita cada contenido
 

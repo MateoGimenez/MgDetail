@@ -4,6 +4,7 @@ import { BookingService } from '../src/services/bookings.js';
 import {
   MemoryLogger,
   NOW,
+  type TestContext,
   TODAY_PLUS_60,
   TODAY_PLUS_61,
   bookingWithout,
@@ -20,7 +21,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 describe('POST /api/bookings: creación', () => {
   it('crea un turno válido y responde 201 solo con los campos públicos', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send(validBooking());
 
     expect(response.status).toBe(201);
@@ -37,11 +38,11 @@ describe('POST /api/bookings: creación', () => {
     expect(Object.keys(response.body.booking as object).sort()).toEqual(
       ['estado', 'fechaPreferida', 'franja', 'id', 'servicioId'],
     );
-    expect(countRows(db, 'bookings')).toBe(1);
+    expect(await countRows(db, 'bookings')).toBe(1);
   });
 
   it('guarda los datos normalizados (trim, email en minúsculas)', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send(
       validBooking({
         nombre: '  María  Gómez ',
@@ -53,8 +54,14 @@ describe('POST /api/bookings: creación', () => {
     );
     expect(response.status).toBe(201);
 
-    const row = db.prepare('SELECT * FROM bookings WHERE id = ?').get((response.body as { booking: { id: string } }).booking.id);
-    expect(row).toMatchObject({
+    const { rows } = await db.sql.query(
+      `SELECT nombre, telefono, email, vehiculo_modelo, comentario, estado,
+              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at
+       FROM mgdetailing.bookings WHERE id = $1::uuid`,
+      [(response.body as { booking: { id: string } }).booking.id],
+    );
+    expect(rows[0]).toMatchObject({
       nombre: 'María  Gómez',
       telefono: '380 4123456',
       email: 'maria@example.com',
@@ -67,7 +74,7 @@ describe('POST /api/bookings: creación', () => {
   });
 
   it('email, vehiculoModelo y comentario son opcionales: omitidos, vacíos o null se guardan como null', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const variants: Record<string, unknown>[] = [
       (() => {
         const { email: _e, vehiculoModelo: _v, comentario: _c, ...rest } = validBooking();
@@ -83,7 +90,7 @@ describe('POST /api/bookings: creación', () => {
       expect(response.status, JSON.stringify(response.body)).toBe(201);
     }
 
-    const rows = db.prepare('SELECT email, vehiculo_modelo, comentario FROM bookings').all();
+    const { rows } = await db.sql.query('SELECT email, vehiculo_modelo, comentario FROM mgdetailing.bookings');
     expect(rows).toHaveLength(variants.length);
     for (const row of rows) {
       expect(row.email).toBeNull();
@@ -95,7 +102,7 @@ describe('POST /api/bookings: creación', () => {
 
 describe('POST /api/bookings: validaciones', () => {
   it('campo requerido faltante => 400 VALIDATION_ERROR con el campo en `fields`', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const required = ['nombre', 'telefono', 'vehiculoTipo', 'servicioId', 'fechaPreferida', 'franja'];
 
     for (const field of required) {
@@ -105,11 +112,11 @@ describe('POST /api/bookings: validaciones', () => {
       expect(response.body.error.message).toBe('Revisá los datos ingresados.');
       expect(Object.keys(response.body.error.fields as object), field).toEqual([field]);
     }
-    expect(countRows(db, 'bookings')).toBe(0);
+    expect(await countRows(db, 'bookings')).toBe(0);
   });
 
   it('body vacío => lista todos los campos obligatorios', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send({});
 
     expect(response.status).toBe(400);
@@ -131,7 +138,7 @@ describe('POST /api/bookings: validaciones', () => {
   ];
 
   it.each(invalidValues)('rechaza %s = %j (%s)', async (field, value) => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send(validBooking({ [field]: value }));
 
     expect(response.status).toBe(400);
@@ -140,11 +147,11 @@ describe('POST /api/bookings: validaciones', () => {
     expect(Object.keys(fields)).toEqual([field]);
     expect(fields[field]).toEqual(expect.any(String));
     expect(fields[field]).not.toBe('');
-    expect(countRows(db, 'bookings')).toBe(0);
+    expect(await countRows(db, 'bookings')).toBe(0);
   });
 
   it('los límites exactos son válidos (nombre 80, modelo 80, comentario 500, email 120, teléfono 20)', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send(
       validBooking({
         nombre: 'x'.repeat(80),
@@ -158,7 +165,7 @@ describe('POST /api/bookings: validaciones', () => {
   });
 
   it('rechaza campos desconocidos (.strict())', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send(validBooking({ estado: 'confirmado', admin: true }));
 
     expect(response.status).toBe(400);
@@ -167,11 +174,11 @@ describe('POST /api/bookings: validaciones', () => {
       estado: 'Este campo no está permitido.',
       admin: 'Este campo no está permitido.',
     });
-    expect(countRows(db, 'bookings')).toBe(0);
+    expect(await countRows(db, 'bookings')).toBe(0);
   });
 
   it('un campo __proto__ en el JSON se trata como campo desconocido', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const raw = JSON.stringify(validBooking()).replace('{', '{"__proto__":{"estado":"completado"},');
     const response = await rawPost(app, '/api/bookings').send(raw);
 
@@ -184,16 +191,16 @@ describe('POST /api/bookings: validaciones', () => {
 describe('POST /api/bookings: fecha preferida (hoy en America/Argentina/La_Rioja)', () => {
 
   it('ayer (fecha pasada) => 400', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send(validBooking({ fechaPreferida: '2026-10-15' }));
 
     expect(response.status).toBe(400);
     expect(response.body.error.fields).toEqual({ fechaPreferida: 'La fecha no puede ser anterior a hoy.' });
-    expect(countRows(db, 'bookings')).toBe(0);
+    expect(await countRows(db, 'bookings')).toBe(0);
   });
 
   it('hoy + 60 días es válido y hoy + 61 días => 400', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
 
     const ok = await rawPost(app, '/api/bookings').send(validBooking({ fechaPreferida: TODAY_PLUS_60 }));
     expect(ok.status).toBe(201);
@@ -206,7 +213,7 @@ describe('POST /api/bookings: fecha preferida (hoy en America/Argentina/La_Rioja
   });
 
   it('a las 22:30 locales (01:30 UTC del día siguiente) "hoy" sigue siendo el día local', async () => {
-    const { app } = createTestContext({ now: new Date('2026-10-17T01:30:00.000Z') });
+    const { app } = await createTestContext({ now: new Date('2026-10-17T01:30:00.000Z') });
 
     const today = await rawPost(app, '/api/bookings').send(validBooking({ fechaPreferida: '2026-10-16' }));
     expect(today.status, 'el 16 sigue siendo hoy en La Rioja').toBe(201);
@@ -216,7 +223,7 @@ describe('POST /api/bookings: fecha preferida (hoy en America/Argentina/La_Rioja
   });
 
   it('a las 00:30 locales (03:30 UTC) ya es el día siguiente: el día anterior se rechaza', async () => {
-    const { app } = createTestContext({ now: new Date('2026-10-17T03:30:00.000Z') });
+    const { app } = await createTestContext({ now: new Date('2026-10-17T03:30:00.000Z') });
 
     const previousDay = await rawPost(app, '/api/bookings').send(validBooking({ fechaPreferida: '2026-10-16' }));
     expect(previousDay.status).toBe(400);
@@ -227,7 +234,7 @@ describe('POST /api/bookings: fecha preferida (hoy en America/Argentina/La_Rioja
 
   it('el límite de +60 días cruza fin de año y años bisiestos', async () => {
     // 2027-12-31 12:00 local + 60 días = 2028-02-29 (2028 es bisiesto).
-    const { app } = createTestContext({ now: new Date('2027-12-31T15:00:00.000Z') });
+    const { app } = await createTestContext({ now: new Date('2027-12-31T15:00:00.000Z') });
 
     const leapDay = await rawPost(app, '/api/bookings').send(validBooking({ fechaPreferida: '2028-02-29' }));
     expect(leapDay.status).toBe(201);
@@ -239,7 +246,7 @@ describe('POST /api/bookings: fecha preferida (hoy en America/Argentina/La_Rioja
 
 describe('POST /api/bookings: honeypot (campo `website`)', () => {
   it('con contenido responde 201 creíble pero NO guarda nada', async () => {
-    const context = createTestContext();
+    const context = await createTestContext();
     const response = await rawPost(context.app, '/api/bookings').send(
       validBooking({ website: 'http://spam.example.com' }),
     );
@@ -254,13 +261,13 @@ describe('POST /api/bookings: honeypot (campo `website`)', () => {
         estado: 'pendiente',
       },
     });
-    expect(countRows(context.db, 'bookings')).toBe(0);
+    expect(await countRows(context.db, 'bookings')).toBe(0);
     expect(context.logger.text).toContain('descartada por honeypot');
     expect(context.logger.text).not.toContain('spam.example.com');
   });
 
   it('la respuesta del honeypot es indistinguible de una real (mismas claves, id nuevo cada vez)', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const real = await rawPost(app, '/api/bookings').send(validBooking());
     const fakeA = await rawPost(app, '/api/bookings').send(validBooking({ website: 'x' }));
     const fakeB = await rawPost(app, '/api/bookings').send(validBooking({ website: 'x' }));
@@ -272,23 +279,26 @@ describe('POST /api/bookings: honeypot (campo `website`)', () => {
   });
 
   it('vacío o solo espacios se considera "no completado" y el turno se guarda', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     for (const website of ['', '   ']) {
       const response = await rawPost(app, '/api/bookings').send(validBooking({ website }));
       expect(response.status, JSON.stringify(website)).toBe(201);
     }
-    expect(countRows(db, 'bookings')).toBe(2);
+    expect(await countRows(db, 'bookings')).toBe(2);
   });
 
   it('el valor del honeypot nunca se persiste cuando el turno es real', async () => {
-    const { app, db } = createTestContext();
+    const { app, db } = await createTestContext();
     await rawPost(app, '/api/bookings').send(validBooking({ website: '' }));
-    const columns = db.prepare('PRAGMA table_info(bookings)').all().map((column) => column.name);
-    expect(columns).not.toContain('website');
+    const { rows } = await db.sql.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'mgdetailing' AND table_name = 'bookings'",
+    );
+    expect(rows.map((column) => column.column_name)).toContain('nombre');
+    expect(rows.map((column) => column.column_name)).not.toContain('website');
   });
 
   it('si el resto de los datos es inválido, igual se valida (400)', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await rawPost(app, '/api/bookings').send(validBooking({ website: 'x', telefono: '1' }));
     expect(response.status).toBe(400);
   });
@@ -296,7 +306,7 @@ describe('POST /api/bookings: honeypot (campo `website`)', () => {
 
 describe('POST /api/bookings: logging', () => {
   it('al crear un turno loguea solo id + servicio + fecha (sin datos personales)', async () => {
-    const context = createTestContext();
+    const context = await createTestContext();
     const response = await rawPost(context.app, '/api/bookings').send(
       validBooking({
         nombre: 'Nombre Muy Privado',
@@ -318,7 +328,7 @@ describe('POST /api/bookings: logging', () => {
   });
 
   it('la línea de request es "MÉTODO ruta status ms", sin query ni body', async () => {
-    const context = createTestContext();
+    const context = await createTestContext();
     await rawPost(context.app, '/api/bookings?nombre=Secreto&telefono=123').send(validBooking());
 
     const requestLine = context.logger.lines.find((line) => line.startsWith('INFO POST /api/bookings'));
@@ -358,21 +368,21 @@ describe('POST /api/bookings: higiene de caracteres invisibles', () => {
   const LRM = String.fromCodePoint(0x200e); // Left-to-Right Mark
   const BEL = String.fromCharCode(7);
 
-  async function storedRow(context: ReturnType<typeof createTestContext>, payload: Record<string, unknown>) {
+  async function storedRow(context: TestContext, payload: Record<string, unknown>) {
     const response = await rawPost(context.app, '/api/bookings').send(payload);
     expect(response.status, JSON.stringify(response.body)).toBe(201);
-    return context.db.prepare('SELECT * FROM bookings').get();
+    return (await context.db.sql.query('SELECT * FROM mgdetailing.bookings')).rows[0];
   }
 
   it('un teléfono copiado de WhatsApp (envuelto en controles bidi invisibles) se acepta y se guarda limpio', async () => {
-    const context = createTestContext();
+    const context = await createTestContext();
     const row = await storedRow(context, validBooking({ telefono: `${LRE}+54 9 380 412-3456${PDF}` }));
 
     expect(row?.telefono).toBe('+54 9 380 412-3456');
   });
 
   it('los controles bidi se QUITAN de nombre, modelo, comentario y email (no se pueden usar para disfrazar texto)', async () => {
-    const context = createTestContext();
+    const context = await createTestContext();
     const row = await storedRow(
       context,
       validBooking({
@@ -395,7 +405,7 @@ describe('POST /api/bookings: higiene de caracteres invisibles', () => {
   });
 
   it('los controles C0 (ej.: BEL) siguen rechazándose en nombre, modelo y comentario', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     for (const field of ['nombre', 'vehiculoModelo', 'comentario']) {
       const response = await rawPost(app, '/api/bookings').send(validBooking({ [field]: `abc${BEL}def` }));
       expect(response.status, field).toBe(400);

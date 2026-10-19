@@ -3,16 +3,16 @@
 API REST de MgDetailing, taller de detailing de autos en La Rioja, Argentina. Hace tres cosas:
 
 1. Recibe **solicitudes de turno** desde la landing (público, con anti-spam).
-2. **Autentica** al dueño del taller (sesión con cookie httpOnly).
-3. Le permite **gestionar** esas solicitudes desde el panel `/admin` (listar, filtrar, cambiar el estado, borrar).
+2. **Autentica** a los usuarios del panel con **Supabase Auth**, en modo BFF: el backend habla con Supabase y guarda los tokens en cookies httpOnly; el navegador nunca ve un token ni una clave.
+3. Les permite **gestionar** esas solicitudes desde el panel `/admin` según su **rol** (`superadmin`, `admin`, `empleado`), y al `superadmin` gestionar los usuarios.
 
-Stack: Node 24 + TypeScript (strict, ESM) + Express 5, **Postgres en Supabase** (driver `pg`) como base principal y SQLite con el módulo nativo `node:sqlite` para desarrollo sin internet y tests, zod, helmet, cors, express-rate-limit, jose (JWT), scrypt nativo para contraseñas.
+Stack: Node 24 + TypeScript (strict, ESM) + Express 5, **Postgres en Supabase** (driver `pg`) como único motor, **Supabase Auth** (API REST de GoTrue, sin `supabase-js`), zod, helmet, cors, express-rate-limit, jose (verificación de los JWT contra el JWKS del proyecto). Los tests usan PGlite (Postgres en memoria).
 
 ## Contenido
 
 - [Instalación y uso](#instalación-y-uso)
 - [Variables de entorno](#variables-de-entorno)
-- [Crear el administrador](#crear-el-administrador)
+- [Supabase Auth: usuarios y roles](#supabase-auth-usuarios-y-roles)
 - [Base de datos](#base-de-datos)
 - [Conectar Supabase](#conectar-supabase)
 - [Endpoints con ejemplos curl](#endpoints-con-ejemplos-curl)
@@ -33,7 +33,7 @@ npm install
 npm run dev          # desarrollo, con recarga automática, en http://localhost:4000
 ```
 
-En desarrollo no hace falta ningún archivo `.env`: todo tiene un valor por defecto seguro. Si no definís `JWT_SECRET`, se genera uno al azar en cada arranque y se avisa por consola que **las sesiones se pierden al reiniciar**.
+Hace falta un `backend/.env` con la conexión a Postgres y las dos variables de Supabase Auth (ver [Variables de entorno](#variables-de-entorno) y [Conectar Supabase](#conectar-supabase)): **sin Supabase el panel no funciona**, así que ya no hay modo SQLite sin internet. Lo demás tiene valores por defecto seguros.
 
 Producción (un solo proceso Node):
 
@@ -51,15 +51,15 @@ Copiá `.env.example` a `.env` (está ignorado por git; nunca subas uno con secr
 
 | Variable | Por defecto | Descripción |
 |---|---|---|
-| `NODE_ENV` | `development` | `development`, `test` o `production`. En producción la cookie es `Secure` y se exigen `JWT_SECRET` y `FRONTEND_ORIGIN`. |
+| `NODE_ENV` | `development` | `development`, `test` o `production`. En producción las cookies son `Secure` y se exige `FRONTEND_ORIGIN`. |
 | `PORT` | `4000` | Puerto de la API. |
 | `HOST` | `127.0.0.1` | Interfaz donde escucha. Usá `0.0.0.0` en Docker o en un PaaS. |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | Origen(es) permitidos por CORS y por el chequeo de Origin (CSRF). Esquema + host + puerto, sin barra final. **Admite una lista separada por comas**, por ejemplo para probar desde el celular: `http://localhost:5173,http://192.168.0.10:5173`. Sin comodines. Obligatoria en producción. |
-| `JWT_SECRET` | aleatorio por arranque (solo fuera de producción) | Secreto de las sesiones, mínimo 32 caracteres. **Obligatorio en producción.** Cambiarlo cierra todas las sesiones. |
-| `DB_DRIVER` | según `DATABASE_URL` | `postgres` o `sqlite`. Sin definir: Postgres si hay `DATABASE_URL`, si no SQLite. **Obligatoria en producción.** Ver [Base de datos](#base-de-datos). |
-| `DATABASE_URL` | (vacía) | Cadena de conexión de Supabase (Session pooler): `postgresql://usuario:contraseña@host:5432/postgres`. **Secreto.** Se valida al arrancar y nunca se muestra en logs ni errores. Ver [Conectar Supabase](#conectar-supabase). |
-| `DATABASE_SSL_CA_FILE` | (vacía) | Certificado raíz de Supabase para verificar al servidor (TLS verify-full). Ruta relativa a `backend/` o absoluta. **Obligatoria en producción con Postgres**; en desarrollo, sin ella la conexión va cifrada pero sin verificar (con aviso). |
-| `DB_PATH` | `./storage/mgdetailing.db` | Archivo SQLite (solo con el motor SQLite). Las rutas relativas se resuelven desde `backend/`. La carpeta se crea sola. |
+| `SUPABASE_URL` | (obligatoria) | URL del proyecto, sin barra final: `https://iclsiweaqhupxvxbpekl.supabase.co`. De ahí se derivan `/auth/v1` (endpoints de Auth y `iss` exacto de los tokens) y el JWKS (`/auth/v1/.well-known/jwks.json`). |
+| `SUPABASE_PUBLISHABLE_KEY` | (obligatoria) | Clave **publishable** (`sb_publishable_...`), del panel: *Project Settings > API Keys*. La usa solo el backend (cabecera `apikey`). **Una secret key (`sb_secret_...`) se rechaza**: el backend no la necesita. |
+| `DATABASE_URL` | (obligatoria) | Cadena de conexión de Supabase (Session pooler) con el rol `mgdetailing_app`: `postgresql://usuario:contraseña@host:5432/postgres`. **Secreto.** Se valida al arrancar y nunca se muestra en logs ni errores. Ver [Conectar Supabase](#conectar-supabase). |
+| `DATABASE_SSL_CA_FILE` | (obligatoria con Postgres remoto) | Certificado raíz de Supabase para verificar al servidor (TLS verify-full). Ruta relativa a `backend/` o absoluta. Solo un Postgres local (`localhost`/`127.x`) se tolera sin ella fuera de producción, con un aviso. |
+| `DB_DRIVER`, `DB_PATH`, `JWT_SECRET` | | **Ya no se usan.** `DB_DRIVER=postgres` se sigue aceptando (cualquier otro valor se rechaza); `DB_PATH` y `JWT_SECRET` solo generan un aviso al arrancar: borralos del `.env`. |
 | `TRUST_PROXY` | `false` | Cuántos proxies hay delante (`1`) o una lista de IP/CIDR de confianza, para que el rate limit vea la IP real. `true` se rechaza a propósito (permite falsear la IP). |
 | `PUBLIC_URL` | (vacía) | Origen público del sitio (ej. `https://mgdetailing.com.ar`). Opcional: si está, el aviso de WhatsApp incluye el link al panel. |
 | `WHATSAPP_PROVIDER` | `none` | `none`, `callmebot`, `cloud` o `telegram`. Ver [Avisos por WhatsApp](#avisos-por-whatsapp). |
@@ -69,58 +69,54 @@ Copiá `.env.example` a `.env` (está ignorado por git; nunca subas uno con secr
 | `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID`, `WHATSAPP_CLOUD_TEMPLATE`, `WHATSAPP_CLOUD_LANGUAGE` | idioma `es_AR` | Solo con `cloud` (el idioma puede ser `es_AR` o `es`). |
 | `SERVE_FRONTEND` | `false` | `true`: la API también sirve `../frontend/dist` con fallback SPA a `index.html` para rutas que no empiezan con `/api`. |
 
-Generar un `JWT_SECRET`:
+## Supabase Auth: usuarios y roles
 
-```bash
-node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+### Arquitectura (BFF)
+
+```
+navegador --/api (cookies httpOnly)--> backend --POST /auth/v1/token, /auth/v1/logout (apikey publishable)--> Supabase Auth
+                                          |--verifica el access token con el JWKS del proyecto (ES256, caché 10 min)
+                                          +--lee el perfil (rol, activo) y la sesión (auth.sessions) en cada request
 ```
 
-## Crear el administrador
+- El frontend sigue llamando **solo a `/api`**: nada de `supabase-js` ni claves de Supabase en el navegador (no cambia la CSP ni el bundle).
+- **Login**: el backend llama a `POST <SUPABASE_URL>/auth/v1/token?grant_type=password`, verifica el `access_token` con `jose` contra el JWKS (algoritmo **ES256** fijado, `iss` = `<SUPABASE_URL>/auth/v1`, `aud` = `authenticated`, `exp`, `sub` y `session_id` UUID, `role = authenticated`, no anónimo) y busca el **perfil** del usuario en `mgdetailing.perfiles`. Sin perfil o inactivo: `403` genérico (y se cierra en Supabase la sesión recién abierta).
+- **Cookies**: `mg_at` (access token, `Path=/api`) y `mg_rt` (refresh token, `Path=/api/auth`), las dos `HttpOnly; SameSite=Strict`, `Secure` en producción, `Max-Age` 8 h desde el último login o refresco.
+- **Tope absoluto**: una sesión dura como máximo **12 h desde el login** aunque se siga refrescando (`SESION_MAX_SEGUNDOS` en `src/domain/perfil.ts`; lo aplica `mgdetailing_private.sesion_vigente` contra `auth.sessions.created_at`, y la sesión se cierra también en Supabase). En el plan Free el refresh token de Supabase no vence: sin este tope, una sesión abierta (o un refresh token robado) se renovaría para siempre.
+- **En cada request a `/api/admin/*`**: se verifica el access token, se carga el perfil (rol y `activo`) y se comprueba que la sesión siga existiendo en `auth.sessions` (función `mgdetailing_private.sesion_vigente`). Así **desactivar a alguien, cambiarle el rol, cerrar su sesión o borrarlo en Supabase tiene efecto en el request siguiente**, aunque su access token todavía no haya vencido.
+- **Refresco**: el access token dura lo que diga Supabase (1 h por defecto). Cuando vence, `/api/admin/*` responde `401 SESSION_EXPIRED` (el refresh token no viaja ahí a propósito: su cookie es solo de `/api/auth`) y el frontend llama a `POST /api/auth/refresh`, que canjea el refresh token (`grant_type=refresh_token`, con rotación), reescribe las dos cookies y devuelve el usuario; después reintenta el pedido. `GET /api/auth/me` refresca solo. Si el refresh token fue revocado o reutilizado (Supabase detecta el reuso y cierra la sesión entera): `401` y se borran las cookies.
+- **Logout**: `POST /auth/v1/logout?scope=local` con el access token (si venció, se refresca antes) y se borran las cookies.
+- **Algoritmo**: el proyecto firma con una clave asimétrica **ES256** (JWT Signing Keys; el JWKS público tiene una clave EC P-256). Si algún día se rota a una clave RSA, hay que cambiar `SUPABASE_JWT_ALGORITHM` en `src/lib/access-token.ts`.
+- El backend **no usa la secret key ni la Admin API**: los usuarios se crean en el panel de Supabase.
+- Logs: solo el id del usuario (`Inicio de sesión usuario=<uuid> rol=admin`); nunca tokens ni emails.
 
-No hay registro público: el administrador se crea por línea de comandos. La contraseña (mínimo 10 caracteres) se lee de la variable `ADMIN_PASSWORD`; también se acepta `--password <clave>`, pero queda guardada en el historial de la terminal (el script avisa). Los emails se normalizan a minúsculas. Si el email ya existe, **se actualiza su contraseña y se cierran sus sesiones abiertas** (sirve para recuperar el acceso o ante una sospecha de filtración).
+### Roles y permisos (la regla vive en el backend; la UI solo esconde botones)
 
-Hay dos scripts, según el entorno:
+| Rol | Ver turnos | Cambiar estado | Borrar turnos | Gestionar usuarios |
+|---|---|---|---|---|
+| `superadmin` | sí | a cualquier estado | sí | sí (listar, cambiar rol, activar/desactivar, nombre) |
+| `admin` | sí | a cualquier estado | sí | no |
+| `empleado` | sí | **solo a `completado`** | no | no |
 
-| Script | Cuándo usarlo |
-|---|---|
-| `npm run crear-admin:dev -- --email <email>` | **Desarrollo.** Corre el TypeScript directo con `tsx` (necesita las devDependencies). |
-| `npm run crear-admin -- --email <email>` | **Producción.** Corre `node dist/scripts/crear-admin.js`: requiere `npm run build` antes y **no necesita devDependencies** (sirve con `npm ci --omit=dev`). |
+Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. Reglas de usuarios: nadie puede cambiarse su propio rol ni desactivarse a sí mismo (`409 CONFLICT`), y **nunca puede quedar el sistema sin un superadmin activo** (lo garantiza un trigger en la base, también ante dos cambios simultáneos; `409 CONFLICT`).
 
-PowerShell (Windows):
+### Alta de usuarios (pasos del dueño)
 
-```powershell
-$env:ADMIN_PASSWORD = "una clave larga y unica"
-npm run crear-admin:dev -- --email dueno@ejemplo.com
-Remove-Item Env:ADMIN_PASSWORD
-```
+1. **Cerrar el registro público.** En https://supabase.com/dashboard/project/iclsiweaqhupxvxbpekl: *Authentication > Sign In / Providers > Email* y **desactivá "Allow new users to sign up"** (guardar). Aunque quedara abierto, un usuario registrado por su cuenta nace `empleado` e **inactivo** y no entra hasta que un superadmin lo active.
+2. **Crear el usuario.** *Authentication > Users > Add user > Create new user*: email y contraseña (larga y única), con **"Auto Confirm User"** marcado. Un trigger crea su perfil en `mgdetailing.perfiles` como `empleado` inactivo.
+3. **Promover al primer superadmin** (solo la primera vez). En el **SQL Editor** (o en el *Table Editor*, esquema `mgdetailing`, tabla `perfiles`):
 
-Git Bash / Linux / macOS:
+   ```sql
+   update mgdetailing.perfiles set rol_id = 'superadmin', activo = true where email = 'tu-email@ejemplo.com';
+   ```
 
-```bash
-ADMIN_PASSWORD="una clave larga y unica" npm run crear-admin:dev -- --email dueno@ejemplo.com
-```
-
-El script lee `backend/.env` y usa **la misma base que el servidor**: Postgres si hay `DATABASE_URL` (o `DB_DRIVER=postgres`), si no el SQLite de `DB_PATH`. Al terminar dice en qué base escribió (sin mostrar la contraseña). Si la shell se come el `--`, el email también se acepta por la variable `ADMIN_EMAIL`.
+   El email va en minúsculas. Tiene que decir `UPDATE 1`.
+4. **Los demás usuarios** se crean igual (paso 2) y los activa y les asigna rol el superadmin desde el panel web (`PATCH /api/admin/usuarios/:id`). Para sacarle el acceso a alguien: desactivarlo desde el panel (efecto inmediato) o borrarlo en *Authentication > Users*.
+5. Contraseña olvidada: desde *Authentication > Users > (usuario) > Send password recovery* o cambiándola ahí mismo.
 
 ## Base de datos
 
-Hay **dos motores** detrás de las mismas interfaces (`src/domain/`): rutas y servicios no saben cuál se usa.
-
-| Motor | Cuándo | Esquema | Migraciones |
-|---|---|---|---|
-| **Postgres (Supabase)** | Producción. Proyecto `iclsiweaqhupxvxbpekl`. | `mgdetailing` (propio, no expuesto) | `supabase/migrations/*.sql` (formato Supabase CLI). **No** las aplica el backend: se aplican con la CLI o el MCP de Supabase. Al arrancar, el backend **verifica** que estén (tablas y catálogo de servicios) y si no, no arranca. |
-| **SQLite** (`node:sqlite`) | Desarrollo sin internet y tests rápidos. | archivo `DB_PATH` | `src/db/migrations.ts` (`PRAGMA user_version`), las aplica el backend al arrancar. |
-
-### Cómo se elige el motor
-
-| `DB_DRIVER` | `DATABASE_URL` | Resultado |
-|---|---|---|
-| (vacía) | (vacía) | SQLite en `DB_PATH`. Es el default de desarrollo: `npm run dev` anda sin nada configurado. |
-| (vacía) | definida | Postgres. |
-| `postgres` | definida | Postgres. Sin `DATABASE_URL`, el servidor no arranca. |
-| `sqlite` | cualquiera | SQLite (si hay `DATABASE_URL`, se ignora con un aviso: sirve para trabajar sin internet sin tocar el resto del `.env`). |
-
-**En producción `DB_DRIVER` es obligatorio**: si faltara el secreto `DATABASE_URL`, el servidor no debe caer en silencio a una base SQLite vacía. Con Postgres remoto (en cualquier entorno, también en la PC de desarrollo) es obligatorio `DATABASE_SSL_CA_FILE`.
+**Postgres en Supabase es el único motor** (proyecto `iclsiweaqhupxvxbpekl`, esquema propio `mgdetailing`, no expuesto por la Data API). SQLite se retiró: con Supabase Auth el panel no funciona sin Supabase, y tener un solo motor evita dos implementaciones de cada repositorio. Las migraciones están en `supabase/migrations/*.sql` (formato Supabase CLI) y **no** las aplica el backend: se aplican con la CLI o el MCP de Supabase. Al arrancar, el backend **verifica** que estén (tablas, catálogo de servicios, roles y la función de sesión) y si no, no arranca y dice qué falta.
 
 ### Conexión a Postgres
 
@@ -128,14 +124,16 @@ Hay **dos motores** detrás de las mismas interfaces (`src/domain/`): rutas y se
 - **Modo recomendado: Session pooler (Supavisor, puerto 5432)**, del botón *Connect* del panel. Es lo que Supabase recomienda para un servidor de larga vida en una red **IPv4** (la mayoría de los VPS, PaaS y conexiones domésticas). Si el servidor tiene **IPv6**, la conexión **directa** (`db.<ref>.supabase.co:5432`) también sirve y es un poco más rápida. **No uses el Transaction pooler (6543)**: es para funciones serverless que abren y cierran conexiones todo el tiempo.
 - **TLS siempre.** Con `DATABASE_SSL_CA_FILE` (el certificado raíz de Supabase, *Supabase Root 2021 CA*) se verifica el certificado y el nombre del servidor (como `sslmode=verify-full`). Sin él, la conexión iría cifrada pero sin verificar quién responde (un intermediario en la red podría hacerse pasar por Supabase y quedarse con la sesión de la base): por eso se exige siempre que el host no sea local, incluso fuera de producción. Solo con un Postgres en la misma máquina (`localhost`/`127.x`/`::1`) se tolera sin el CA, con un aviso. Los parámetros `sslmode`/`sslrootcert` de la URL se ignoran: la URL se desarma en host, puerto, usuario, contraseña y base, y el TLS lo decide el backend.
 - La contraseña nunca se loguea: en los logs aparece `host:puerto/base (usuario ...)`.
-- Todas las consultas son SQL **parametrizado** (`$1, $2...`) y nombran el esquema (`mgdetailing.bookings`), sin depender del `search_path`. La regla de ESLint que prohíbe interpolar o concatenar SQL cubre también `.query()`.
+- Todas las consultas son SQL **parametrizado** (`$1, $2...`) y nombran el esquema (`mgdetailing.bookings`), sin depender del `search_path`. La regla de ESLint prohíbe interpolar o concatenar SQL en `.query()` y prohíbe importar `node:sqlite`.
 
 ### Modelo de datos (Postgres)
 
 ```mermaid
 erDiagram
     servicios ||--o{ bookings : "servicio_id (FK, RESTRICT)"
-    admins ||--o{ sessions : "admin_id (FK, ON DELETE CASCADE)"
+    auth_users ||--|| perfiles : "id (FK, ON DELETE CASCADE)"
+    roles ||--o{ perfiles : "rol_id (FK, RESTRICT)"
+    auth_users ||--o{ auth_sessions : "user_id (Supabase Auth)"
 
     servicios {
         text id PK "slug: lavado-basico, pulido..."
@@ -163,18 +161,29 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
-    admins {
-        integer id PK "identity"
-        text email "minúsculas, UNIQUE lower(email)"
-        text password_hash "scrypt PHC"
+    roles {
+        text id PK "superadmin, admin, empleado"
+        text nombre
+        text descripcion
+        timestamptz created_at
+    }
+    perfiles {
+        uuid id PK "= auth.users.id"
+        text email "copia en minúsculas (la mantiene el trigger)"
+        text nombre "nullable"
+        text rol_id FK "default empleado"
+        boolean activo "default false"
         timestamptz created_at
         timestamptz updated_at
     }
-    sessions {
-        uuid id PK "jti del JWT"
-        integer admin_id FK
-        timestamptz expires_at
-        timestamptz created_at
+    auth_users {
+        uuid id PK "esquema auth (Supabase)"
+        text email
+    }
+    auth_sessions {
+        uuid id PK "claim session_id del JWT"
+        uuid user_id
+        timestamptz not_after
     }
 ```
 
@@ -182,38 +191,45 @@ erDiagram
 |---|---|---|
 | `servicios` | Catálogo del taller (5 servicios, sembrados por migración con los nombres de `domain/servicios.ts` y las duraciones propuestas, sin confirmar). Un servicio que se deja de ofrecer se **desactiva** (`activo = false`), no se borra. | PK `id` (slug validado por CHECK), `precio_desde >= 0` (null = "Consultá"), largos. |
 | `bookings` | Solicitudes de turno. | PK `seq` (bigint identity: inserciones ordenadas, índice compacto y orden estable aunque dos turnos tengan el mismo `created_at`); `id` UUID **único**, el único que sale por la API (un id secuencial revelaría cuántos turnos hay). FK `servicio_id -> servicios` (`RESTRICT`). CHECK de `vehiculo_tipo`, `franja`, `estado` y de los largos de zod. Índices: `(estado, seq DESC)` para el listado filtrado y su `COUNT`; la PK sirve al listado sin filtro; `(servicio_id)` para la FK. |
-| `admins` | Dueños del panel. | `email` en minúsculas (CHECK) y **único sin distinguir mayúsculas** (índice único sobre `lower(email)`, que también usa la búsqueda). `integer`: son un puñado de filas y se mapea directo a `number`. |
-| `sessions` | Allowlist de sesiones (logout real; cambiar la contraseña cierra todas). | FK `admin_id -> admins ON DELETE CASCADE`; índices `(admin_id)` y `(expires_at)`. Las vencidas se borran **al iniciar sesión** (`purgeExpired`): con un solo dueño no hace falta `pg_cron`. |
+| `roles` | Los 3 roles del panel (sembrados por migración). Los permisos de cada rol los aplica el backend (`domain/permisos.ts`). | PK `id` (slug). |
+| `perfiles` | Un perfil por usuario de Supabase Auth: rol y si puede entrar. Lo crea el trigger de `auth.users`; se borra en cascada con el usuario. | PK/FK `id -> auth.users ON DELETE CASCADE`; FK `rol_id -> roles` con índice; CHECK de email en minúsculas y largo de nombre; trigger `updated_at`; trigger `perfiles_al_menos_un_superadmin`. |
+
+Funciones y triggers (migración `perfiles_roles_supabase_auth`):
+
+- `mgdetailing_private.sincronizar_perfil()`: trigger `AFTER INSERT OR UPDATE OF email ON auth.users`. Crea el perfil (`empleado`, **inactivo**) o copia el email nuevo; nunca toca rol ni activo. `SECURITY DEFINER` (el rol de Auth no tiene permisos fuera de `auth`, patrón recomendado por Supabase), `search_path` vacío, en el esquema **no expuesto** `mgdetailing_private`, sin `EXECUTE` para `public`, `anon`, `authenticated`, `service_role` ni `mgdetailing_app`. No lee `raw_user_meta_data` (lo edita el propio usuario).
+- `mgdetailing_private.sesion_vigente(session_id, user_id, max_age_seconds)`: `SECURITY DEFINER`, `STABLE`, devuelve solo un booleano: si la sesión sigue en `auth.sessions`, no pasó su `not_after` y se abrió hace menos de `max_age_seconds` (tope absoluto, 12 h). Solo `mgdetailing_app` tiene `EXECUTE`. Es lo que hace que un logout invalide el access token al instante.
+- `mgdetailing.impedir_sin_superadmin()`: triggers `AFTER UPDATE OF rol_id, activo` y `AFTER DELETE` que solo se disparan cuando una fila **deja** de ser superadmin activo (también al borrar en Supabase al usuario de Auth: el borrado en cascada falla y hay que dar el rol a otro antes); toma un advisory lock y, si no queda ninguno, falla con SQLSTATE `MG001` (la API responde `409`).
 
 Decisiones:
 
-- **`text` + `CHECK` en vez de enums** para `vehiculo_tipo`, `franja` y `estado`: la integridad queda en la base igual que con un enum, se leen como string sin conversiones (igual que en SQLite) y cambiar los valores es un `ALTER` de la constraint (quitar un valor de un enum de Postgres obliga a recrear el tipo).
+- **`text` + `CHECK` en vez de enums** para `vehiculo_tipo`, `franja` y `estado`: la integridad queda en la base igual que con un enum, se leen como string sin conversiones y cambiar los valores es un `ALTER` de la constraint (quitar un valor de un enum de Postgres obliga a recrear el tipo).
 - **`updated_at` con trigger** (`mgdetailing.set_updated_at`): el backend manda su propio `updated_at` (su reloj, el mismo que usan las respuestas y los tests); si una actualización no lo cambia (por ejemplo, una edición a mano desde el panel de Supabase), el trigger pone `now()`. Es `SECURITY INVOKER` y con `search_path` vacío.
-- `telefonoWhatsapp` **no es columna**: se calcula al leer, igual que con SQLite.
+- `telefonoWhatsapp` **no es columna**: se calcula al leer.
 - `fecha_preferida` es `date`; los repositorios la devuelven como `YYYY-MM-DD` (`to_char`) y los `timestamptz` como ISO 8601 UTC, igual que el contrato.
-- En SQLite no hay tabla `servicios` ni FK (el esquema SQLite no se reescribió): ahí la única validación del servicio es la de zod, que usa la misma lista.
+- **`perfiles.email` es una copia**: `mgdetailing_app` no puede leer `auth.users` (ni debe); el trigger la mantiene al día.
 
 ### Seguridad en la base (Supabase)
 
-- Todo vive en el esquema **`mgdetailing`**, que **no** está entre los expuestos por la Data API (PostgREST/GraphQL publican `public` y `graphql_public`; un pedido con `Accept-Profile: mgdetailing` responde `PGRST106`). La web **nunca** habla con Supabase: ni `supabase-js`, ni Supabase Auth, ni claves anon/publishable en el frontend. El único cliente es este backend.
-- **Rol dedicado `mgdetailing_app`** (migración `rol_app_minimo_privilegio`): el backend se conecta con él, **no** con `postgres`. Puede solo lo que el backend hace: `SELECT` en `servicios`; `SELECT/INSERT/DELETE` en `bookings` y `UPDATE` solo de `estado` y `updated_at`; `SELECT/INSERT` en `admins` y `UPDATE` solo de `password_hash` y `updated_at`; `SELECT/INSERT/DELETE` en `sessions`. Sin DDL, sin `TRUNCATE`, sin `BYPASSRLS`, sin acceso a `auth`, `storage` ni `public`. Topes de sesión: `statement_timeout` 10 s, `lock_timeout` 5 s, `idle_in_transaction_session_timeout` 30 s. Se crea **NOLOGIN y sin contraseña** (no hay secretos en el repo): el dueño le pone la contraseña (ver [Conectar Supabase](#conectar-supabase)). Si el backend arranca conectado con un rol privilegiado (`postgres`), lo avisa en el log.
-- **RLS habilitado en las 4 tablas**, con policies **solo para `mgdetailing_app`** (`USING (true)`: el backend es un único cliente de confianza que ve todas las filas; la autorización por usuario la hace la API con la sesión del panel). `anon`, `authenticated` y `service_role` no tienen ni privilegios ni policies: aunque alguien expusiera el esquema por error, no verían una fila. `postgres` (dueño de las tablas, con `BYPASSRLS`) queda para migraciones y backups.
+- Todo vive en los esquemas **`mgdetailing`** y **`mgdetailing_private`**, que **no** están entre los expuestos por la Data API (PostgREST/GraphQL publican `public` y `graphql_public`; un pedido con `Accept-Profile: mgdetailing` responde `PGRST106`). La web **nunca** habla con Supabase: ni `supabase-js`, ni claves en el frontend. El único cliente de la base y de Supabase Auth es este backend.
+- **Rol dedicado `mgdetailing_app`** (migración `rol_app_minimo_privilegio`): el backend se conecta con él, **no** con `postgres`. Puede solo lo que el backend hace: `SELECT` en `servicios` y `roles`; `SELECT/INSERT/DELETE` en `bookings` y `UPDATE` solo de `estado` y `updated_at`; `SELECT` en `perfiles` y `UPDATE` solo de `rol_id`, `activo`, `nombre` y `updated_at` (sin `INSERT` ni `DELETE`: los hace el trigger / la cascada); `EXECUTE` solo de `mgdetailing_private.sesion_vigente`. Sin DDL, sin `TRUNCATE`, sin `BYPASSRLS`, sin acceso a `auth`, `storage` ni `public`. Topes de sesión: `statement_timeout` 10 s, `lock_timeout` 5 s, `idle_in_transaction_session_timeout` 30 s. Se crea **NOLOGIN y sin contraseña** (no hay secretos en el repo): el dueño le pone la contraseña (ver [Conectar Supabase](#conectar-supabase)). Si el backend arranca conectado con un rol privilegiado (`postgres`), lo avisa en el log.
+- **RLS habilitado en las 4 tablas**, con policies **solo para `mgdetailing_app`** (`USING (true)`: el backend es un único cliente de confianza que ve todas las filas; la autorización por usuario y por rol la hace la API con la sesión del panel). `anon`, `authenticated` y `service_role` no tienen ni privilegios ni policies: aunque alguien expusiera el esquema por error, no verían una fila. `postgres` (dueño de las tablas, con `BYPASSRLS`) queda para migraciones y backups.
 - **`REVOKE` de todo** (tablas, secuencias, funciones y el `USAGE` del esquema) a `public`, `anon`, `authenticated` y `service_role`, y privilegios por defecto revocados para lo que se cree después en el esquema. Un test lo comprueba en PGlite (incluso haciendo `SET ROLE anon`).
-- Advisors de Supabase (security y performance) después de aplicar: security sin avisos; performance solo con el INFO esperado *unused index* (la base está vacía; se usan en cuanto haya turnos y sesiones). La migración `endurecer_rls_auto_enable` revocó el `EXECUTE` de `public.rls_auto_enable()` (una función de Supabase que ya venía en el proyecto, del event trigger que activa RLS en tablas nuevas de `public`) a `anon`/`authenticated`, que el linter marcaba como WARN.
-- Al borrar un turno en Postgres, la fila deja de verse al instante pero sus bytes quedan en disco hasta que `autovacuum` reutiliza el espacio (no hay equivalente al `secure_delete` de SQLite), y los backups la conservan durante su retención. Para la Ley 25.326 alcanza con que el dato no sea accesible y que la retención de backups esté acotada y documentada.
+- Advisors de Supabase (security y performance) después de aplicar: security sin avisos; performance solo con el INFO esperado *unused index* (la base está vacía; se usan en cuanto haya turnos). La migración `endurecer_rls_auto_enable` revocó el `EXECUTE` de `public.rls_auto_enable()` (una función de Supabase que ya venía en el proyecto, del event trigger que activa RLS en tablas nuevas de `public`) a `anon`/`authenticated`, que el linter marcaba como WARN.
+- Al borrar un turno en Postgres, la fila deja de verse al instante pero sus bytes quedan en disco hasta que `autovacuum` reutiliza el espacio, y los backups la conservan durante su retención. Para la Ley 25.326 alcanza con que el dato no sea accesible y que la retención de backups esté acotada y documentada.
 - **Región `us-east-1` (EE.UU.)**: los datos de los clientes se guardan fuera de Argentina. Es una transferencia internacional (Ley 25.326, art. 12): EE.UU. no figura entre los países con protección adecuada para la AAIP (y ninguna región de Supabase está en Argentina), así que hay que apoyarse en el consentimiento del cliente (mencionarlo en el aviso de privacidad del formulario) y en el acuerdo de tratamiento de datos (DPA) de Supabase. Ver el informe de seguridad.
 
 ### Migraciones (Postgres)
 
 - Archivos `supabase/migrations/YYYYMMDDHHMMSS_descripcion.sql`: la fuente de verdad del esquema Postgres. Nunca se edita una migración aplicada; los cambios van en un archivo nuevo.
 - Aplicadas en el proyecto remoto: `20261018211151_esquema_inicial`, `20261018211156_catalogo_servicios`, `20261018211232_endurecer_rls_auto_enable`, `20261018213342_rol_app_minimo_privilegio`. Los nombres de los archivos coinciden con las versiones registradas en Supabase, así `supabase migration list` / `supabase db push` los ven como aplicados.
+- **Pendientes de aplicar** (Supabase Auth): `20261018234300_perfiles_roles_supabase_auth` (roles, perfiles, triggers, `mgdetailing_private`) y `20261018234301_eliminar_admins_sessions` (borra `admins` y `sessions`, que están vacías). **Hasta aplicarlas, el backend nuevo no arranca** (dice que faltan `roles` y `perfiles`). Se aplican desde el **SQL Editor** de Supabase pegando el contenido de cada archivo, en orden (primero `…234300`, después `…234301`), o con `supabase db push`. Después corré los advisors.
 - Para aplicar una nueva: con la CLI (`supabase link --project-ref iclsiweaqhupxvxbpekl` y después `supabase db push`) o con el MCP de Supabase (`apply_migration`; después renombrá el archivo local a la versión que quedó registrada). Corré los advisors después de cada cambio.
-- Los tests aplican **las mismas migraciones** a un Postgres en memoria (PGlite). Como PGlite no tiene los roles de Supabase, el test los crea (`anon`, `authenticated`, `service_role`, sin login) antes de migrar: así las migraciones se prueban tal cual, sin saltear sentencias.
+- Los tests aplican **las mismas migraciones** a un Postgres en memoria (PGlite). Como PGlite no tiene lo de Supabase, el test crea antes de migrar los roles `anon`, `authenticated` y `service_role` (sin login) y un esquema `auth` mínimo (`auth.users` y `auth.sessions` con las columnas que se usan): así las migraciones se prueban tal cual, sin saltear sentencias.
 - Si se agrega un servicio en `src/domain/servicios.ts`, hay que agregarlo también con una migración (`insert into mgdetailing.servicios ...`): el backend no arranca si al catálogo de la base le falta algún id que el código acepta.
 
 ### Backups (Supabase)
 
-- **Plan Free: Supabase no hace backups que puedas descargar o restaurar.** Hacé uno vos con `pg_dump` (o `supabase db dump`), por ejemplo una vez por semana, y guardalo cifrado y fuera de la PC (tiene datos personales y hashes de contraseña):
+- **Plan Free: Supabase no hace backups que puedas descargar o restaurar.** Hacé uno vos con `pg_dump` (o `supabase db dump`), por ejemplo una vez por semana, y guardalo cifrado y fuera de la PC (tiene datos personales). Los usuarios y contraseñas viven en `auth` (Supabase Auth), no en este dump: `perfiles` referencia `auth.users`, así que restaurarlo en otro proyecto exige crear antes los mismos usuarios:
 
   ```bash
   # Necesita pg_dump 17 (cliente de Postgres) y la cadena del Session pooler (o la directa).
@@ -221,7 +237,7 @@ Decisiones:
     --schema=mgdetailing --data-only --format=custom --file=mgdetailing-2026-10-18.dump
   ```
 
-  Para restaurar: aplicá las migraciones en la base vacía (así quedan RLS, `REVOKE` y el catálogo) y después `pg_restore --dbname "<cadena>" --data-only --disable-triggers mgdetailing-2026-10-18.dump` (vaciá antes `mgdetailing.servicios`, que la migración ya sembró). Corré los advisors al terminar.
+  Para restaurar: aplicá las migraciones en la base vacía (así quedan RLS, `REVOKE` y el catálogo) y después `pg_restore --dbname "<cadena>" --data-only --disable-triggers mgdetailing-2026-10-18.dump` (vaciá antes `mgdetailing.servicios` y `mgdetailing.roles`, que la migración ya sembró). Corré los advisors al terminar.
 - **Plan Pro**: backups diarios automáticos (7 días) en *Database > Backups*, y PITR como add-on. Igual conviene un `pg_dump` propio de vez en cuando.
 - Un proyecto Free **se pausa tras una semana sin actividad**. Con el sitio en uso no pasa, pero si el panel muestra el proyecto pausado, se reactiva desde ahí (mientras tanto `/api/health` da `503`).
 
@@ -247,36 +263,27 @@ El código ya está listo. El backend se conecta con el **rol dedicado `mgdetail
 
 3. **Descargá el certificado de Supabase.** En **Database > Settings > SSL Configuration > Download certificate** se baja `prod-ca-2021.crt`. Guardalo como `backend/certs/supabase-ca.crt` (creá la carpeta `certs`). Es un certificado público, no un secreto. **Es obligatorio** para conectarse a Supabase, también desde tu PC: sin él el backend no arranca (protege la conexión de un intermediario). Opcional, para comprobarlo (Git Bash): `openssl x509 -in backend/certs/supabase-ca.crt -noout -subject -fingerprint -sha256` tiene que mostrar `CN = Supabase Root 2021 CA` y la huella `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`.
 
-4. **Pegá la conexión en `backend/.env`** (está en `.gitignore`; nunca lo subas). Agregá estas tres líneas con tu host y la contraseña que te dio `clave-db` en el paso 1:
+4. **Pegá la conexión y Supabase Auth en `backend/.env`** (está en `.gitignore`; nunca lo subas). Con tu host, la contraseña que te dio `clave-db` en el paso 1 y la **publishable key** (*Project Settings > API Keys*, empieza con `sb_publishable_`):
 
    ```
-   DB_DRIVER=postgres
    DATABASE_URL=postgresql://mgdetailing_app.iclsiweaqhupxvxbpekl:LA-CONTRASEÑA-GENERADA@aws-0-us-east-1.pooler.supabase.com:5432/postgres
    DATABASE_SSL_CA_FILE=./certs/supabase-ca.crt
+   SUPABASE_URL=https://iclsiweaqhupxvxbpekl.supabase.co
+   SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
    ```
 
-   Si el backend no arranca y dice que la URL todavía tiene `[YOUR-PASSWORD]` o que no es válida, revisá este paso (el mensaje nunca muestra la URL). `Tenant or user not found` = el usuario no tiene el `.iclsiweaqhupxvxbpekl` o el host no es el del panel. Si al arrancar aparece el aviso *"conectado como postgres, un rol con privilegios de administrador"*, estás usando el usuario equivocado.
+   Si el backend no arranca y dice que la URL todavía tiene `[YOUR-PASSWORD]` o que no es válida, revisá este paso (el mensaje nunca muestra la URL). `Tenant or user not found` = el usuario no tiene el `.iclsiweaqhupxvxbpekl` o el host no es el del panel. Si al arrancar aparece el aviso *"conectado como postgres, un rol con privilegios de administrador"*, estás usando el usuario equivocado. `JWT_SECRET`, `DB_DRIVER` y `DB_PATH` ya no se usan: borralos.
 
-5. **Creá tu admin en Postgres** (la base de Supabase arranca sin administradores; el de SQLite no se copia). Desde `backend/`, en PowerShell:
+5. **Creá tu usuario del panel** con Supabase Auth: ver [Alta de usuarios](#alta-de-usuarios-pasos-del-dueño) (cerrar el registro público, *Add user* con *Auto Confirm User* y la sentencia que te promueve a superadmin).
 
-   ```powershell
-   $env:ADMIN_PASSWORD = "una clave larga y unica"
-   npm run crear-admin:dev -- --email dueno@mgdetailing.com.ar
-   Remove-Item Env:ADMIN_PASSWORD
-   ```
-
-   Tiene que terminar con `Administrador creado: ...` y `Base de datos: Postgres ...:5432/postgres (usuario mgdetailing_app.iclsiweaqhupxvxbpekl), esquema mgdetailing, TLS verificado`.
-
-6. **Verificá.** Arrancá el backend (`npm run dev` en `backend/`, o `npm run dev` desde la raíz con el frontend). En la consola tiene que aparecer `Base de datos lista: Postgres ..., TLS verificado`. Después:
+6. **Verificá.** Arrancá el backend (`npm run dev` en `backend/`, o `npm run dev` desde la raíz con el frontend). En la consola tiene que aparecer `Login del panel: Supabase Auth (https://iclsiweaqhupxvxbpekl.supabase.co)` y `Base de datos lista: Postgres ..., TLS verificado`. Después:
 
    ```powershell
    curl.exe http://localhost:4000/api/health
    # -> {"status":"ok"}
    ```
 
-   Entrá a http://localhost:5173/admin con el admin del paso 5, pedí un turno de prueba desde la landing y fijate que aparezca en el panel (y en Supabase: **Table Editor**, esquema `mgdetailing`, tabla `bookings`). Si `/api/health` responde `503`, Postgres no responde: revisá la contraseña, la conexión a internet y que el proyecto no esté pausado.
-
-Para volver a SQLite sin borrar nada: poné `DB_DRIVER=sqlite` en el `.env` (o comentá las tres líneas).
+   Entrá a http://localhost:5173/admin con tu usuario, pedí un turno de prueba desde la landing y fijate que aparezca en el panel (y en Supabase: **Table Editor**, esquema `mgdetailing`, tabla `bookings`). Si `/api/health` responde `503`, Postgres no responde: revisá la contraseña, la conexión a internet y que el proyecto no esté pausado. Si el login responde `503`, el backend no llega a Supabase Auth (revisá `SUPABASE_URL`); si responde `403`, tu perfil no está activo (paso 3 de *Alta de usuarios*).
 
 ## Endpoints con ejemplos curl
 
@@ -295,14 +302,22 @@ curl -X POST http://localhost:4000/api/bookings \
        "fechaPreferida":"2026-10-20","franja":"manana","comentario":"Rayones en el capot"}'
 # -> 201 {"booking":{"id":"<uuid>","servicioId":"pulido","fechaPreferida":"2026-10-20","franja":"manana","estado":"pendiente"}}
 
-# Iniciar sesión (guarda la cookie en cookies.txt)
+# Iniciar sesión (guarda las cookies mg_at y mg_rt en cookies.txt)
 curl -c cookies.txt -X POST http://localhost:4000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"dueno@ejemplo.com","password":"una clave larga y unica"}'
-# -> 200 {"admin":{"email":"dueno@ejemplo.com"}}
+# -> 200 {"usuario":{"id":"<uuid>","email":"dueno@ejemplo.com","nombre":null,"rol":"superadmin"}}
 
-# Quién soy
-curl -b cookies.txt http://localhost:4000/api/auth/me
+# Quién soy (si el access token venció, se refresca solo y reescribe las cookies)
+curl -b cookies.txt -c cookies.txt http://localhost:4000/api/auth/me
+
+# Renovar la sesión cuando /api/admin responde 401 SESSION_EXPIRED
+curl -b cookies.txt -c cookies.txt -X POST http://localhost:4000/api/auth/refresh -H "Content-Type: application/json"
+
+# Usuarios (solo superadmin)
+curl -b cookies.txt http://localhost:4000/api/admin/usuarios
+curl -b cookies.txt -X PATCH http://localhost:4000/api/admin/usuarios/<id> \
+  -H "Content-Type: application/json" -d '{"rol":"empleado","activo":true,"nombre":"Lucía"}'
 
 # Listar turnos (más nuevos primero), con filtro y paginación
 curl -b cookies.txt "http://localhost:4000/api/admin/bookings?estado=pendiente&limit=20&offset=0"
@@ -328,10 +343,11 @@ Esta sección es la referencia para el frontend. Todo viaja como JSON; las fecha
 
 - **`POST`, `PATCH` y `DELETE` (y `PUT`) exigen `Content-Type: application/json` aunque no lleven body** (por ejemplo `logout` y `delete`); si no, responden `415`. Un body vacío se acepta en esos casos. El body se interpreta como UTF-8.
 - **Si el pedido trae cabecera `Origin`, tiene que coincidir exactamente con uno de los `FRONTEND_ORIGIN`**; si no, `403 FORBIDDEN_ORIGIN`. Los navegadores la mandan solos. Los clientes sin `Origin` (curl, scripts) se aceptan.
-- Con `fetch` hay que enviar la cookie: `credentials: "include"` (o `same-origin` si se usa el proxy de Vite / `SERVE_FRONTEND`).
+- Con `fetch` hay que enviar las cookies: `credentials: "include"` (o `same-origin` si se usa el proxy de Vite / `SERVE_FRONTEND`). El JS nunca ve los tokens: son cookies httpOnly.
 - Body máximo: **10 kb**. Los objetos de entrada son estrictos: **un campo desconocido se rechaza** con `400`.
 - Las respuestas de `/api` llevan `Cache-Control: no-store`.
 - Una ruta `/api/...` que no existe responde `404 NOT_FOUND` en JSON. Todo lo que cuelga de `/api/admin` pide sesión primero (`401`), exista o no la ruta.
+- **Sesión del panel**: ante un `401 SESSION_EXPIRED` en `/api/admin/*`, llamá **una vez** a `POST /api/auth/refresh` y, si responde `200`, reintentá el pedido original; si responde `401` o `403 NO_ACCESS`, mandá al login. Un `403 FORBIDDEN` es solo "tu rol no puede hacer esto": la sesión sigue. Ante `401 UNAUTHORIZED` o `403 FORBIDDEN` con `message` de "no tiene acceso al panel", la sesión terminó: al login. Un `403 FORBIDDEN` de permisos (rol insuficiente) **no** cierra la sesión: mostrá el mensaje.
 
 ### Enums exactos
 
@@ -354,15 +370,19 @@ Esta sección es la referencia para el frontend. Todo viaja como JSON; las fecha
 |---|---|---|
 | `VALIDATION_ERROR` | 400 | Datos inválidos (con `fields`), query inválida, o un pedido mal formado sin campo asociado. |
 | `INVALID_JSON` | 400 | El body no es JSON válido (o es un JSON que no es objeto ni array). |
-| `UNAUTHORIZED` | 401 | Falta la sesión, venció o fue revocada. |
+| `UNAUTHORIZED` | 401 | No hay sesión, el token es inválido, la sesión se cerró (logout, revocada en Supabase) o el refresh token ya no sirve. |
+| `SESSION_EXPIRED` | 401 | El access token venció en un pedido a `/api/admin/*`: llamar a `POST /api/auth/refresh` y reintentar una vez. |
 | `INVALID_CREDENTIALS` | 401 | Email o contraseña incorrectos (mensaje genérico: no dice cuál). |
 | `FORBIDDEN_ORIGIN` | 403 | `Origin` no permitido. |
-| `NOT_FOUND` | 404 | Ruta inexistente, o turno inexistente (un id con formato inválido también da 404). |
+| `FORBIDDEN` | 403 | El rol no permite la acción (la sesión sigue). Mensaje en español apto para mostrar. |
+| `NO_ACCESS` | 403 | La sesión es válida pero el usuario ya no tiene acceso al panel (desactivado o sin perfil): se borran las cookies y hay que volver al ingreso. |
+| `NOT_FOUND` | 404 | Ruta inexistente, o turno / usuario inexistente (un id con formato inválido también da 404). |
+| `CONFLICT` | 409 | Gestión de usuarios: cambiarte tu propio rol, desactivarte, o dejar el sistema sin ningún superadmin activo. |
 | `PAYLOAD_TOO_LARGE` | 413 | Body de más de 10 kb. |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Falta `Content-Type: application/json` o el body viene comprimido. |
-| `RATE_LIMITED` | 429 | Demasiados pedidos. Trae la cabecera `Retry-After` (segundos). |
+| `RATE_LIMITED` | 429 | Demasiados pedidos (los del backend traen `Retry-After` en segundos). También si Supabase Auth limita los logins. |
 | `INTERNAL_ERROR` | 500 | Error inesperado (el detalle queda solo en el log del servidor). |
-| `SERVICE_UNAVAILABLE` | 503 | Solo `/api/health`, si la base de datos no responde. |
+| `SERVICE_UNAVAILABLE` | 503 | `/api/health` si la base de datos no responde; login / sesión si Supabase Auth no responde. |
 
 ### `GET /api/health`
 
@@ -403,21 +423,45 @@ Error de validación `400` (ejemplo):
               "fechaPreferida": "La fecha no puede ser anterior a hoy." } } }
 ```
 
+### Usuario de la sesión (objeto `usuario`)
+
+**Cambio de contrato:** antes `/api/auth/login` y `/api/auth/me` devolvían `{ "admin": { "email": "..." } }`. Ahora devuelven:
+
+```json
+{ "usuario": { "id": "5f0c2a3e-9b1d-4c7e-8a55-2d3f1e6b7a90", "email": "dueno@ejemplo.com", "nombre": "Mateo", "rol": "superadmin" } }
+```
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | `string` (UUID) | Id del usuario en Supabase Auth. |
+| `email` | `string \| null` | En minúsculas. |
+| `nombre` | `string \| null` | Lo pone un superadmin; `null` si no tiene. |
+| `rol` | `"superadmin" \| "admin" \| "empleado"` | Para mostrar u ocultar botones; la API igual valida cada acción. |
+
 ### `POST /api/auth/login`
 
-Body `{ "email": string, "password": string }` (estricto; `password` hasta 128 caracteres). `200 { "admin": { "email": "dueno@ejemplo.com" } }` y la cookie de sesión. `401 INVALID_CREDENTIALS`. Límite: **5 intentos fallidos por IP cada 15 minutos** (`429`; los logins correctos no cuentan).
+Body `{ "email": string, "password": string }` (estricto; `password` hasta 128 caracteres). `200 { "usuario": { id, email, nombre, rol } }` y las cookies de sesión. Errores: `401 INVALID_CREDENTIALS` con un único mensaje genérico (*"El email o la contraseña no son correctos, o tu usuario todavía no está habilitado para el panel."*) para contraseña incorrecta, email inexistente o sin confirmar **y también para un usuario sin perfil o inactivo**: así el login no confirma que la contraseña de un usuario inactivo es correcta (la sesión que Supabase abrió se cierra en segundo plano), `400 VALIDATION_ERROR`, `429 RATE_LIMITED`, `503 SERVICE_UNAVAILABLE` (Supabase Auth no responde). Límite: **5 intentos fallidos por IP cada 15 minutos** (`429`; los logins correctos no cuentan).
 
-Cookie `mg_session`: `HttpOnly; SameSite=Strict; Path=/; Max-Age=28800` (8 horas) y `Secure` en producción. El JS de la página no puede leerla: para saber si hay sesión, llamar a `GET /api/auth/me`.
+Cookies (el JS de la página no puede leerlas: para saber si hay sesión, llamar a `GET /api/auth/me`):
+
+| Cookie | Contenido | Atributos |
+|---|---|---|
+| `mg_at` | access token de Supabase (JWT) | `HttpOnly; SameSite=Strict; Path=/api; Max-Age=28800` y `Secure` en producción |
+| `mg_rt` | refresh token de Supabase (rota en cada uso) | `HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=28800` y `Secure` en producción |
+
+### `POST /api/auth/refresh`
+
+Sin body (pero con `Content-Type: application/json`). Canjea el refresh token: `200 { "usuario": {...} }` y cookies nuevas; `401 UNAUTHORIZED` (sin refresh token, revocado o reutilizado; borra las cookies); `403 NO_ACCESS` (el usuario fue desactivado; borra las cookies).
 
 ### `POST /api/auth/logout`
 
-`204` sin body. Revoca la sesión en el servidor y borra la cookie. Siempre responde `204`, haya o no sesión.
+`204` sin body. Cierra la sesión en Supabase y borra las dos cookies. Siempre responde `204`, haya o no sesión.
 
 ### `GET /api/auth/me`
 
-`200 { "admin": { "email": "..." } }` o `401 UNAUTHORIZED`.
+`200 { "usuario": { id, email, nombre, rol } }`, `401 UNAUTHORIZED` o `403 NO_ACCESS`. Si el access token venció, refresca solo (acá sí viaja el refresh token) y reescribe las cookies.
 
-### `GET /api/admin/bookings?estado=&limit=&offset=` (requiere sesión)
+### `GET /api/admin/bookings?estado=&limit=&offset=` (requiere sesión; todos los roles)
 
 | Parámetro | Regla |
 |---|---|
@@ -457,11 +501,37 @@ Los parámetros desconocidos se ignoran; uno inválido da `400` con `fields`. Re
 
 ### `PATCH /api/admin/bookings/:id` (requiere sesión)
 
-Body estricto `{ "estado": "pendiente" | "confirmado" | "completado" | "cancelado" }`. `200 { "booking": { ...mismo objeto que el listado... } }`. `404 NOT_FOUND` si no existe; `400` con `fields.estado` si el estado es inválido.
+Body estricto `{ "estado": "pendiente" | "confirmado" | "completado" | "cancelado" }`. `200 { "booking": { ...mismo objeto que el listado... } }`. `404 NOT_FOUND` si no existe; `400` con `fields.estado` si el estado es inválido. **`empleado` solo puede pasar a `completado`**: cualquier otro estado da `403 FORBIDDEN` (*"Con tu rol solo podés marcar los turnos como completados."*); `admin` y `superadmin`, a cualquiera.
 
-### `DELETE /api/admin/bookings/:id` (requiere sesión)
+### `DELETE /api/admin/bookings/:id` (requiere sesión; solo `admin` y `superadmin`)
 
-`204` sin body. `404 NOT_FOUND` si no existe. Exige `Content-Type: application/json` aunque no lleve body.
+`204` sin body. `404 NOT_FOUND` si no existe. `403 FORBIDDEN` para `empleado` (*"Con tu rol no podés borrar turnos."*). Exige `Content-Type: application/json` aunque no lleve body.
+
+### `GET /api/admin/usuarios` (solo `superadmin`)
+
+`200`, los más viejos primero. `403 FORBIDDEN` (*"Solo un superadmin puede gestionar usuarios."*) para los otros roles.
+
+```json
+{
+  "usuarios": [
+    {
+      "id": "5f0c2a3e-9b1d-4c7e-8a55-2d3f1e6b7a90",
+      "email": "lucia@ejemplo.com",
+      "nombre": "Lucía",
+      "rol": "empleado",
+      "activo": true,
+      "createdAt": "2026-10-18T15:00:00.000Z",
+      "updatedAt": "2026-10-18T15:00:00.000Z"
+    }
+  ]
+}
+```
+
+`email` y `nombre` pueden ser `null`. Los usuarios nuevos (creados en Supabase) aparecen como `empleado` con `activo: false` hasta que un superadmin los active.
+
+### `PATCH /api/admin/usuarios/:id` (solo `superadmin`)
+
+Body estricto con al menos uno de: `rol` (`"superadmin" | "admin" | "empleado"`), `activo` (`boolean`), `nombre` (`string` de hasta 80 caracteres, una línea; `null` o `""` lo borran). `200 { "usuario": { ...mismo objeto que el listado... } }`. Errores: `400 VALIDATION_ERROR` (campo desconocido, tipo inválido o body vacío), `404 NOT_FOUND` (usuario inexistente o id que no es UUID), `409 CONFLICT` (cambiar tu propio rol, desactivarte, o dejar el sistema sin ningún superadmin activo), `403 FORBIDDEN` si no sos superadmin. El cambio tiene efecto inmediato: el usuario afectado lo nota en su próximo pedido. No hay alta ni baja de usuarios por la API: se crean y borran en el panel de Supabase.
 
 ## Avisos por WhatsApp
 
@@ -522,16 +592,16 @@ El token va en la URL de la API de Telegram, por eso nunca se loguea. Los datos 
 
 ### Despliegue objetivo
 
-Un **solo proceso Node** con `SERVE_FRONTEND=true` (la API y la landing/panel en el **mismo origen**), detrás de **HTTPS**: Caddy en un VPS (proxy inverso a `127.0.0.1:4000`, certificados automáticos) o un PaaS. Con Postgres en Supabase no hace falta volumen persistente (con SQLite sí, para el archivo `.db`).
+Un **solo proceso Node** con `SERVE_FRONTEND=true` (la API y la landing/panel en el **mismo origen**), detrás de **HTTPS**: Caddy en un VPS (proxy inverso a `127.0.0.1:4000`, certificados automáticos) o un PaaS. No hace falta volumen persistente: los datos y los usuarios viven en Supabase.
 
 ```
 navegador --HTTPS--> Caddy / PaaS --HTTP--> node dist/index.js (API + estáticos del frontend)
                                                   |
                                                   +--TLS--> Postgres en Supabase (Session pooler, esquema mgdetailing)
-                                                            (o SQLite en DB_PATH, en un volumen persistente)
+                                                  +--HTTPS--> Supabase Auth (/auth/v1: token, logout, JWKS)
 ```
 
-Con mismo origen no hay CORS de por medio, la cookie `SameSite=Strict` funciona sin vueltas y el `Origin` que manda el navegador es el propio dominio. El build del frontend (`frontend/dist`) tiene que existir antes de arrancar con `SERVE_FRONTEND=true`; si no, el servidor no arranca y lo explica. Los estáticos se sirven comprimidos (gzip) y con caché larga para `/assets` (un año; nombres con hash); la API nunca se comprime. Las fotos de `/fotos` se cachean 7 días **y no llevan hash en el nombre: al reemplazar una foto hay que cambiarle el nombre** (por ejemplo `taller-2.jpg` en vez de `taller.jpg`), o los visitantes seguirán viendo la vieja hasta una semana. La CSP de la SPA es estricta: todo del mismo origen, sin scripts ni estilos inline, fuentes autoalojadas, sin iframes. Si el frontend pasa a cargar algo de otro dominio, hay que agregarlo a propósito en `src/middleware/security.ts`.
+Con mismo origen no hay CORS de por medio, las cookies `SameSite=Strict` funcionan sin vueltas y el `Origin` que manda el navegador es el propio dominio. El build del frontend (`frontend/dist`) tiene que existir antes de arrancar con `SERVE_FRONTEND=true`; si no, el servidor no arranca y lo explica. Los estáticos se sirven comprimidos (gzip) y con caché larga para `/assets` (un año; nombres con hash); la API nunca se comprime. Las fotos de `/fotos` se cachean 7 días **y no llevan hash en el nombre: al reemplazar una foto hay que cambiarle el nombre** (por ejemplo `taller-2.jpg` en vez de `taller.jpg`), o los visitantes seguirán viendo la vieja hasta una semana. La CSP de la SPA es estricta: todo del mismo origen, sin scripts ni estilos inline, fuentes autoalojadas, sin iframes. Si el frontend pasa a cargar algo de otro dominio, hay que agregarlo a propósito en `src/middleware/security.ts`.
 
 ### Variables en producción
 
@@ -539,14 +609,13 @@ Con mismo origen no hay CORS de por medio, la cookie `SameSite=Strict` funciona 
 |---|---|
 | `NODE_ENV` | `production`. |
 | `FRONTEND_ORIGIN` | **Igual al origen público exacto** que ve el navegador, con esquema y sin barra final: `https://mgdetailing.com.ar`. Si no coincide, los `POST/PATCH/DELETE` dan `403`. Si el sitio responde en `www` y sin `www`, listá los dos separados por coma. |
-| `JWT_SECRET` | Aleatorio, de 32 caracteres o más. Guardalo en el gestor de secretos del servidor, no en el repo. |
+| `SUPABASE_URL` | `https://iclsiweaqhupxvxbpekl.supabase.co`. |
+| `SUPABASE_PUBLISHABLE_KEY` | La publishable key (`sb_publishable_...`). Nunca la secret key. |
 | `HOST` | Con Caddy/nginx en la misma máquina dejá el default `127.0.0.1`. **En un PaaS o en Docker poné `0.0.0.0`**, si no la plataforma no llega al proceso. |
 | `PORT` | El que indique la plataforma (muchos PaaS lo inyectan). |
 | `TRUST_PROXY` | Con Caddy/nginx **en la misma máquina**: `loopback` (y `HOST=127.0.0.1`), así solo se cree el `X-Forwarded-For` que llega del proxy local. En un PaaS: `1` (el balanceador de la plataforma), siempre que el proceso no sea alcanzable sin pasar por él. Sin esto, el rate limit ve la IP del proxy y **todos los visitantes comparten el mismo cupo**; con un número y el puerto de Node expuesto a Internet, cualquiera puede conectarse directo, inventar su `X-Forwarded-For` y saltear el rate limit. |
-| `DB_DRIVER` | `postgres` (obligatoria: elige el motor a propósito). |
 | `DATABASE_URL` | La cadena del Session pooler con la contraseña, en el gestor de secretos de la plataforma (nunca en el repo). |
-| `DATABASE_SSL_CA_FILE` | Ruta al certificado raíz de Supabase (obligatoria con Postgres en producción). |
-| `DB_PATH` | Solo si se usa SQLite: ruta absoluta dentro de un **volumen persistente** (ej.: `/data/mgdetailing.db`). Sin volumen, la base se pierde en cada despliegue. |
+| `DATABASE_SSL_CA_FILE` | Ruta al certificado raíz de Supabase (obligatoria). |
 | `SERVE_FRONTEND` | `true` para el despliegue de un solo proceso. |
 
 ### Límites conocidos
@@ -554,58 +623,37 @@ Con mismo origen no hay CORS de por medio, la cookie `SameSite=Strict` funciona 
 - **El rate limit vive en la memoria del proceso**: se reinicia con cada arranque y no se comparte entre instancias. Con Postgres la base ya admite varias réplicas del backend, pero cada una tendría su propio cupo de rate limit: para escalar horizontalmente hace falta un store compartido (Redis o la misma Postgres). Hoy una sola instancia sobra.
 - Cada instancia abre hasta 5 conexiones (pool). El Session pooler de Supabase tiene un cupo de conexiones compartido por todo el proyecto (según el plan): no subas `max` sin mirarlo.
 - La latencia a Supabase depende de la región (el proyecto está en AWS us-east-1): del orden de 150-250 ms por consulta desde Argentina, y un pedido hace una o dos. Para un formulario y un panel es aceptable; si se notara, conviene desplegar el backend cerca de la base.
-- **Con SQLite: una sola instancia** (no escalar con varias réplicas escribiendo el mismo archivo), **el modo WAL no funciona sobre sistemas de archivos de red** (NFS, SMB) y las consultas son síncronas (bloquean el event loop milisegundos).
-- Las sesiones se guardan en la base: reiniciar el servidor **no** las cierra (salvo que cambie `JWT_SECRET`).
+- Las sesiones son de Supabase Auth: reiniciar el servidor **no** las cierra. Cada request a `/api/admin` hace una consulta más (perfil + sesión, en una sola query) y la verificación del token es local (el JWKS se cachea 10 min).
+- **Todos los logins salen de la IP del servidor** hacia Supabase Auth, que tiene sus propios límites por IP. Para un taller sobra; si se notaran `429` en el login, revisá *Authentication > Rate Limits* en el panel de Supabase.
 
 ### Backup
 
-Con Postgres en Supabase: ver [Backups (Supabase)](#backups-supabase). Con SQLite:
+Ver [Backups (Supabase)](#backups-supabase).
 
-No copies el archivo `.db` mientras el servidor corre (con WAL, parte de los datos está en `-wal`). Hacé una copia consistente y en caliente con `VACUUM INTO`, a un archivo que no exista:
+### Alta de usuarios en producción
 
-```bash
-sqlite3 /data/mgdetailing.db "VACUUM INTO '/backups/mgdetailing-2026-10-16.db'"
-```
-
-Sin la CLI de `sqlite3`, con Node 24 (bash):
-
-```bash
-node -e "const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(process.argv[1]); db.exec(\"VACUUM INTO '\" + process.argv[2].replaceAll(\"'\", \"''\") + \"'\"); db.close()" /data/mgdetailing.db /backups/mgdetailing-2026-10-16.db
-```
-
-La copia contiene datos personales y hashes de contraseña: guardala cifrada y con acceso restringido. `VACUUM INTO` crea el archivo con la `umask` de la shell: en Linux corré el backup con `umask 077` (o `chmod 600` a la copia) para que no quede legible por otros usuarios. Para restaurar, detené el servidor y reemplazá el archivo de `DB_PATH`. Conviene programarlo con cron / el programador de tareas y borrar las copias viejas.
-
-### Alta del primer administrador en producción
-
-Con el build hecho y las variables de entorno cargadas (el script lee el mismo `.env` y usa la misma base que el servidor):
-
-```bash
-npm ci
-npm run build
-npm prune --omit=dev                 # opcional: deja solo las dependencias de producción
-ADMIN_PASSWORD='una clave larga y unica' npm run crear-admin -- --email dueno@mgdetailing.com.ar
-```
-
-`npm run crear-admin` no usa `tsx`, así que funciona sin devDependencies. Se puede correr con el servidor andando. Repetirlo con el mismo email cambia la contraseña y cierra las sesiones abiertas. En un PaaS, ejecutalo en una consola del servicio (con el volumen montado).
+Igual que en desarrollo: los usuarios se crean en el panel de Supabase y se activan desde el panel web (el primer superadmin, con la sentencia SQL). Ver [Alta de usuarios](#alta-de-usuarios-pasos-del-dueño). No hace falta ningún script ni acceso a la consola del servidor.
 
 ### Glosario
 
 - **Booking** = turno / solicitud de turno. El dominio y la API están en español como el contrato (`turno`, `servicioId`, `franja`, `estado`...); el código técnico (clases, rutas internas, nombres de archivos de infraestructura) está en inglés.
-- **Nombres en la base** (snake_case en los dos motores): las tablas técnicas en inglés como el código (`bookings`, `admins`, `sessions`); las columnas de negocio en español como el contrato (`nombre`, `telefono`, `vehiculo_tipo`, `fecha_preferida`, `franja`, `estado`) y las técnicas en inglés (`id`, `seq`, `created_at`, `updated_at`, `expires_at`, `password_hash`). `servicios` va en español porque es el catálogo del negocio y coincide con `domain/servicios.ts` y `servicioId`. Los repositorios traducen a camelCase (`servicio_id` -> `servicioId`).
+- **Nombres en la base** (snake_case): las tablas técnicas en inglés como el código (`bookings`); las del panel en español (`roles`, `perfiles`); las columnas de negocio en español como el contrato (`nombre`, `telefono`, `vehiculo_tipo`, `fecha_preferida`, `franja`, `estado`) y las técnicas en inglés (`id`, `seq`, `created_at`, `updated_at`). `servicios` va en español porque es el catálogo del negocio y coincide con `domain/servicios.ts` y `servicioId`. Los repositorios traducen a camelCase (`servicio_id` -> `servicioId`).
 - **`mgdetailing`** = esquema propio de la app en Postgres (no expuesto por la Data API de Supabase).
 - **Honeypot** = campo trampa `website` que solo completan los bots.
-- **Repositorio** = capa de acceso a datos detrás de una interfaz (`src/domain/`); hay dos implementaciones: Postgres (`src/repositories/postgres/`) y SQLite (`src/repositories/`).
+- **Repositorio** = capa de acceso a datos detrás de una interfaz (`src/domain/`); la implementación es Postgres (`src/repositories/postgres/`).
+- **Perfil** = fila de `mgdetailing.perfiles`: rol y si el usuario de Supabase Auth puede entrar al panel.
+- **BFF** (*backend for frontend*) = el backend media todo lo de Supabase; el navegador solo habla con `/api`.
 
 ## Seguridad
 
-- **Contraseñas**: scrypt nativo (N=2^15, r=8, p=3, equivalente OWASP), salt aleatorio por usuario, comparación con `timingSafeEqual`. El login hace el trabajo de scrypt aunque el email no exista, para no revelar por tiempo qué emails están registrados.
-- **Sesión**: JWT HS256 firmado con `jose`, con el algoritmo fijado al verificar (más emisor, audiencia y vencimiento), en cookie `HttpOnly; SameSite=Strict` (`Secure` en producción), 8 horas. Además cada sesión se registra en la base: **cerrar sesión la revoca de verdad**, y cambiar la contraseña cierra todas las sesiones de ese admin.
+- **Contraseñas y sesiones**: las maneja **Supabase Auth** (el backend no guarda contraseñas). El backend verifica cada access token con `jose` contra el JWKS del proyecto con el algoritmo (**ES256**), emisor, audiencia y vencimiento **fijados**; exige `sub`/`session_id` UUID, `role = authenticated` y no anónimo. Los tokens viajan solo en cookies `HttpOnly; SameSite=Strict` (`Secure` en producción); el refresh token solo a `/api/auth`. Cada request comprueba en la base que la sesión siga en `auth.sessions` y que el perfil esté activo: **logout, desactivación y cambio de rol son inmediatos**.
+- **Autorización**: por rol en el backend (`domain/permisos.ts`), no en la UI. Usuarios nuevos nacen inactivos.
 - **CSRF**: `SameSite=Strict` + chequeo de `Origin` + `Content-Type: application/json` obligatorio en métodos que modifican.
-- **Rate limits**: general por IP, 5 turnos / 15 min, 5 logins fallidos / 15 min.
-- **Entrada**: zod estricto (rechaza campos desconocidos), body máximo de 10 kb, sin cuerpos comprimidos. SQL siempre parametrizado (`?` en SQLite, `$1` en Postgres), y una regla de ESLint prohíbe construir SQL con interpolación o concatenación en `prepare()`, `exec()` y `query()`.
+- **Rate limits**: general por IP, 5 turnos / 15 min, 5 logins fallidos / 15 min (más los límites propios de Supabase Auth).
+- **Entrada**: zod estricto (rechaza campos desconocidos), body máximo de 10 kb, sin cuerpos comprimidos. SQL siempre parametrizado (`$1, $2...`), y una regla de ESLint prohíbe construir SQL con interpolación o concatenación en `query()` y `exec()`.
 - **Cabeceras**: helmet (CSP, HSTS en producción, `nosniff`, `X-Frame-Options: DENY`...), `Permissions-Policy`, `Cache-Control: no-store` en la API. El panel (`/admin`) lleva `X-Robots-Tag: noindex, nofollow`. Con `SERVE_FRONTEND`, lo que cuelga de `/assets`, `/fotos` y `/marca` y no existe da 404 (nunca el HTML de la SPA), igual que los dotfiles.
-- **Datos personales**: nunca se escriben en los logs (una línea por request: método, ruta sin query, status y milisegundos; al crear un turno solo `id + servicio + fecha`; el aviso de WhatsApp solo `id` y status). Con SQLite, al borrar un turno se sobrescribe su contenido (`secure_delete`); con Postgres la fila queda en disco hasta que `autovacuum` reutiliza el espacio.
-- **Base de datos (Postgres)**: esquema `mgdetailing` no expuesto por la Data API, RLS en todas las tablas sin policies, `REVOKE` a `anon`/`authenticated`/`service_role`, TLS con verificación del certificado de Supabase, contraseña solo en `DATABASE_URL` (nunca en logs ni errores). Ver [Seguridad en la base](#seguridad-en-la-base-supabase).
+- **Datos personales**: nunca se escriben en los logs (una línea por request: método, ruta sin query, status y milisegundos; al crear un turno solo `id + servicio + fecha`; el aviso de WhatsApp solo `id` y status; login y gestión de usuarios solo ids de usuario, nunca emails ni tokens). Al borrar un turno, la fila queda en disco hasta que `autovacuum` reutiliza el espacio.
+- **Base de datos (Postgres)**: esquemas `mgdetailing` y `mgdetailing_private` no expuestos por la Data API, RLS en todas las tablas con policies solo para `mgdetailing_app`, `REVOKE` a `anon`/`authenticated`/`service_role`, TLS con verificación del certificado de Supabase, contraseña solo en `DATABASE_URL` (nunca en logs ni errores). Ver [Seguridad en la base](#seguridad-en-la-base-supabase).
 - **Errores**: formato único, sin stack traces ni detalles internos.
 - **Quien muestre estos datos debe escaparlos** (React lo hace por defecto): nunca `innerHTML` / `dangerouslySetInnerHTML` con nombre, modelo o comentario.
 
@@ -617,20 +665,19 @@ backend/
     index.ts            arranque, listen y apagado prolijo (SIGINT/SIGTERM)
     app.ts              createApp(): arma Express sin escuchar (recibe repositorios + checkDatabase; lo usan los tests)
     config.ts           lee .env y valida la configuración con zod
-    domain/             tipos del negocio, reglas e interfaces async de los repositorios
-    repositories/       implementación SQLite de esas interfaces
-      postgres/         implementación Postgres (mismo comportamiento, SQL con $1...)
-    services/           casos de uso con lógica (auth, alta de turno, alta de admin)
-    routes/             rutas HTTP (health, bookings, auth, admin)
+    domain/             tipos del negocio, reglas (permisos por rol) e interfaces async de los repositorios
+    repositories/       fábrica de repositorios
+      postgres/         implementación Postgres (turnos, perfiles; SQL con $1...)
+    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno)
+    routes/             rutas HTTP (health, bookings, auth, admin/bookings, admin/usuarios)
     notifications/      avisos de WhatsApp al dueño (CallMeBot, Cloud API) y formato del mensaje
     middleware/         seguridad, CSRF, rate limit, errores, logger, estáticos
     schemas/            validación de entrada con zod
-    db/                 database.ts (elige y abre el motor), postgres.ts (pool, TLS, verificación del esquema),
-                        conexión y migraciones SQLite (PRAGMA user_version), chequeo de salud
-    lib/                utilidades: errores, logger, scrypt, JWT, fechas, cookies
-    scripts/            crear-admin
+    db/                 database.ts (abre la base), postgres.ts (pool, TLS, verificación del esquema), rows.ts
+    lib/                utilidades: errores, logger, fechas, cookies, cliente de Supabase Auth, verificación de JWT
+    scripts/            clave-db (contraseña del rol mgdetailing_app)
   supabase/migrations/  migraciones de Postgres (fuente de verdad del esquema en Supabase)
-  test/                 vitest + supertest (SQLite en memoria y Postgres en memoria con PGlite)
+  test/                 vitest + supertest (Postgres en memoria con PGlite y un Supabase Auth falso)
 ```
 
 ## Scripts y tests
@@ -640,16 +687,16 @@ backend/
 | `npm run dev` | Desarrollo con recarga (`tsx watch`). |
 | `npm run build` | Compila a `dist/` con `tsc`. |
 | `npm start` | `node dist/index.js`. |
-| `npm run crear-admin:dev -- --email <email>` | Crea/actualiza el admin (desarrollo, `tsx`). |
 | `npm run clave-db:dev` / `npm run clave-db` | Genera la contraseña del rol `mgdetailing_app` y el `ALTER ROLE` con hash SCRAM para pegar en Supabase. |
-| `npm run crear-admin -- --email <email>` | Crea/actualiza el admin (producción, `dist/`). |
 | `npm test` | Tests (vitest + supertest). |
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm run lint` | ESLint (typescript-eslint estricto). |
 
-Los tests usan una base SQLite en memoria y un reloj fijo. Para Postgres usan **PGlite** (Postgres compilado a WebAssembly, en memoria, sin servidor) con **las mismas migraciones** de `supabase/migrations/`:
+Los tests usan un reloj fijo, **PGlite** (Postgres compilado a WebAssembly, en memoria, sin servidor) con **las mismas migraciones** de `supabase/migrations/`, y un **Supabase Auth falso** (`test/supabase-fake.ts`): un par de claves ES256 generado en el test sirve como JWKS local y un `fetch` inyectado responde `/token` (password y refresh con rotación y detección de reuso) y `/logout`, guardando las sesiones en `auth.sessions` de PGlite. La app habla con la base como `mgdetailing_app`, igual que en producción.
 
-- `repositories.contract.test.ts`: la **misma batería** contra SQLite y contra Postgres (crear, listar en orden estable, filtrar, paginar, cambiar estado, borrar, inexistente o id mal formado, admin por email sin distinguir mayúsculas, sesiones: crear, vencer, revocar, purgar) y la FK de servicio inválido en Postgres.
-- `postgres.test.ts`: RLS y privilegios de `anon`/`authenticated`/`service_role`, CHECK y trigger de `updated_at`, verificación del esquema al arrancar, el flujo HTTP completo sobre Postgres, `/api/health` con Postgres caído (`503`, pool real de `pg` contra un puerto cerrado) y `crear-admin` sobre Postgres.
+- `auth.test.ts`: login, cookies, credenciales inválidas, usuario inactivo o sin perfil, Supabase caído o limitando, refresh, refresh reutilizado, logout (el token viejo deja de servir), tokens manipulados (otra clave, HS256, `none`, `iss`/`aud` ajenos, anónimo, sesión inexistente), vencido sin refresh, desactivación y cambio de rol con la sesión abierta.
+- `usuarios.test.ts`: matriz de roles sobre los turnos y gestión de usuarios (listar, activar, no degradarse, nunca sin superadmin, validación).
+- `postgres.test.ts`: RLS y privilegios de `anon`/`authenticated`/`service_role` y de `mgdetailing_app`, trigger de `auth.users`, CHECK y `updated_at`, verificación del esquema y `/api/health` con Postgres caído.
+- `repositories.contract.test.ts`: turnos y perfiles sobre Postgres como `mgdetailing_app`.
 
-No hace falta internet ni la contraseña de Supabase para correr los tests. Un test adicional falla si algún fuente contiene caracteres invisibles escritos literalmente (ataque "Trojan Source").
+No hace falta internet ni ninguna clave de Supabase para correr los tests: ninguno hace requests reales. Un test adicional falla si algún fuente contiene caracteres invisibles escritos literalmente (ataque "Trojan Source").

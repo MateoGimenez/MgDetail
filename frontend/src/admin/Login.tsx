@@ -1,13 +1,14 @@
 import { useId, useState, type FormEvent } from 'react';
 import { iniciarSesion } from '../api/admin';
 import { ApiError } from '../api/client';
+import type { UsuarioSesion } from '../api/contract-panel';
 import { MarcoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { Logo } from '../components/Logo';
 
 interface Props {
   aviso?: string;
-  alIngresar: (email: string) => void;
+  alIngresar: (usuario: UsuarioSesion) => void;
 }
 
 export function Login({ aviso, alIngresar }: Props) {

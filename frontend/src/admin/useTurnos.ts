@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { cambiarEstado, contarTurnos, eliminarTurno, listarTurnos } from '../api/admin';
-import { ApiError, esAbortado } from '../api/client';
+import { esAbortado } from '../api/client';
+import { esSesionPerdida } from '../api/sesion';
 import type { Estado, Turno } from '../api/contract';
 
 export const POR_PAGINA = 20;
@@ -47,9 +48,9 @@ const conCambio = (conjunto: ReadonlySet<string>, id: string, activo: boolean) =
 
 /**
  * Lista paginada de solicitudes de un filtro, con cambio de estado y borrado.
- * Un 401 en cualquier pedido avisa con `alVencerSesion`.
+ * Si la sesión se pierde (401 sin refresco posible o usuario sin acceso) avisa con `alVencerSesion`.
  */
-export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: () => void) {
+export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: (mensaje: string) => void) {
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [pendientes, setPendientes] = useState<number | null>(null);
@@ -74,8 +75,8 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: () => 
       })
       .catch((error: unknown) => {
         if (esAbortado(error)) return;
-        if (error instanceof ApiError && error.status === 401) {
-          alVencerSesion();
+        if (esSesionPerdida(error)) {
+          alVencerSesion(error.message);
           return;
         }
         setResultado({ clave, error: error instanceof Error ? error.message : 'No pudimos cargar las solicitudes.' });
@@ -116,8 +117,8 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: () => 
       setCambiadas((c) => conCambio(c, turno.id, true));
       setConteo((n) => n + 1);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        alVencerSesion();
+      if (esSesionPerdida(error)) {
+        alVencerSesion(error.message);
         return;
       }
       const mensaje = error instanceof Error ? error.message : 'No se pudo guardar el cambio.';
@@ -132,8 +133,8 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: () => 
     try {
       await eliminarTurno(turno.id);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        alVencerSesion();
+      if (esSesionPerdida(error)) {
+        alVencerSesion(error.message);
         return null;
       }
       return error instanceof Error ? error.message : 'No se pudo eliminar la solicitud.';

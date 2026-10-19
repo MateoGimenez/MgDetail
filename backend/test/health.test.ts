@@ -6,7 +6,7 @@ afterEach(closeAllContexts);
 
 describe('GET /api/health', () => {
   it('responde { status: "ok" } sin cache y sin exponer la tecnología', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
     const response = await request(app).get('/api/health');
 
     expect(response.status).toBe(200);
@@ -16,21 +16,21 @@ describe('GET /api/health', () => {
   });
 
   it('envía las cabeceras de seguridad y una CSP que bloquea todo en la API; HSTS solo en producción', async () => {
-    const development = await request(createTestContext().app).get('/api/health');
+    const development = await request((await createTestContext()).app).get('/api/health');
     expect(development.headers['x-content-type-options']).toBe('nosniff');
     expect(development.headers['x-frame-options']).toBe('DENY');
     expect(development.headers['content-security-policy']).toBe("default-src 'none';frame-ancestors 'none'");
     expect(development.headers['strict-transport-security']).toBeUndefined();
 
-    const production = await request(createTestContext({ config: { isProduction: true, nodeEnv: 'production' } }).app).get(
+    const production = await request((await createTestContext({ config: { isProduction: true, nodeEnv: 'production' } })).app).get(
       '/api/health',
     );
     expect(production.headers['strict-transport-security']).toBe('max-age=15552000');
   });
 
   it('devuelve 503 SERVICE_UNAVAILABLE sin detalles internos y sin stack en el log si la base no responde', async () => {
-    const context = createTestContext();
-    context.db.close();
+    const context = await createTestContext();
+    await context.db.close();
     const response = await request(context.app).get('/api/health');
 
     expect(response.status).toBe(503);
@@ -46,7 +46,7 @@ describe('GET /api/health', () => {
 
 describe('rutas desconocidas', () => {
   it('/api/<inexistente> y GET /api/bookings (no hay listado público) dan 404 JSON', async () => {
-    const { app } = createTestContext();
+    const { app } = await createTestContext();
 
     for (const url of ['/api/no-existe', '/api/bookings']) {
       const response = await request(app).get(url);
@@ -56,7 +56,7 @@ describe('rutas desconocidas', () => {
   });
 
   it('una ruta fuera de /api también da 404 JSON cuando no se sirve el frontend', async () => {
-    const response = await request(createTestContext().app).get('/admin');
+    const response = await request((await createTestContext()).app).get('/admin');
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('NOT_FOUND');

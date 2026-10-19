@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import type { DatabaseConfig } from '../config.js';
+import { ROLES } from '../domain/perfil.js';
 import { SERVICIO_IDS } from '../domain/servicios.js';
 import type { Logger } from '../lib/logger.js';
 import type { Row } from './rows.js';
@@ -16,7 +17,7 @@ export interface SqlClient {
 
 /** Esquema propio de la app en Postgres (no expuesto por la Data API de Supabase). Ver supabase/migrations/. */
 export const PG_SCHEMA = 'mgdetailing';
-const REQUIRED_TABLES = ['servicios', 'bookings', 'admins', 'sessions'] as const;
+const REQUIRED_TABLES = ['servicios', 'bookings', 'roles', 'perfiles'] as const;
 
 /**
  * Pool chico y con timeouts: un taller con un servidor Node de larga vida no necesita más, y el pooler de
@@ -35,10 +36,8 @@ export const PG_POOL_SETTINGS = {
   keepAlive: true,
 } as const;
 
-export type PostgresDatabaseConfig = Extract<DatabaseConfig, { driver: 'postgres' }>;
-
 /** TLS: siempre cifrado. Con el CA de Supabase se verifica el certificado y el nombre del host (verify-full). */
-function tlsOptions(config: PostgresDatabaseConfig): pg.ClientConfig['ssl'] {
+function tlsOptions(config: DatabaseConfig): pg.ClientConfig['ssl'] {
   if (config.sslCaFile === undefined) {
     return { rejectUnauthorized: false };
   }
@@ -50,7 +49,7 @@ function tlsOptions(config: PostgresDatabaseConfig): pg.ClientConfig['ssl'] {
  * Las partes de la conexión vienen ya separadas (config.ts), así que ningún parámetro de una URL puede pisar
  * la configuración TLS.
  */
-export function createPgPool(config: PostgresDatabaseConfig, logger: Logger): pg.Pool {
+export function createPgPool(config: DatabaseConfig, logger: Logger): pg.Pool {
   const pool = new pg.Pool({
     ...config.connection,
     ssl: tlsOptions(config),
@@ -131,6 +130,23 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     throw new Error(
       `Faltan servicios en mgdetailing.servicios (${missingServicios.join(', ')}). ` +
         'Agregalos con una migración nueva: el backend los acepta pero la base los rechazaría.',
+    );
+  }
+
+  const roles = await client.query('SELECT id FROM mgdetailing.roles WHERE id = ANY($1::text[])', [ROLES]);
+  const knownRoles = new Set(roles.rows.map((row) => row.id));
+  const missingRoles = ROLES.filter((id) => !knownRoles.has(id));
+  if (missingRoles.length > 0) {
+    throw new Error(`Faltan roles en mgdetailing.roles (${missingRoles.join(', ')}). Aplicá las migraciones.`);
+  }
+
+  // La verificación de sesión contra auth.sessions (migración perfiles_roles_supabase_auth).
+  const fn = await client.query(
+    "SELECT to_regprocedure('mgdetailing_private.sesion_vigente(uuid, uuid, integer)') IS NOT NULL AS ok",
+  );
+  if (fn.rows[0]?.ok !== true) {
+    throw new Error(
+      'Falta la función mgdetailing_private.sesion_vigente (o el rol no tiene USAGE sobre mgdetailing_private). Aplicá las migraciones.',
     );
   }
 }

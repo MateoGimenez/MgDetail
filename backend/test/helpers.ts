@@ -1,19 +1,14 @@
-import type { DatabaseSync } from 'node:sqlite';
 import type { Express } from 'express';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
-import { openDatabase } from '../src/db/connection.js';
-import { sqliteDatabase } from '../src/db/database.js';
-import { migrate } from '../src/db/migrations.js';
+import { createPostgresCheck } from '../src/db/postgres.js';
 import type { BookingNotifier } from '../src/domain/notifier.js';
+import type { Rol } from '../src/domain/perfil.js';
 import type { Logger } from '../src/lib/logger.js';
-import type { ScryptParams } from '../src/lib/password.js';
-import { createSqliteRepositories } from '../src/repositories/index.js';
-import { saveAdmin } from '../src/services/admin-accounts.js';
-
-/** Parámetros baratos de scrypt, SOLO para tests (los reales son DEFAULT_SCRYPT_PARAMS). */
-export const TEST_SCRYPT_PARAMS: Readonly<ScryptParams> = { logN: 10, r: 8, p: 1 };
+import { createPostgresRepositories } from '../src/repositories/index.js';
+import { type PgliteDatabase, createPgliteDatabase } from './pglite.js';
+import { FakeSupabaseAuth, PUBLISHABLE_KEY, SUPABASE_ISSUER, SUPABASE_URL, TEST_JWKS } from './supabase-fake.js';
 
 /** Origen del frontend en desarrollo (el que manda el navegador a través del proxy de Vite). */
 export const ORIGIN = 'http://localhost:5173';
@@ -25,7 +20,6 @@ export const TODAY_PLUS_61 = '2026-12-16';
 
 export const ADMIN_EMAIL = 'dueno@mgdetailing.test';
 export const ADMIN_PASSWORD = 'clave-de-prueba-123';
-export const JWT_SECRET = 'secreto-de-prueba-secreto-de-prueba-0123456789';
 
 /** Límites altísimos: los tests funcionales no deben chocar con el rate limit (se prueba aparte). */
 const NO_LIMIT = { windowMs: 60_000, limit: 100_000 };
@@ -37,13 +31,21 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     host: '127.0.0.1',
     port: 0,
     frontendOrigins: [ORIGIN],
-    jwtSecret: JWT_SECRET,
-    sessionTtlSeconds: 8 * 60 * 60,
-    database: { driver: 'sqlite', path: ':memory:' },
+    sessionCookieMaxAgeSeconds: 8 * 60 * 60,
+    database: {
+      connection: { host: '127.0.0.1', port: 5432, user: 'mgdetailing_app', password: 'x', database: 'postgres' },
+      sslCaFile: undefined,
+      label: 'PGlite',
+    },
+    supabase: {
+      url: SUPABASE_URL,
+      authUrl: SUPABASE_ISSUER,
+      jwksUrl: `${SUPABASE_ISSUER}/.well-known/jwks.json`,
+      publishableKey: PUBLISHABLE_KEY,
+    },
     trustProxy: false,
     serveFrontend: false,
     frontendDistPath: '',
-    passwordHashing: { ...TEST_SCRYPT_PARAMS },
     rateLimits: { api: NO_LIMIT, bookings: NO_LIMIT, loginFailures: NO_LIMIT },
     whatsapp: { provider: 'none' },
     publicUrl: undefined,
@@ -74,41 +76,56 @@ export class MemoryLogger implements Logger {
 
 export interface TestContext {
   app: Express;
-  db: DatabaseSync;
+  /** PGlite: `sql` como superusuario (preparar datos), `appSql` como mgdetailing_app (lo que usa la app). */
+  db: PgliteDatabase;
   logger: MemoryLogger;
   config: AppConfig;
+  /** Supabase Auth falso (usuarios, sesiones en auth.sessions, llamadas recibidas). */
+  supabase: FakeSupabaseAuth;
   /** Reloj controlable: `clock.current = new Date(...)`. */
   clock: { current: Date };
-  close: () => void;
+  close: () => Promise<void>;
 }
 
 const openContexts = new Set<TestContext>();
 
-export function createTestContext(options: { config?: Partial<AppConfig>; now?: Date; notifier?: BookingNotifier } = {}): TestContext {
-  const db = openDatabase(':memory:');
-  migrate(db);
+export async function createTestContext(
+  options: { config?: Partial<AppConfig>; now?: Date; notifier?: BookingNotifier } = {},
+): Promise<TestContext> {
+  const db = await createPgliteDatabase();
   const logger = new MemoryLogger();
   const clock = { current: options.now ?? NOW };
+  const now = () => clock.current;
   const config = testConfig(options.config);
-  const { repositories, checkDatabase } = sqliteDatabase(db, 'SQLite :memory:');
-  const app = createApp({
+  const supabase = new FakeSupabaseAuth(db, now);
+  let app: Express;
+  try {
+    app = createApp({
     config,
-    repositories,
-    checkDatabase,
+    // Como en producción: la app habla con la base como mgdetailing_app.
+    repositories: createPostgresRepositories(db.appSql),
+    checkDatabase: createPostgresCheck(db.appSql),
     logger,
-    now: () => clock.current,
+    now,
+    authFetch: supabase.fetch,
+    jwks: TEST_JWKS,
     ...(options.notifier && { notifier: options.notifier }),
   });
+  } catch (error) {
+    await db.close();
+    throw error;
+  }
 
   const context: TestContext = {
     app,
     db,
     logger,
     config,
+    supabase,
     clock,
-    close: () => {
-      if (db.isOpen) db.close();
+    close: async () => {
       openContexts.delete(context);
+      if (!db.pg.closed) await db.close();
     },
   };
   openContexts.add(context);
@@ -116,27 +133,47 @@ export function createTestContext(options: { config?: Partial<AppConfig>; now?: 
 }
 
 /** Cierra todas las bases abiertas por createTestContext (se llama desde afterEach en cada archivo de test). */
-export function closeAllContexts(): void {
-  for (const context of [...openContexts]) context.close();
+export async function closeAllContexts(): Promise<void> {
+  for (const context of [...openContexts]) await context.close();
 }
 
-export async function addAdmin(
-  context: TestContext,
-  email: string = ADMIN_EMAIL,
-  password: string = ADMIN_PASSWORD,
-): Promise<void> {
-  const { admins, sessions } = createSqliteRepositories(context.db);
-  await saveAdmin({ admins, sessions }, { email, password }, { params: TEST_SCRYPT_PARAMS, now: NOW });
+export interface NewUser {
+  email?: string;
+  password?: string;
+  rol?: Rol;
+  activo?: boolean;
+  nombre?: string | null;
 }
 
-export function countRows(db: DatabaseSync, table: 'bookings' | 'sessions' | 'admins'): number {
-  const row =
+/**
+ * Crea un usuario como lo haría Supabase (INSERT en auth.users: el trigger crea el perfil como empleado inactivo)
+ * y después le asigna rol y estado, como haría un superadmin. Devuelve su id.
+ */
+export async function addUser(context: TestContext, user: NewUser = {}): Promise<string> {
+  const email = user.email ?? ADMIN_EMAIL;
+  const { rows } = await context.db.sql.query('INSERT INTO auth.users (email) VALUES ($1) RETURNING id::text AS id', [
+    email,
+  ]);
+  const id = String(rows[0]?.id);
+  await context.db.sql.query(
+    'UPDATE mgdetailing.perfiles SET rol_id = $2, activo = $3, nombre = $4 WHERE id = $1::uuid',
+    [id, user.rol ?? 'admin', user.activo ?? true, user.nombre ?? null],
+  );
+  context.supabase.addUser(email, user.password ?? ADMIN_PASSWORD, id);
+  return id;
+}
+
+/** El usuario de siempre de los tests: admin activo. */
+export function addAdmin(context: TestContext): Promise<string> {
+  return addUser(context);
+}
+
+export async function countRows(db: PgliteDatabase, table: 'bookings' | 'perfiles'): Promise<number> {
+  const { rows } =
     table === 'bookings'
-      ? db.prepare('SELECT COUNT(*) AS n FROM bookings').get()
-      : table === 'sessions'
-        ? db.prepare('SELECT COUNT(*) AS n FROM sessions').get()
-        : db.prepare('SELECT COUNT(*) AS n FROM admins').get();
-  const n = row?.n;
+      ? await db.sql.query('SELECT count(*)::int AS n FROM mgdetailing.bookings')
+      : await db.sql.query('SELECT count(*)::int AS n FROM mgdetailing.perfiles');
+  const n = rows[0]?.n;
   if (typeof n !== 'number') throw new TypeError('COUNT inválido');
   return n;
 }
@@ -148,6 +185,7 @@ export function createClient(app: Express) {
     test.set('Origin', ORIGIN).set('Content-Type', 'application/json');
 
   return {
+    agent,
     get: (url: string) => agent.get(url).set('Origin', ORIGIN),
     post: (url: string, body?: unknown) => json(agent.post(url)).send(body as object | undefined),
     patch: (url: string, body?: unknown) => json(agent.patch(url)).send(body as object | undefined),
@@ -174,6 +212,16 @@ export async function loginClient(
   return client;
 }
 
+/** Crea un usuario con ese rol y devuelve un cliente con la sesión iniciada. */
+export async function loginAs(
+  context: TestContext,
+  rol: Rol,
+  email = `${rol}@mgdetailing.test`,
+): Promise<{ client: Client; id: string }> {
+  const id = await addUser(context, { email, rol });
+  return { client: await loginClient(context, email), id };
+}
+
 /** Un turno válido; `overrides` pisa/agrega campos. */
 export function validBooking(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -196,16 +244,24 @@ export function bookingWithout(field: string): Record<string, unknown> {
   return rest;
 }
 
-/** Extrae el valor de la cookie mg_session de una respuesta (o undefined si no la setea). */
-export function sessionCookieValue(setCookie: string[] | undefined): string | undefined {
-  const header = setCookie?.find((cookie) => cookie.startsWith('mg_session='));
-  const value = header?.split(';')[0]?.slice('mg_session='.length);
-  return value === '' ? undefined : value;
+/** Las cabeceras Set-Cookie de una respuesta (lista vacía si no hay). */
+export function setCookies(response: request.Response): string[] {
+  return (response.headers['set-cookie'] as unknown as string[] | undefined) ?? [];
 }
 
-export function setCookieHeader(response: request.Response): string {
-  const header = response.headers['set-cookie'] as unknown as string[] | undefined;
-  const cookie = header?.find((entry) => entry.startsWith('mg_session='));
-  if (!cookie) throw new Error('La respuesta no trae la cookie mg_session');
-  return cookie;
+/** La cabecera Set-Cookie de una cookie por nombre, o undefined. */
+export function setCookieFor(response: request.Response, name: string): string | undefined {
+  return setCookies(response).find((cookie) => cookie.startsWith(`${name}=`));
+}
+
+/** Valor de una cookie seteada en la respuesta ('' si la borra), o undefined si no la toca. */
+export function cookieValue(response: request.Response, name: string): string | undefined {
+  return setCookieFor(response, name)?.split(';')[0]?.slice(name.length + 1);
+}
+
+/** "mg_at=...; mg_rt=..." listo para la cabecera Cookie a partir de una respuesta de login. */
+export function cookieHeader(response: request.Response): string {
+  return setCookies(response)
+    .map((cookie) => cookie.split(';')[0] ?? '')
+    .join('; ');
 }

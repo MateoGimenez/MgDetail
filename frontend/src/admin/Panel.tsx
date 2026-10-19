@@ -1,64 +1,34 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { cerrarSesion } from '../api/admin';
-import { ETIQUETA_ESTADO, type Turno } from '../api/contract';
-import { SubrayadoFilete } from '../components/Filete';
+import { ETIQUETA_ROL, type UsuarioSesion } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { Logo } from '../components/Logo';
-import { DialogoEliminar } from './DialogoEliminar';
-import { TarjetaTurno } from './TarjetaTurno';
-import { POR_PAGINA, esNueva, useTurnos, type Filtro } from './useTurnos';
+import { puedeGestionarUsuarios } from './permisos';
+import { VistaTurnos } from './VistaTurnos';
+import { VistaUsuarios } from './VistaUsuarios';
 
-const FILTROS: readonly { valor: Filtro; texto: string }[] = [
-  { valor: 'pendiente', texto: 'Pendientes' },
-  { valor: 'confirmado', texto: 'Confirmadas' },
-  { valor: 'completado', texto: 'Completadas' },
-  { valor: 'cancelado', texto: 'Canceladas' },
-  { valor: 'todas', texto: 'Todas' },
-];
-
-const VACIO_POR_FILTRO: Readonly<Record<Filtro, string>> = {
-  pendiente: 'No hay solicitudes pendientes. Cuando alguien pida un turno desde la web, aparece acá.',
-  confirmado: 'No hay turnos confirmados.',
-  completado: 'Todavía no hay turnos completados.',
-  cancelado: 'No hay solicitudes canceladas.',
-  todas: 'Todavía no llegó ninguna solicitud. Cuando alguien pida un turno desde la web, aparece acá.',
-};
+type Vista = 'turnos' | 'usuarios';
 
 interface Props {
-  email: string;
+  usuario: UsuarioSesion;
   alSalir: () => void;
-  alVencerSesion: () => void;
+  alVencerSesion: (mensaje: string) => void;
 }
 
-export function Panel({ email, alSalir, alVencerSesion }: Props) {
-  const [filtro, setFiltro] = useState<Filtro>('pendiente');
-  const [pagina, setPagina] = useState(0);
-  const [aEliminar, setAEliminar] = useState<Turno | null>(null);
-  const dialogoRef = useRef<HTMLDialogElement>(null);
-  const t = useTurnos(filtro, pagina, alVencerSesion);
-  const { datos, cargando } = t;
+/** Cáscara del panel: riel con quién está conectado y su rol, secciones y salir. */
+export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
+  const [vista, setVista] = useState<Vista>('turnos');
+  const gestionaUsuarios = puedeGestionarUsuarios(usuario.rol);
+  const quien = usuario.nombre ?? usuario.email ?? 'Tu usuario';
 
   const salir = async () => {
     try {
       await cerrarSesion();
     } catch {
-      // Aunque falle la red, se vuelve al ingreso: la cookie vence sola.
+      // Aunque falle la red, se vuelve al ingreso: las cookies vencen solas.
     }
     alSalir();
   };
-
-  const eliminar = async (turno: Turno) => {
-    const problema = await t.eliminar(turno);
-    if (!problema && datos && datos.turnos.length === 1 && pagina > 0) setPagina((p) => p - 1);
-    return problema;
-  };
-
-  const textoFiltro = FILTROS.find((x) => x.valor === filtro)?.texto.toLowerCase() ?? '';
-  const enFiltro = datos ? datos.turnos.filter((x) => filtro === 'todas' || x.estado === filtro).length : 0;
-  const desde = datos && datos.total > 0 ? pagina * POR_PAGINA + 1 : 0;
-  const hasta = desde > 0 ? desde - 1 + enFiltro : 0;
-  const hayAnterior = pagina > 0;
-  const haySiguiente = datos ? (pagina + 1) * POR_PAGINA < datos.total : false;
 
   return (
     <div className="panel">
@@ -69,7 +39,10 @@ export function Panel({ email, alSalir, alVencerSesion }: Props) {
             <span className="panel__rotulo">Panel</span>
           </div>
           <div className="panel__usuario">
-            <span className="panel__email">{email}</span>
+            <p className="panel__quien">
+              <span className="panel__nombre">{quien}</span>
+              <span className="panel__rol">{ETIQUETA_ROL[usuario.rol]}</span>
+            </p>
             <button
               type="button"
               className="boton boton--fantasma boton--chico"
@@ -82,142 +55,40 @@ export function Panel({ email, alSalir, alVencerSesion }: Props) {
             </button>
           </div>
         </div>
+        {gestionaUsuarios && (
+          <nav className="panel__secciones" aria-label="Secciones del panel">
+            <ul role="list" className="panel__secciones-lista">
+              {(
+                [
+                  ['turnos', 'Turnos'],
+                  ['usuarios', 'Usuarios'],
+                ] as const
+              ).map(([valor, texto]) => (
+                <li key={valor}>
+                  <button
+                    type="button"
+                    className={vista === valor ? 'panel__seccion activa' : 'panel__seccion'}
+                    aria-current={vista === valor ? 'page' : undefined}
+                    onClick={() => {
+                      setVista(valor);
+                    }}
+                  >
+                    {texto}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
       </header>
 
       <main className="panel__trabajo">
-        <div className="panel__encabezado">
-          <h1 className="panel__titulo">Solicitudes de turno</h1>
-          <button type="button" className="boton boton--secundario boton--chico" disabled={cargando} onClick={t.recargar}>
-            <Icono nombre="refrescar" tamano={18} />
-            Actualizar
-          </button>
-        </div>
-
-        <nav className="filtros" aria-label="Filtrar por estado">
-          <ul role="list">
-            {FILTROS.map((x) => (
-              <li key={x.valor}>
-                <button
-                  type="button"
-                  className={x.valor === filtro ? 'filtro seleccionado' : 'filtro'}
-                  aria-pressed={x.valor === filtro}
-                  onClick={() => {
-                    setFiltro(x.valor);
-                    setPagina(0);
-                  }}
-                >
-                  {x.texto}
-                  {x.valor === 'pendiente' && t.pendientes !== null && (
-                    <span className="filtro__cuenta">
-                      {t.pendientes}
-                      <span className="visualmente-oculto"> en total</span>
-                    </span>
-                  )}
-                  {x.valor === filtro && <SubrayadoFilete className="filtro__trazo" />}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <div className="panel__estado" aria-live="polite">
-          {cargando && <p className="panel__cargando">Cargando solicitudes…</p>}
-          {!cargando && datos && datos.total > 0 && (
-            <p className="panel__conteo">
-              {datos.total === 1
-                ? 'Mostrando 1 solicitud'
-                : `Mostrando ${String(desde)}–${String(hasta)} de ${String(datos.total)} solicitudes`}
-              {filtro !== 'todas' && ` · ${textoFiltro}`}
-            </p>
-          )}
-        </div>
-
-        {cargando && (
-          <div className="turnos" aria-hidden="true">
-            {[0, 1, 2].map((n) => (
-              <div key={n} className="turno turno--esqueleto" />
-            ))}
-          </div>
-        )}
-
-        {t.error && (
-          <div className="panel__error" role="alert">
-            <Icono nombre="alerta" tamano={22} />
-            <div>
-              <p>No pudimos cargar las solicitudes. {t.error}</p>
-              <button type="button" className="boton boton--primario boton--chico" onClick={t.recargar}>
-                Reintentar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {datos && datos.turnos.length === 0 && (
-          <div className="panel__vacio">
-            <p>{VACIO_POR_FILTRO[filtro]}</p>
-          </div>
-        )}
-
-        {datos && datos.turnos.length > 0 && (
-          <div className="turnos">
-            {datos.turnos.map((turno) => (
-              <TarjetaTurno
-                key={turno.id}
-                turno={turno}
-                nueva={esNueva(turno)}
-                cambiada={t.cambiadas.has(turno.id)}
-                salioDelFiltro={filtro !== 'todas' && turno.estado !== filtro ? ETIQUETA_ESTADO[turno.estado] : null}
-                ocupada={t.ocupadas.has(turno.id)}
-                error={t.erroresPorTurno[turno.id]}
-                alCambiarEstado={(estado) => {
-                  void t.cambiar(turno, estado);
-                }}
-                alEliminar={() => {
-                  setAEliminar(turno);
-                  dialogoRef.current?.showModal();
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {datos && (hayAnterior || haySiguiente) && (
-          <nav className="paginacion" aria-label="Páginas">
-            <button
-              type="button"
-              className="boton boton--secundario boton--chico"
-              disabled={!hayAnterior || cargando}
-              onClick={() => {
-                setPagina((p) => p - 1);
-              }}
-            >
-              Anteriores
-            </button>
-            <span className="paginacion__texto">
-              Página {pagina + 1} de {Math.max(1, Math.ceil(datos.total / POR_PAGINA))}
-            </span>
-            <button
-              type="button"
-              className="boton boton--secundario boton--chico"
-              disabled={!haySiguiente || cargando}
-              onClick={() => {
-                setPagina((p) => p + 1);
-              }}
-            >
-              Siguientes
-            </button>
-          </nav>
+        {vista === 'usuarios' && gestionaUsuarios ? (
+          <VistaUsuarios idPropio={usuario.id} alVencerSesion={alVencerSesion} />
+        ) : (
+          <VistaTurnos rol={usuario.rol} alVencerSesion={alVencerSesion} />
         )}
       </main>
-
-      <DialogoEliminar
-        dialogoRef={dialogoRef}
-        turno={aEliminar}
-        alConfirmar={eliminar}
-        alCerrar={() => {
-          setAEliminar(null);
-        }}
-      />
     </div>
   );
 }
