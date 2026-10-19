@@ -1,6 +1,8 @@
 # Reportes de MgDetailing
 
-Índice de los informes del proyecto. Todos tienen fecha de 2026-10-17 (fecha de corte del estado descripto).
+**Documentación final (2026-10-19):** la versión completa y actualizada del proyecto, para leer de corrido, está en [documentacion/MgDetailing-Documentacion-2026-10-19-final.pdf](documentacion/MgDetailing-Documentacion-2026-10-19-final.pdf) (y la misma en Word: [.docx](documentacion/MgDetailing-Documentacion-2026-10-19-final.docx)). Manda sobre los informes de abajo, que son de 2026-10-17 (fecha de corte del estado descripto) y describen el sistema anterior (SQLite y login propio) en varios puntos.
+
+Índice de los informes del proyecto.
 
 | Archivo | Fecha | Qué contiene |
 |---|---|---|
@@ -24,3 +26,7 @@ Capturas de pantalla de la landing (escritorio y celular, primer pantallazo y p�
 | `capturas/panel-admin.png` | Panel de solicitudes (con datos de prueba, no son clientes reales) |
 
 Más capturas (tipografías, estados del panel, versiones finales) están en `frontend/.capturas/`. Esa carpeta está ignorada por git: existe solo en esta máquina.
+
+## Carpeta `documentacion/`
+
+Documentación completa del proyecto para el dueño, en Word y PDF (mismo contenido, estado al 2026-10-19). Incluye capturas nuevas del panel con roles (`frontend/.capturas/`, con datos simulados).
