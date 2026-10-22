@@ -17,6 +17,7 @@ export function Login({ aviso, alIngresar }: Props) {
   const [verPassword, setVerPassword] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verOlvido, setVerOlvido] = useState(false);
   const id = useId();
 
   const ingresar = async () => {
@@ -114,6 +115,23 @@ export function Login({ aviso, alIngresar }: Props) {
               {enviando ? 'Ingresando…' : 'Ingresar'}
             </button>
           </form>
+          {/* No hay emails de recuperación: la contraseña nueva la asigna el superadmin desde Usuarios. */}
+          <div className="login__olvido">
+            <button
+              type="button"
+              className="login__olvido-boton"
+              aria-expanded={verOlvido}
+              aria-controls={`${id}-olvido`}
+              onClick={() => {
+                setVerOlvido((v) => !v);
+              }}
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+            <p id={`${id}-olvido`} className="login__olvido-texto" hidden={!verOlvido}>
+              Pedile al administrador del panel que te asigne una contraseña nueva.
+            </p>
+          </div>
         </div>
       </div>
     </main>

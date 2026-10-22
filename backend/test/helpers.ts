@@ -8,7 +8,7 @@ import type { Rol } from '../src/domain/perfil.js';
 import type { Logger } from '../src/lib/logger.js';
 import { createPostgresRepositories } from '../src/repositories/index.js';
 import { type PgliteDatabase, createPgliteDatabase } from './pglite.js';
-import { FakeSupabaseAuth, PUBLISHABLE_KEY, SUPABASE_ISSUER, SUPABASE_URL, TEST_JWKS } from './supabase-fake.js';
+import { FakeSupabaseAuth, PUBLISHABLE_KEY, SECRET_KEY, SUPABASE_ISSUER, SUPABASE_URL, TEST_JWKS } from './supabase-fake.js';
 
 /** Origen del frontend en desarrollo (el que manda el navegador a través del proxy de Vite). */
 export const ORIGIN = 'http://localhost:5173';
@@ -42,6 +42,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       authUrl: SUPABASE_ISSUER,
       jwksUrl: `${SUPABASE_ISSUER}/.well-known/jwks.json`,
       publishableKey: PUBLISHABLE_KEY,
+      secretKey: SECRET_KEY,
     },
     trustProxy: false,
     serveFrontend: false,

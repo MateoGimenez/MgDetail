@@ -39,7 +39,10 @@ export class SinSuperadminError extends Error {
   }
 }
 
-/** Puerto de persistencia de perfiles. Los perfiles los crea un trigger sobre auth.users: acá no hay create. */
+/**
+ * Puerto de persistencia de perfiles. Los perfiles los crea un trigger sobre auth.users y se borran en cascada con el
+ * usuario de Auth: acá no hay create ni delete (el alta y la baja pasan por la API admin de Supabase Auth).
+ */
 export interface PerfilRepository {
   /**
    * Perfil del usuario de la sesión y si la sesión de Supabase (session_id del JWT) sigue vigente en auth.sessions.
@@ -48,6 +51,8 @@ export interface PerfilRepository {
   findForSession(userId: string, sessionId: string): Promise<{ perfil: Perfil; sesionVigente: boolean } | undefined>;
   /** Todos los perfiles, los más viejos primero. */
   list(): Promise<Perfil[]>;
+  /** undefined si no existe. */
+  findById(id: string): Promise<Perfil | undefined>;
   /** undefined si no existe. Lanza SinSuperadminError si dejaría el sistema sin superadmin activo. */
   update(id: string, cambios: CambiosPerfil, now: Date): Promise<Perfil | undefined>;
 }

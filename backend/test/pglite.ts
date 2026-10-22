@@ -17,6 +17,8 @@ export interface PgliteDatabase {
   sql: SqlClient;
   /** SqlClient como mgdetailing_app (como en producción): prueba que sus GRANT y policies alcanzan. */
   appSql: SqlClient;
+  /** SqlClient como supabase_auth_admin: lo usa el Supabase Auth falso para escribir en auth.users. */
+  authSql: SqlClient;
   close: () => Promise<void>;
 }
 
@@ -30,11 +32,14 @@ const migrationFiles = (): string[] =>
  *  - los roles anon, authenticated y service_role (sin login), para aplicar los REVOKE tal cual y poder comprobar
  *    que no tienen acceso;
  *  - un esquema `auth` con las columnas de auth.users y auth.sessions que usan el trigger de perfiles y la
- *    verificación de sesión (en Supabase son tablas de Auth, mucho más grandes).
+ *    verificación de sesión (en Supabase son tablas de Auth, mucho más grandes);
+ *  - el rol supabase_auth_admin, dueño de ese esquema como en Supabase: Auth escribe en auth.users con ese rol, y
+ *    los triggers que eso dispara (también en mgdetailing.perfiles, por el ON DELETE CASCADE) corren con él.
  */
 const SUPABASE_STUB = `
   CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;
-  CREATE SCHEMA auth;
+  CREATE ROLE supabase_auth_admin NOLOGIN;
+  CREATE SCHEMA auth AUTHORIZATION supabase_auth_admin;
   CREATE TABLE auth.users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     email text,
@@ -46,6 +51,8 @@ const SUPABASE_STUB = `
     not_after timestamptz,
     created_at timestamptz NOT NULL DEFAULT now()
   );
+  ALTER TABLE auth.users OWNER TO supabase_auth_admin;
+  ALTER TABLE auth.sessions OWNER TO supabase_auth_admin;
 `;
 
 async function createMigratedTemplate(): Promise<PGlite> {
@@ -81,15 +88,15 @@ export async function createPgliteDatabase(): Promise<PgliteDatabase> {
     },
   };
 
-  const appSql: SqlClient = {
+  const asRole = (role: 'mgdetailing_app' | 'supabase_auth_admin'): SqlClient => ({
     query(text, params = []) {
       return pg.transaction(async (tx) => {
-        await tx.exec('SET LOCAL ROLE mgdetailing_app');
+        await tx.exec(`SET LOCAL ROLE ${role}`); // rol fijo de esta función, no dato de usuario
         const result = await tx.query<Record<string, unknown>>(text, [...params]);
         return { rows: result.rows, rowCount: result.affectedRows ?? result.rows.length };
       });
     },
-  };
+  });
 
-  return { pg, sql, appSql, close: () => pg.close() };
+  return { pg, sql, appSql: asRole('mgdetailing_app'), authSql: asRole('supabase_auth_admin'), close: () => pg.close() };
 }

@@ -56,6 +56,12 @@ export interface SupabaseAuthConfig {
   jwksUrl: string;
   /** sb_publishable_...: va en la cabecera `apikey` de las llamadas a Auth. No es un secreto, pero no se loguea. */
   publishableKey: string;
+  /**
+   * sb_secret_...: SOLO para la API admin de Auth (crear, borrar y cambiar email o contraseña de usuarios del panel,
+   * acciones de superadmin). Salta RLS en todo el proyecto: nunca se loguea ni sale del servidor. undefined = esas
+   * acciones responden 503 y el resto del panel funciona igual.
+   */
+  secretKey: string | undefined;
 }
 
 export interface PostgresConnection {
@@ -277,6 +283,7 @@ const envSchema = z.object({
   FRONTEND_ORIGIN: optionalEnv(originListSchema),
   SUPABASE_URL: optionalEnv(z.string()),
   SUPABASE_PUBLISHABLE_KEY: optionalEnv(z.string()),
+  SUPABASE_SECRET_KEY: optionalEnv(z.string()),
   TRUST_PROXY: optionalEnv(trustProxySchema),
   PUBLIC_URL: optionalEnv(originSchema),
   WHATSAPP_PROVIDER: optionalEnv(
@@ -472,10 +479,12 @@ function parseSupabaseUrl(raw: string): string | undefined {
 
 /** Claves publishable nuevas (sb_publishable_...). La secret (sb_secret_...) nunca va en el backend del panel. */
 const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{10,200}$/;
+const SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{10,200}$/;
 
 function supabaseConfigFromValues(
   url: string | undefined,
   key: string | undefined,
+  secret: string | undefined,
   allProblems: string[],
 ): SupabaseAuthConfig | undefined {
   const problems: string[] = [];
@@ -506,12 +515,28 @@ function supabaseConfigFromValues(
     problems.push('SUPABASE_PUBLISHABLE_KEY: no parece una clave publishable (tiene que empezar con sb_publishable_).');
   }
 
+  // Opcional. Como arriba, el valor nunca se repite en un mensaje.
+  const trimmedSecret = secret?.trim();
+  if (trimmedSecret !== undefined && !SECRET_KEY.test(trimmedSecret)) {
+    problems.push(
+      trimmedSecret.startsWith('sb_publishable_')
+        ? 'SUPABASE_SECRET_KEY: tiene la clave publishable. Va la secret key (Project Settings > API Keys > Secret keys, empieza con sb_secret_).'
+        : 'SUPABASE_SECRET_KEY: no parece una secret key (tiene que empezar con sb_secret_; las claves viejas service_role no se aceptan).',
+    );
+  }
+
   allProblems.push(...problems);
   if (origin === undefined || trimmedKey === undefined || problems.length > 0) {
     return undefined;
   }
   const authUrl = `${origin}/auth/v1`;
-  return { url: origin, authUrl, jwksUrl: `${authUrl}/.well-known/jwks.json`, publishableKey: trimmedKey };
+  return {
+    url: origin,
+    authUrl,
+    jwksUrl: `${authUrl}/.well-known/jwks.json`,
+    publishableKey: trimmedKey,
+    secretKey: trimmedSecret,
+  };
 }
 
 /**
@@ -537,20 +562,32 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
   problems.push(...databaseResult.problems);
   warnings.push(...databaseResult.warnings);
 
-  const supabase = supabaseConfigFromValues(values?.SUPABASE_URL, values?.SUPABASE_PUBLISHABLE_KEY, problems);
+  const supabase = supabaseConfigFromValues(
+    values?.SUPABASE_URL,
+    values?.SUPABASE_PUBLISHABLE_KEY,
+    values?.SUPABASE_SECRET_KEY,
+    problems,
+  );
 
   if (env.JWT_SECRET !== undefined && env.JWT_SECRET.trim() !== '') {
     warnings.push('JWT_SECRET ya no se usa (las sesiones son de Supabase Auth): podés borrarla del .env.');
   }
-  // Una clave secreta de Supabase salta RLS en todo el proyecto. El backend no la usa: tenerla en el entorno solo
-  // agranda lo que se filtra si alguien lee el .env o las variables del proceso. Se avisa sin mostrar el valor.
-  const secretKeyVars = ['SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET'].filter(
+  // La secret key (sb_secret_) es la única clave secreta que usa el backend, y solo para la API admin de Auth. Las
+  // viejas (service_role, JWT secret) no se usan: tenerlas en el entorno solo agranda lo que se filtra si alguien lee
+  // el .env o las variables del proceso. Se avisa sin mostrar el valor.
+  const legacyKeyVars = ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET'].filter(
     (name) => (env[name]?.trim() ?? '') !== '',
   );
-  if (secretKeyVars.length > 0) {
+  if (legacyKeyVars.length > 0) {
     warnings.push(
-      `${secretKeyVars.join(', ')}: el backend NO usa claves secretas de Supabase. Borralas del .env (y del entorno del ` +
-        'servidor): saltan RLS en todo el proyecto y solo suman riesgo si se filtran.',
+      `${legacyKeyVars.join(', ')}: el backend no usa estas claves. Borralas del .env (y del entorno del servidor): ` +
+        'saltan RLS en todo el proyecto y solo suman riesgo si se filtran. Para gestionar usuarios va SUPABASE_SECRET_KEY.',
+    );
+  }
+  if (supabase !== undefined && supabase.secretKey === undefined) {
+    warnings.push(
+      'SUPABASE_SECRET_KEY: no está configurada. El panel funciona, pero el superadmin no puede crear ni eliminar ' +
+        'usuarios, ni cambiarles el email o la contraseña.',
     );
   }
 

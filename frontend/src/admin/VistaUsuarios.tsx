@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { UsuarioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
+import { DialogoCuenta, DialogoEliminarUsuario, DialogoNuevoUsuario, type EdicionCuenta } from './DialogosUsuario';
 import { FilaUsuario } from './FilaUsuario';
 import { useUsuarios } from './useUsuarios';
 
@@ -9,11 +10,21 @@ interface Props {
   alVencerSesion: (mensaje: string) => void;
 }
 
-/** Gestión de usuarios (solo superadmin): pendientes de activación arriba, después el resto. */
+/** Gestión de usuarios (solo superadmin): alta, pendientes de activación arriba, después el resto. */
 export function VistaUsuarios({ idPropio, alVencerSesion }: Props) {
   const u = useUsuarios(alVencerSesion);
-  const dialogoRef = useRef<HTMLDialogElement>(null);
+  const desactivarRef = useRef<HTMLDialogElement>(null);
+  const nuevoRef = useRef<HTMLDialogElement>(null);
+  const cuentaRef = useRef<HTMLDialogElement>(null);
+  const eliminarRef = useRef<HTMLDialogElement>(null);
   const [aDesactivar, setADesactivar] = useState<UsuarioPanel | null>(null);
+  const [aEliminar, setAEliminar] = useState<UsuarioPanel | null>(null);
+  const [edicion, setEdicion] = useState<EdicionCuenta | null>(null);
+
+  // El formulario de email o contraseña se arma con el usuario elegido: el diálogo se abre después de renderizarlo.
+  useEffect(() => {
+    if (edicion && !cuentaRef.current?.open) cuentaRef.current?.showModal();
+  }, [edicion]);
 
   const pendientes = u.usuarios?.filter((x) => !x.activo) ?? [];
   const activos = u.usuarios?.filter((x) => x.activo) ?? [];
@@ -25,12 +36,23 @@ export function VistaUsuarios({ idPropio, alVencerSesion }: Props) {
       esPropio={usuario.id === idPropio}
       ocupado={u.ocupados.has(usuario.id)}
       error={u.errores[usuario.id]}
+      gestionCuentas={u.gestionCuentas}
       alCambiar={(cambios) => {
         void u.actualizar(usuario, cambios);
       }}
       alPedirDesactivar={() => {
         setADesactivar(usuario);
-        dialogoRef.current?.showModal();
+        desactivarRef.current?.showModal();
+      }}
+      alPedirEmail={() => {
+        setEdicion({ modo: 'email', usuario });
+      }}
+      alPedirPassword={() => {
+        setEdicion({ modo: 'password', usuario });
+      }}
+      alPedirEliminar={() => {
+        setAEliminar(usuario);
+        eliminarRef.current?.showModal();
       }}
     />
   );
@@ -41,15 +63,35 @@ export function VistaUsuarios({ idPropio, alVencerSesion }: Props) {
         <h1 id="titulo-usuarios" className="panel__titulo">
           Usuarios
         </h1>
-        <button type="button" className="boton boton--secundario boton--chico" disabled={u.cargando} onClick={u.recargar}>
-          <Icono nombre="refrescar" tamano={18} />
-          Actualizar
-        </button>
+        <div className="usuarios__botones">
+          {u.gestionCuentas && (
+            <button
+              type="button"
+              className="boton boton--primario boton--chico"
+              onClick={() => {
+                nuevoRef.current?.showModal();
+              }}
+            >
+              <Icono nombre="mas" tamano={18} />
+              Nuevo usuario
+            </button>
+          )}
+          <button type="button" className="boton boton--secundario boton--chico" disabled={u.cargando} onClick={u.recargar}>
+            <Icono nombre="refrescar" tamano={18} />
+            Actualizar
+          </button>
+        </div>
       </div>
       <p className="usuarios__ayuda">
-        Los usuarios se crean en Supabase (Authentication → Add user). Aparecen acá como empleado inactivo hasta que
-        los actives.
+        Creá acá las cuentas de tu equipo y elegí qué puede hacer cada uno. Si alguien se olvida la contraseña,
+        asignale una nueva con «Cambiar contraseña».
       </p>
+      {u.usuarios && !u.gestionCuentas && (
+        <p className="usuarios__aviso" role="status">
+          <Icono nombre="alerta" tamano={18} />
+          Para crear, eliminar o cambiar email/contraseña falta configurar SUPABASE_SECRET_KEY en el servidor.
+        </p>
+      )}
 
       <div className="panel__estado" aria-live="polite">
         {u.cargando && <p>Cargando usuarios…</p>}
@@ -69,7 +111,7 @@ export function VistaUsuarios({ idPropio, alVencerSesion }: Props) {
 
       {u.usuarios && u.usuarios.length === 0 && (
         <div className="panel__vacio">
-          <p>Todavía no hay usuarios. Crealos en Supabase y aparecen acá.</p>
+          <p>Todavía no hay usuarios.</p>
         </div>
       )}
 
@@ -91,8 +133,29 @@ export function VistaUsuarios({ idPropio, alVencerSesion }: Props) {
         </section>
       )}
 
+      <DialogoNuevoUsuario dialogoRef={nuevoRef} alCrear={u.crear} />
+
+      <DialogoCuenta
+        dialogoRef={cuentaRef}
+        edicion={edicion}
+        esPropio={edicion?.usuario.id === idPropio}
+        alGuardar={u.cambiarCuenta}
+        alCerrar={() => {
+          setEdicion(null);
+        }}
+      />
+
+      <DialogoEliminarUsuario
+        dialogoRef={eliminarRef}
+        usuario={aEliminar}
+        alConfirmar={u.eliminar}
+        alCerrar={() => {
+          setAEliminar(null);
+        }}
+      />
+
       <dialog
-        ref={dialogoRef}
+        ref={desactivarRef}
         className="confirmar"
         aria-labelledby="desactivar-titulo"
         aria-describedby="desactivar-texto"
@@ -111,7 +174,7 @@ export function VistaUsuarios({ idPropio, alVencerSesion }: Props) {
             type="button"
             className="boton boton--secundario"
             onClick={() => {
-              dialogoRef.current?.close();
+              desactivarRef.current?.close();
             }}
           >
             No, volver
@@ -121,7 +184,7 @@ export function VistaUsuarios({ idPropio, alVencerSesion }: Props) {
             className="boton boton--peligro"
             onClick={() => {
               const usuario = aDesactivar;
-              dialogoRef.current?.close();
+              desactivarRef.current?.close();
               if (usuario) void u.actualizar(usuario, { activo: false });
             }}
           >

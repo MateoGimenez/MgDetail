@@ -63,7 +63,7 @@ El ingreso usa Supabase Auth a través del backend (modo BFF): el navegador solo
 | Empleado | sí | solo "Marcar completado" | no | no |
 
 - **Usuarios** (solo superadmin, sección "Usuarios" del panel): lista con email, nombre, rol, estado y fecha de alta. Se puede cambiar el rol, activar o desactivar (con confirmación) y editar el nombre. Los inactivos aparecen arriba, en "Pendientes de activación", con el botón "Activar". Sobre tu propio usuario no podés cambiarte el rol ni desactivarte.
-- **Alta de usuarios:** se crean en Supabase (*Authentication → Add user*). Aparecen en el panel como empleado inactivo hasta que un superadmin los active. Los pasos completos están en `backend/README.md`.
+- **Usuarios (solo superadmin):** se crean, editan (rol, nombre, email, contraseña, activo) y eliminan desde *Usuarios*. Si el backend no tiene `SUPABASE_SECRET_KEY` (`gestionCuentas: false`), el alta, la baja y el cambio de email o contraseña se ocultan. La contraseña olvidada la repone el superadmin con *Cambiar contraseña*; el login solo lo explica. Los pasos completos están en `backend/README.md`.
 
 ## Notas
 

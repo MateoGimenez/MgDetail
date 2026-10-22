@@ -17,8 +17,10 @@ const URL_OK =
 const SUPABASE = {
   SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_AbCdEf0123456789_xyz',
+  // Armada por partes para que los escáneres de secretos (GitHub) no la tomen por una clave real.
+  SUPABASE_SECRET_KEY: ['sb', 'secret', 'DePrueba0123456789'].join('_'),
 };
-/** Lo mínimo para arrancar: Postgres (con su CA) y Supabase Auth. */
+/** Lo mínimo para arrancar sin avisos: Postgres (con su CA) y Supabase Auth (con la secret key opcional). */
 const BASE = { DATABASE_URL: URL_OK, DATABASE_SSL_CA_FILE: CA_FILE, ...SUPABASE };
 const PRODUCTION = {
   NODE_ENV: 'production',
@@ -82,10 +84,10 @@ describe('desarrollo: defaults seguros', () => {
     expect(warnings).toMatch(/DB_PATH ya no se usa/);
     expect(warnings).toMatch(/JWT_SECRET ya no se usa/);
 
-    // Una clave secreta de Supabase en el entorno se avisa (sin mostrar su valor).
-    const secret = parseConfig({ SUPABASE_SECRET_KEY: 'sb_secret_valor-que-no-se-muestra' }).warnings.join('\n');
-    expect(secret).toMatch(/SUPABASE_SECRET_KEY: el backend NO usa claves secretas/);
-    expect(secret).not.toContain('valor-que-no-se-muestra');
+    // Las claves viejas de Supabase en el entorno se avisan (sin mostrar su valor).
+    const legacy = parseConfig({ SUPABASE_SERVICE_ROLE_KEY: 'eyJ.valor-que-no-se-muestra' }).warnings.join('\n');
+    expect(legacy).toMatch(/SUPABASE_SERVICE_ROLE_KEY: el backend no usa estas claves/);
+    expect(legacy).not.toContain('valor-que-no-se-muestra');
   });
 });
 
@@ -96,7 +98,21 @@ describe('Supabase Auth', () => {
       authUrl: 'https://abcdefghijklmnopqrst.supabase.co/auth/v1',
       jwksUrl: 'https://abcdefghijklmnopqrst.supabase.co/auth/v1/.well-known/jwks.json',
       publishableKey: SUPABASE.SUPABASE_PUBLISHABLE_KEY,
+      secretKey: SUPABASE.SUPABASE_SECRET_KEY,
     });
+  });
+
+  it('SUPABASE_SECRET_KEY: opcional (sin ella solo avisa); si está, tiene que ser sb_secret_ y nunca se repite', () => {
+    const sinClave = parseConfig({ SUPABASE_SECRET_KEY: '' });
+    expect(sinClave.supabase.secretKey).toBeUndefined();
+    expect(sinClave.warnings.join('\n')).toMatch(/SUPABASE_SECRET_KEY: no está configurada/);
+
+    const legacy = 'eyJhbGciOiJIUzI1NiJ9.service-role-viejo';
+    expect(problemsOf({ SUPABASE_SECRET_KEY: legacy })).toMatch(/no parece una secret key/);
+    expect(problemsOf({ SUPABASE_SECRET_KEY: legacy })).not.toContain(legacy);
+    const publishable = SUPABASE.SUPABASE_PUBLISHABLE_KEY;
+    expect(problemsOf({ SUPABASE_SECRET_KEY: publishable })).toMatch(/tiene la clave publishable/);
+    expect(problemsOf({ SUPABASE_SECRET_KEY: publishable })).not.toContain(publishable);
   });
 
   it('SUPABASE_URL: https sin ruta (http solo para un Supabase local)', () => {

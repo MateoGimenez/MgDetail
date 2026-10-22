@@ -56,7 +56,8 @@ Copiá `.env.example` a `.env` (está ignorado por git; nunca subas uno con secr
 | `HOST` | `127.0.0.1` | Interfaz donde escucha. Usá `0.0.0.0` en Docker o en un PaaS. |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | Origen(es) permitidos por CORS y por el chequeo de Origin (CSRF). Esquema + host + puerto, sin barra final. **Admite una lista separada por comas**, por ejemplo para probar desde el celular: `http://localhost:5173,http://192.168.0.10:5173`. Sin comodines. Obligatoria en producción. |
 | `SUPABASE_URL` | (obligatoria) | URL del proyecto, sin barra final: `https://iclsiweaqhupxvxbpekl.supabase.co`. De ahí se derivan `/auth/v1` (endpoints de Auth y `iss` exacto de los tokens) y el JWKS (`/auth/v1/.well-known/jwks.json`). |
-| `SUPABASE_PUBLISHABLE_KEY` | (obligatoria) | Clave **publishable** (`sb_publishable_...`), del panel: *Project Settings > API Keys*. La usa solo el backend (cabecera `apikey`). **Una secret key (`sb_secret_...`) se rechaza**: el backend no la necesita. |
+| `SUPABASE_PUBLISHABLE_KEY` | (obligatoria) | Clave **publishable** (`sb_publishable_...`), del panel: *Project Settings > API Keys*. La usa solo el backend (cabecera `apikey`). **Una secret key (`sb_secret_...`) en esta variable se rechaza.** |
+| `SUPABASE_SECRET_KEY` | (opcional) | Clave **secret** (`sb_secret_...`), de *Project Settings > API Keys > Secret keys*. **Secreto: salta RLS en todo el proyecto.** La usa solo el backend, solo para la API admin de Auth: que el superadmin cree y elimine usuarios y les cambie email o contraseña desde el panel. Va únicamente en la cabecera `apikey`, nunca se loguea ni llega al navegador. Sin ella el panel funciona, pero esas acciones responden `503` (y se avisa al arrancar). Las claves viejas `service_role` no se aceptan. |
 | `DATABASE_URL` | (obligatoria) | Cadena de conexión de Supabase (Session pooler) con el rol `mgdetailing_app`: `postgresql://usuario:contraseña@host:5432/postgres`. **Secreto.** Se valida al arrancar y nunca se muestra en logs ni errores. Ver [Conectar Supabase](#conectar-supabase). |
 | `DATABASE_SSL_CA_FILE` | (obligatoria con Postgres remoto) | Certificado raíz de Supabase para verificar al servidor (TLS verify-full). Ruta relativa a `backend/` o absoluta. Solo un Postgres local (`localhost`/`127.x`) se tolera sin ella fuera de producción, con un aviso. |
 | `DB_DRIVER`, `DB_PATH`, `JWT_SECRET` | | **Ya no se usan.** `DB_DRIVER=postgres` se sigue aceptando (cualquier otro valor se rechaza); `DB_PATH` y `JWT_SECRET` solo generan un aviso al arrancar: borralos del `.env`. |
@@ -87,18 +88,18 @@ navegador --/api (cookies httpOnly)--> backend --POST /auth/v1/token, /auth/v1/l
 - **Refresco**: el access token dura lo que diga Supabase (1 h por defecto). Cuando vence, `/api/admin/*` responde `401 SESSION_EXPIRED` (el refresh token no viaja ahí a propósito: su cookie es solo de `/api/auth`) y el frontend llama a `POST /api/auth/refresh`, que canjea el refresh token (`grant_type=refresh_token`, con rotación), reescribe las dos cookies y devuelve el usuario; después reintenta el pedido. `GET /api/auth/me` refresca solo. Si el refresh token fue revocado o reutilizado (Supabase detecta el reuso y cierra la sesión entera): `401` y se borran las cookies.
 - **Logout**: `POST /auth/v1/logout?scope=local` con el access token (si venció, se refresca antes) y se borran las cookies.
 - **Algoritmo**: el proyecto firma con una clave asimétrica **ES256** (JWT Signing Keys; el JWKS público tiene una clave EC P-256). Si algún día se rota a una clave RSA, hay que cambiar `SUPABASE_JWT_ALGORITHM` en `src/lib/access-token.ts`.
-- El backend **no usa la secret key ni la Admin API**: los usuarios se crean en el panel de Supabase.
+- La **secret key** (`SUPABASE_SECRET_KEY`, opcional) se usa solo en `src/lib/supabase-admin.ts`, para la API admin de Auth (`/auth/v1/admin/users`) que llaman las acciones de superadmin: crear y eliminar usuarios y cambiarles email o contraseña. El login, el refresco y el logout siguen usando la publishable.
 - Logs: solo el id del usuario (`Inicio de sesión usuario=<uuid> rol=admin`); nunca tokens ni emails.
 
 ### Roles y permisos (la regla vive en el backend; la UI solo esconde botones)
 
 | Rol | Ver turnos | Cambiar estado | Borrar turnos | Gestionar usuarios |
 |---|---|---|---|---|
-| `superadmin` | sí | a cualquier estado | sí | sí (listar, cambiar rol, activar/desactivar, nombre) |
+| `superadmin` | sí | a cualquier estado | sí | sí (crear, listar, cambiar rol, activar/desactivar, nombre, email y contraseña, eliminar) |
 | `admin` | sí | a cualquier estado | sí | no |
 | `empleado` | sí | **solo a `completado`** | no | no |
 
-Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. Reglas de usuarios: nadie puede cambiarse su propio rol ni desactivarse a sí mismo (`409 CONFLICT`), y **nunca puede quedar el sistema sin un superadmin activo** (lo garantiza un trigger en la base, también ante dos cambios simultáneos; `409 CONFLICT`).
+Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. Reglas de usuarios: nadie puede cambiarse su propio rol, ni desactivarse ni eliminarse a sí mismo (`409 CONFLICT`), y **nunca puede quedar el sistema sin un superadmin activo** (lo garantiza un trigger en la base, también ante dos cambios simultáneos; `409 CONFLICT`).
 
 ### Alta de usuarios (pasos del dueño)
 
@@ -111,8 +112,9 @@ Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. R
    ```
 
    El email va en minúsculas. Tiene que decir `UPDATE 1`.
-4. **Los demás usuarios** se crean igual (paso 2) y los activa y les asigna rol el superadmin desde el panel web (`PATCH /api/admin/usuarios/:id`). Para sacarle el acceso a alguien: desactivarlo desde el panel (efecto inmediato) o borrarlo en *Authentication > Users*.
-5. Contraseña olvidada: desde *Authentication > Users > (usuario) > Send password recovery* o cambiándola ahí mismo.
+4. **Configurá `SUPABASE_SECRET_KEY`** en el `.env` del backend (y en el entorno del servidor en producción) y reiniciá.
+5. **Los demás usuarios los crea el superadmin desde el panel web** (*Usuarios > Nuevo usuario*: email, contraseña, nombre, rol y si entra desde ya). El backend los crea en Supabase Auth con el email ya confirmado (no se manda ningún email) y el trigger crea su perfil. Pasale la contraseña a la persona por un canal privado. Desde el mismo panel se les cambia el rol, el nombre, el email o la contraseña, se los desactiva (efecto inmediato) o se los elimina (borra el usuario de Supabase Auth; su perfil y sus sesiones se van en cascada).
+6. **Contraseña olvidada:** no hay recuperación por email (no hay SMTP configurado). El superadmin le asigna una nueva desde *Usuarios > Cambiar contraseña*. Si el que la olvidó es el único superadmin, se cambia en Supabase (*Authentication > Users > (usuario)*).
 
 ## Base de datos
 
@@ -198,7 +200,7 @@ Funciones y triggers (migración `perfiles_roles_supabase_auth`):
 
 - `mgdetailing_private.sincronizar_perfil()`: trigger `AFTER INSERT OR UPDATE OF email ON auth.users`. Crea el perfil (`empleado`, **inactivo**) o copia el email nuevo; nunca toca rol ni activo. `SECURITY DEFINER` (el rol de Auth no tiene permisos fuera de `auth`, patrón recomendado por Supabase), `search_path` vacío, en el esquema **no expuesto** `mgdetailing_private`, sin `EXECUTE` para `public`, `anon`, `authenticated`, `service_role` ni `mgdetailing_app`. No lee `raw_user_meta_data` (lo edita el propio usuario).
 - `mgdetailing_private.sesion_vigente(session_id, user_id, max_age_seconds)`: `SECURITY DEFINER`, `STABLE`, devuelve solo un booleano: si la sesión sigue en `auth.sessions`, no pasó su `not_after` y se abrió hace menos de `max_age_seconds` (tope absoluto, 12 h). Solo `mgdetailing_app` tiene `EXECUTE`. Es lo que hace que un logout invalide el access token al instante.
-- `mgdetailing.impedir_sin_superadmin()`: triggers `AFTER UPDATE OF rol_id, activo` y `AFTER DELETE` que solo se disparan cuando una fila **deja** de ser superadmin activo (también al borrar en Supabase al usuario de Auth: el borrado en cascada falla y hay que dar el rol a otro antes); toma un advisory lock y, si no queda ninguno, falla con SQLSTATE `MG001` (la API responde `409`).
+- `mgdetailing_private.impedir_sin_superadmin()` (SECURITY DEFINER desde la migración `superadmin_trigger_definer`: cuando el borrado viene de Supabase Auth, el trigger corre como `supabase_auth_admin`, que no tiene acceso a `mgdetailing`; como INVOKER, borrar cualquier superadmin activo fallaba con `42501`): triggers `AFTER UPDATE OF rol_id, activo` y `AFTER DELETE` que solo se disparan cuando una fila **deja** de ser superadmin activo (también al borrar el usuario de Auth, desde el panel o desde Supabase: si es el último superadmin activo el borrado falla y hay que dar el rol a otro antes); toma un advisory lock y, si no queda ninguno, falla con SQLSTATE `MG001` (la API responde `409`).
 
 Decisiones:
 
@@ -223,6 +225,7 @@ Decisiones:
 - Archivos `supabase/migrations/YYYYMMDDHHMMSS_descripcion.sql`: la fuente de verdad del esquema Postgres. Nunca se edita una migración aplicada; los cambios van en un archivo nuevo.
 - Aplicadas en el proyecto remoto: `20261018211151_esquema_inicial`, `20261018211156_catalogo_servicios`, `20261018211232_endurecer_rls_auto_enable`, `20261018213342_rol_app_minimo_privilegio`. Los nombres de los archivos coinciden con las versiones registradas en Supabase, así `supabase migration list` / `supabase db push` los ven como aplicados.
 - **Aplicadas el 2026-10-19 desde el SQL Editor** (Supabase Auth): `20261018234300_perfiles_roles_supabase_auth` (roles, perfiles, triggers, `mgdetailing_private`) y `20261018234301_eliminar_admins_sessions` (borró `admins` y `sessions`, que estaban vacías). Como se aplicaron a mano, no figuran en el historial de migraciones de Supabase: si algún día se usa `supabase db push`, marcarlas antes como aplicadas con `supabase migration repair --status applied 20261018234300 20261018234301`. Las migraciones nuevas: SQL Editor (en orden) o `supabase db push`, y después correr los advisors.
+- `20261022185000_superadmin_trigger_definer` (2026-10-22): pasa el trigger "nunca sin superadmin activo" a `SECURITY DEFINER` en `mgdetailing_private`. Sin ella, eliminar un superadmin activo (desde el panel o desde Supabase) falla con `permission denied for schema mgdetailing`. Si se aplica desde el SQL Editor, no queda en el historial: marcala con `supabase migration repair --status applied 20261022185000` antes de un `db push`.
 - Para aplicar una nueva: con la CLI (`supabase link --project-ref iclsiweaqhupxvxbpekl` y después `supabase db push`) o con el MCP de Supabase (`apply_migration`; después renombrá el archivo local a la versión que quedó registrada). Corré los advisors después de cada cambio.
 - Los tests aplican **las mismas migraciones** a un Postgres en memoria (PGlite). Como PGlite no tiene lo de Supabase, el test crea antes de migrar los roles `anon`, `authenticated` y `service_role` (sin login) y un esquema `auth` mínimo (`auth.users` y `auth.sessions` con las columnas que se usan): así las migraciones se prueban tal cual, sin saltear sentencias.
 - Si se agrega un servicio en `src/domain/servicios.ts`, hay que agregarlo también con una migración (`insert into mgdetailing.servicios ...`): el backend no arranca si al catálogo de la base le falta algún id que el código acepta.
@@ -527,11 +530,19 @@ Body estricto `{ "estado": "pendiente" | "confirmado" | "completado" | "cancelad
 }
 ```
 
-`email` y `nombre` pueden ser `null`. Los usuarios nuevos (creados en Supabase) aparecen como `empleado` con `activo: false` hasta que un superadmin los active.
+`email` y `nombre` pueden ser `null`. La respuesta trae además `"gestionCuentas": true | false`: `false` significa que falta `SUPABASE_SECRET_KEY` y no están disponibles el alta, la baja ni el cambio de email o contraseña. Los usuarios creados directamente en Supabase aparecen como `empleado` con `activo: false` hasta que un superadmin los active.
+
+### `POST /api/admin/usuarios` (solo `superadmin`)
+
+Body estricto: `email` (hasta 120 caracteres; se guarda en minúsculas), `password` (8 a 72 caracteres, máx. 72 bytes), `nombre` (opcional, como en el PATCH), `rol` y `activo`. Crea el usuario en Supabase Auth con el email confirmado y devuelve `201 { "usuario": { ... } }`. Errores: `400 VALIDATION_ERROR` (con `fields`; también si Supabase rechaza la contraseña por débil), `409 CONFLICT` (*"Ya existe un usuario con ese email."*), `503 SERVICE_UNAVAILABLE` (falta `SUPABASE_SECRET_KEY` o Supabase no responde), `429 RATE_LIMITED` (Supabase limitó los pedidos).
 
 ### `PATCH /api/admin/usuarios/:id` (solo `superadmin`)
 
-Body estricto con al menos uno de: `rol` (`"superadmin" | "admin" | "empleado"`), `activo` (`boolean`), `nombre` (`string` de hasta 80 caracteres, una línea; `null` o `""` lo borran). `200 { "usuario": { ...mismo objeto que el listado... } }`. Errores: `400 VALIDATION_ERROR` (campo desconocido, tipo inválido o body vacío), `404 NOT_FOUND` (usuario inexistente o id que no es UUID), `409 CONFLICT` (cambiar tu propio rol, desactivarte, o dejar el sistema sin ningún superadmin activo), `403 FORBIDDEN` si no sos superadmin. El cambio tiene efecto inmediato: el usuario afectado lo nota en su próximo pedido. No hay alta ni baja de usuarios por la API: se crean y borran en el panel de Supabase.
+Body estricto con al menos uno de: `rol` (`"superadmin" | "admin" | "empleado"`), `activo` (`boolean`), `nombre` (`string` de hasta 80 caracteres, una línea; `null` o `""` lo borran), `email` y `password` (mismas reglas que en el alta; se cambian en Supabase Auth y necesitan `SUPABASE_SECRET_KEY`). `200 { "usuario": { ...mismo objeto que el listado... } }`. Errores: `400 VALIDATION_ERROR` (campo desconocido, tipo inválido o body vacío), `404 NOT_FOUND` (usuario inexistente o id que no es UUID), `409 CONFLICT` (cambiar tu propio rol, desactivarte, dejar el sistema sin ningún superadmin activo o un email que ya usa otro), `403 FORBIDDEN` si no sos superadmin, `503` como en el alta. El cambio tiene efecto inmediato: el usuario afectado lo nota en su próximo pedido. Cambiar la contraseña no cierra las sesiones abiertas de esa persona: para cortarle el acceso, desactivala.
+
+### `DELETE /api/admin/usuarios/:id` (solo `superadmin`)
+
+`204` sin body. Borra el usuario de Supabase Auth; su perfil y sus sesiones se borran en cascada (si tenía una sesión abierta, su siguiente pedido recibe `403 NO_ACCESS`). Errores: `404 NOT_FOUND`, `409 CONFLICT` (*"No podés eliminar tu propio usuario."*), `403 FORBIDDEN` si no sos superadmin, `503` como en el alta. No se puede deshacer: si solo querés sacarle el acceso, desactivalo.
 
 ## Avisos por WhatsApp
 
@@ -611,6 +622,7 @@ Con mismo origen no hay CORS de por medio, las cookies `SameSite=Strict` funcion
 | `FRONTEND_ORIGIN` | **Igual al origen público exacto** que ve el navegador, con esquema y sin barra final: `https://mgdetailing.com.ar`. Si no coincide, los `POST/PATCH/DELETE` dan `403`. Si el sitio responde en `www` y sin `www`, listá los dos separados por coma. |
 | `SUPABASE_URL` | `https://iclsiweaqhupxvxbpekl.supabase.co`. |
 | `SUPABASE_PUBLISHABLE_KEY` | La publishable key (`sb_publishable_...`). Nunca la secret key. |
+| `SUPABASE_SECRET_KEY` | La secret key (`sb_secret_...`), para que el superadmin gestione usuarios desde el panel. **Secreto**: solo en el entorno del servidor, nunca en el repo ni en el frontend. |
 | `HOST` | Con Caddy/nginx en la misma máquina dejá el default `127.0.0.1`. **En un PaaS o en Docker poné `0.0.0.0`**, si no la plataforma no llega al proceso. |
 | `PORT` | El que indique la plataforma (muchos PaaS lo inyectan). |
 | `TRUST_PROXY` | Con Caddy/nginx **en la misma máquina**: `loopback` (y `HOST=127.0.0.1`), así solo se cree el `X-Forwarded-For` que llega del proxy local. En un PaaS: `1` (el balanceador de la plataforma), siempre que el proceso no sea alcanzable sin pasar por él. Sin esto, el rate limit ve la IP del proxy y **todos los visitantes comparten el mismo cupo**; con un número y el puerto de Node expuesto a Internet, cualquiera puede conectarse directo, inventar su `X-Forwarded-For` y saltear el rate limit. |

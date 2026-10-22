@@ -52,7 +52,7 @@ describe('POST /api/auth/login (Supabase Auth, BFF)', () => {
     expect(refresh).toMatch(/^mg_rt=[^;]+; Max-Age=28800; Path=\/api\/auth; Expires=[^;]+; HttpOnly; SameSite=Strict$/);
 
     // El backend llamó a Supabase con la clave publishable; el log solo tiene el id del usuario.
-    expect(context.supabase.calls).toEqual([{ path: '/token?grant_type=password', apikey: PUBLISHABLE_KEY, bearer: false }]);
+    expect(context.supabase.calls).toEqual([{ path: '/token?grant_type=password', method: 'POST', apikey: PUBLISHABLE_KEY, bearer: false }]);
     expect(context.logger.text).toContain(`Inicio de sesión usuario=${userId} rol=admin`);
     expect(context.logger.text).not.toContain(ADMIN_EMAIL);
     expect(context.logger.text).not.toContain(cookieValue(response, 'mg_at') ?? 'x');
@@ -232,7 +232,7 @@ describe('POST /api/auth/logout', () => {
     expect(logout.status).toBe(204);
     expect(cookieValue(logout, 'mg_at')).toBe('');
     expect(cookieValue(logout, 'mg_rt')).toBe('');
-    expect(context.supabase.calls.at(-1)).toEqual({ path: '/logout?scope=local', apikey: PUBLISHABLE_KEY, bearer: true });
+    expect(context.supabase.calls.at(-1)).toEqual({ path: '/logout?scope=local', method: 'POST', apikey: PUBLISHABLE_KEY, bearer: true });
     expect(await context.supabase.sessionCount()).toBe(0);
 
     // Reutilizar el token robado después de salir: la sesión ya no está en auth.sessions.

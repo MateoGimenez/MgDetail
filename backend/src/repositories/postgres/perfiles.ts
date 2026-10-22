@@ -10,7 +10,7 @@ import {
 } from '../../domain/perfil.js';
 import { isUuid } from './uuid.js';
 
-/** SQLSTATE propio del trigger mgdetailing.impedir_sin_superadmin (migración perfiles_roles_supabase_auth). */
+/** SQLSTATE propio del trigger mgdetailing_private.impedir_sin_superadmin (migración superadmin_trigger_definer). */
 const SIN_SUPERADMIN_SQLSTATE = 'MG001';
 
 function bool(row: Row, key: string): boolean {
@@ -66,6 +66,18 @@ export class PostgresPerfilRepository implements PerfilRepository {
        ORDER BY created_at, id`,
     );
     return rows.map(toPerfil);
+  }
+
+  async findById(id: string): Promise<Perfil | undefined> {
+    if (!isUuid(id)) return undefined;
+    const { rows } = await this.sql.query(
+      `SELECT id::text AS id, email, nombre, rol_id, activo, created_at, updated_at
+       FROM mgdetailing.perfiles
+       WHERE id = $1::uuid`,
+      [id],
+    );
+    const row = rows[0];
+    return row ? toPerfil(row) : undefined;
   }
 
   async update(id: string, cambios: CambiosPerfil, now: Date): Promise<Perfil | undefined> {

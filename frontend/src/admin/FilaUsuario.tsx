@@ -8,12 +8,28 @@ interface Props {
   esPropio: boolean;
   ocupado: boolean;
   error: string | undefined;
+  /** El servidor puede cambiar email y contraseña y eliminar cuentas. */
+  gestionCuentas: boolean;
   alCambiar: (cambios: CambiosUsuario) => void;
   alPedirDesactivar: () => void;
+  alPedirEmail: () => void;
+  alPedirPassword: () => void;
+  alPedirEliminar: () => void;
 }
 
-/** Un usuario del panel: nombre editable, rol, activar o desactivar. */
-export function FilaUsuario({ usuario, esPropio, ocupado, error, alCambiar, alPedirDesactivar }: Props) {
+/** Un usuario del panel: nombre editable, rol, activar o desactivar, email, contraseña y baja. */
+export function FilaUsuario({
+  usuario,
+  esPropio,
+  ocupado,
+  error,
+  gestionCuentas,
+  alCambiar,
+  alPedirDesactivar,
+  alPedirEmail,
+  alPedirPassword,
+  alPedirEliminar,
+}: Props) {
   const id = useId();
   const [nombre, setNombre] = useState(usuario.nombre ?? '');
   const nombreCambiado = nombre.trim() !== (usuario.nombre ?? '');
@@ -98,7 +114,7 @@ export function FilaUsuario({ usuario, esPropio, ocupado, error, alCambiar, alPe
 
       {esPropio && (
         <p id={`${id}-propio`} className="usuario__nota">
-          Es tu usuario: no podés cambiarte el rol ni desactivarte.
+          Es tu usuario: no podés cambiarte el rol, desactivarte ni eliminarte.
         </p>
       )}
 
@@ -117,6 +133,17 @@ export function FilaUsuario({ usuario, esPropio, ocupado, error, alCambiar, alPe
       </dl>
 
       <div className="turno__acciones">
+        {gestionCuentas && (
+          <>
+            <button type="button" className="boton boton--secundario boton--chico" disabled={ocupado} onClick={alPedirEmail}>
+              <Icono nombre="mail" tamano={18} />
+              Cambiar email
+            </button>
+            <button type="button" className="boton boton--secundario boton--chico" disabled={ocupado} onClick={alPedirPassword}>
+              Cambiar contraseña
+            </button>
+          </>
+        )}
         {usuario.activo ? (
           <button
             type="button"
@@ -138,6 +165,17 @@ export function FilaUsuario({ usuario, esPropio, ocupado, error, alCambiar, alPe
           >
             <Icono nombre="check" tamano={18} />
             Activar
+          </button>
+        )}
+        {gestionCuentas && !esPropio && (
+          <button
+            type="button"
+            className="boton boton--fantasma boton--chico turno__eliminar usuario__eliminar"
+            disabled={ocupado}
+            onClick={alPedirEliminar}
+          >
+            <Icono nombre="papelera" tamano={18} />
+            Eliminar
           </button>
         )}
       </div>

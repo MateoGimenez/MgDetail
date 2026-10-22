@@ -41,14 +41,36 @@ export const usuarioPanelSchema = z.strictObject({
 });
 export type UsuarioPanel = z.output<typeof usuarioPanelSchema>;
 
-export const listaDeUsuariosSchema = z.strictObject({ usuarios: z.array(usuarioPanelSchema) });
+/**
+ * gestionCuentas: false si el servidor no tiene la clave admin de Supabase (no puede crear ni borrar usuarios, ni
+ * cambiarles el email o la contraseña). Rol, activo y nombre funcionan igual.
+ */
+export const listaDeUsuariosSchema = z.strictObject({ usuarios: z.array(usuarioPanelSchema), gestionCuentas: z.boolean() });
 export const respuestaUsuarioSchema = z.strictObject({ usuario: usuarioPanelSchema });
 
-/** Cambios de PATCH /api/admin/usuarios/:id (al menos uno). nombre: hasta 80; "" o null lo borra. */
+/**
+ * Cambios de PATCH /api/admin/usuarios/:id (al menos uno). nombre: hasta 80; "" o null lo borra.
+ * email y password exigen gestionCuentas.
+ */
 export interface CambiosUsuario {
   rol?: Rol;
   activo?: boolean;
   nombre?: string | null;
+  email?: string;
+  password?: string;
+}
+
+/** Body de POST /api/admin/usuarios. */
+export interface NuevoUsuario {
+  email: string;
+  password: string;
+  nombre?: string | null;
+  rol: Rol;
+  activo: boolean;
 }
 
 export const LIMITE_NOMBRE_USUARIO = 80;
+/** Mismo tope que el email del ingreso. */
+export const LIMITE_EMAIL_USUARIO = 120;
+export const PASSWORD_MINIMO = 8;
+export const PASSWORD_MAXIMO = 72;

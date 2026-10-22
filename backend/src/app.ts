@@ -5,6 +5,7 @@ import type { BookingNotifier } from './domain/notifier.js';
 import { createAccessTokenVerifier, createSupabaseJwks } from './lib/access-token.js';
 import { SessionCookies } from './lib/cookies.js';
 import { type Logger, createLogger } from './lib/logger.js';
+import { SupabaseAdminClient } from './lib/supabase-admin.js';
 import { type FetchFn, SupabaseAuthClient } from './lib/supabase-auth.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { mountFrontend } from './middleware/frontend.js';
@@ -62,7 +63,16 @@ export function createApp(deps: AppDeps): Express {
     perfiles,
     logger,
   });
-  const usuarios = new UsuarioService({ perfiles, logger, now });
+  const { secretKey } = config.supabase;
+  const usuarios = new UsuarioService({
+    perfiles,
+    admin:
+      secretKey === undefined
+        ? undefined
+        : new SupabaseAdminClient({ authUrl: config.supabase.authUrl, secretKey }, deps.authFetch),
+    logger,
+    now,
+  });
   const cookies = new SessionCookies(config);
   const limiters = createRateLimiters(config.rateLimits);
 

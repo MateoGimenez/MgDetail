@@ -69,8 +69,8 @@ export class AppError extends Error {
   }
 
   /** La operación choca con una regla de negocio (ej.: quedarse sin ningún superadmin). */
-  static conflict(message: string): AppError {
-    return new AppError(409, 'CONFLICT', message);
+  static conflict(message: string, fields?: Record<string, string>): AppError {
+    return new AppError(409, 'CONFLICT', message, fields);
   }
 
   static invalidCredentials(): AppError {

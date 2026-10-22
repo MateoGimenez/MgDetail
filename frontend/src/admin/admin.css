@@ -102,6 +102,35 @@
   color: var(--texto);
 }
 
+.login__olvido {
+  display: grid;
+  justify-items: center;
+  gap: var(--e-2);
+  width: 100%;
+  text-align: center;
+}
+
+.login__olvido-boton {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.login__olvido-boton:hover {
+  color: var(--texto);
+}
+
+.login__olvido-texto {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
 /* ---------- Panel ---------- */
 
 .panel {
@@ -700,6 +729,31 @@
   color: var(--texto-2);
 }
 
+.usuarios__botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.usuarios__aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 62ch;
+  margin-top: var(--e-3);
+  padding: 10px 14px;
+  border: 1px solid rgb(138 82 0 / 0.35);
+  border-radius: var(--radio-2);
+  background: #fff8ec;
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.usuarios__aviso .icono {
+  flex: none;
+  margin-top: 2px;
+}
+
 .usuarios__grupo {
   margin-top: var(--e-6);
 }
@@ -748,6 +802,44 @@
 .usuario__nota {
   color: var(--texto-3);
   font-size: 0.875rem;
+}
+
+.usuario__eliminar {
+  margin-left: auto;
+}
+
+/* Alta y cambio de email o contraseña: el mismo <dialog> que las confirmaciones, con un formulario. */
+.dialogo-usuario {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.dialogo-usuario__form {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.dialogo-usuario__form .confirmar__texto {
+  margin-top: 0;
+}
+
+.dialogo-usuario__form .confirmar__acciones {
+  margin-top: var(--e-2);
+}
+
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.casilla input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--acento);
 }
 
 .usuario__datos dt {

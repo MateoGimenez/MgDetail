@@ -43,7 +43,7 @@ Abrilo siempre como `localhost`, no como `127.0.0.1`: la API rechaza los pedidos
 
 ## Usuarios del panel
 
-El panel no tiene registro público: los usuarios se crean en el panel de Supabase (*Authentication > Users > Add user*, con "Auto Confirm User") y nacen **inactivos**. El primer superadmin se activa con una sentencia SQL; después, el superadmin activa a los demás y les asigna rol desde el panel web. Los pasos exactos están en [backend/README.md](backend/README.md#alta-de-usuarios-pasos-del-dueño).
+El panel no tiene registro público. El primer superadmin se crea en Supabase y se activa con una sentencia SQL; después, el superadmin crea, edita (rol, nombre, email, contraseña, activo) y elimina a los demás desde el panel web (necesita `SUPABASE_SECRET_KEY` en el backend). Una contraseña olvidada la repone el superadmin desde el panel. Los pasos exactos están en [backend/README.md](backend/README.md#alta-de-usuarios-pasos-del-dueño).
 
 ## Verlo desde el celular
 

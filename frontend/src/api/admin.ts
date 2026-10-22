@@ -1,7 +1,7 @@
 import { ApiError, request } from './client';
 import { requestAdmin } from './sesion';
 import { listaDeTurnosSchema, respuestaTurnoSchema, type Estado, type Turno } from './contract';
-import { listaDeUsuariosSchema, respuestaSesionSchema, respuestaUsuarioSchema, type CambiosUsuario, type UsuarioPanel, type UsuarioSesion } from './contract-panel';
+import { listaDeUsuariosSchema, respuestaSesionSchema, respuestaUsuarioSchema, type CambiosUsuario, type NuevoUsuario, type UsuarioPanel, type UsuarioSesion } from './contract-panel';
 
 export type ResultadoSesion = { usuario: UsuarioSesion } | { usuario: null; aviso?: string };
 
@@ -82,10 +82,29 @@ export async function eliminarTurno(id: string): Promise<void> {
   await requestAdmin(`/admin/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
-/** GET /api/admin/usuarios (solo superadmin) → los más viejos primero. */
-export async function listarUsuarios(signal?: AbortSignal): Promise<UsuarioPanel[]> {
-  const { usuarios } = await requestAdmin('/admin/usuarios', { signal, schema: listaDeUsuariosSchema });
-  return usuarios;
+/**
+ * GET /api/admin/usuarios (solo superadmin) → los más viejos primero, y si el servidor puede crear, borrar y
+ * cambiar email o contraseña (gestionCuentas).
+ */
+export async function listarUsuarios(
+  signal?: AbortSignal,
+): Promise<{ usuarios: UsuarioPanel[]; gestionCuentas: boolean }> {
+  return requestAdmin('/admin/usuarios', { signal, schema: listaDeUsuariosSchema });
+}
+
+/** POST /api/admin/usuarios → usuario creado. 409 CONFLICT si el email ya está en uso. */
+export async function crearUsuario(datos: NuevoUsuario): Promise<UsuarioPanel> {
+  const { usuario } = await requestAdmin('/admin/usuarios', {
+    method: 'POST',
+    body: datos,
+    schema: respuestaUsuarioSchema,
+  });
+  return usuario;
+}
+
+/** DELETE /api/admin/usuarios/:id → 204. Borra la cuenta y su perfil: no se puede deshacer. */
+export async function eliminarUsuario(id: string): Promise<void> {
+  await requestAdmin(`/admin/usuarios/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 /** PATCH /api/admin/usuarios/:id → usuario actualizado. 409 CONFLICT trae un mensaje para mostrar. */

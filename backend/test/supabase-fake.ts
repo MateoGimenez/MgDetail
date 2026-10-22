@@ -16,11 +16,17 @@ import type { PgliteDatabase } from './pglite.js';
  *  - Un par de claves ES256 generado acá; el backend lo recibe como JWKS local (mismo verificador que en producción).
  *  - `fetch` responde /auth/v1/token (password y refresh_token, con rotación y detección de reuso) y /auth/v1/logout
  *    con las formas y status de GoTrue. Las sesiones se guardan en auth.sessions de PGlite, como en Supabase.
+ *  - Con la secret key, también la API admin (/auth/v1/admin/users): escribe en auth.users de PGlite como
+ *    supabase_auth_admin (el rol de Auth en Supabase), así corren el trigger que crea el perfil y los borrados en
+ *    cascada con los mismos permisos que en Supabase.
  */
 
 export const SUPABASE_URL = 'https://proyecto-test.supabase.co';
 export const SUPABASE_ISSUER = `${SUPABASE_URL}/auth/v1`;
 export const PUBLISHABLE_KEY = 'sb_publishable_clave-de-prueba-0123456789';
+export const SECRET_KEY = 'sb_secret_clave-de-prueba-0123456789';
+/** La API admin falsa rechaza por débil (422 weak_password) toda contraseña que contenga esto. */
+export const WEAK_PASSWORD_MARK = 'debil';
 export const TEST_KID = 'clave-de-prueba';
 export const ACCESS_TOKEN_TTL_SECONDS = 3600;
 
@@ -83,6 +89,7 @@ interface RefreshTokenState {
 export interface FakeCall {
   /** Ruta + query, sin el host (ej.: /token?grant_type=password). */
   path: string;
+  method: string;
   apikey: string | null;
   bearer: boolean;
 }
@@ -108,16 +115,23 @@ export class FakeSupabaseAuth {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     const headers = new Headers(init?.headers);
     const path = `${url.pathname.replace('/auth/v1', '')}${url.search}`;
-    this.calls.push({ path, apikey: headers.get('apikey'), bearer: headers.has('Authorization') });
+    const method = init?.method ?? 'GET';
+    this.calls.push({ path, method, apikey: headers.get('apikey'), bearer: headers.has('Authorization') });
 
     if (this.mode === 'down') throw new TypeError('fetch failed');
     if (this.mode === 'error') return json(500, { code: 500, msg: 'Internal Server Error' });
     if (this.mode === 'rate') return json(429, { code: 429, error_code: 'over_request_rate_limit' });
+    const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
+    if (url.origin === SUPABASE_URL && url.pathname.startsWith('/auth/v1/admin/')) {
+      // La API admin solo acepta la secret key, y solo en apikey (no es un JWT: en Authorization la rechaza).
+      if (headers.get('apikey') !== SECRET_KEY) return json(401, { message: 'Invalid API key' });
+      if (headers.has('Authorization')) return json(401, { code: 401, error_code: 'bad_jwt', msg: 'invalid JWT' });
+      return this.admin(method, url.pathname.replace('/auth/v1/admin/', ''), body);
+    }
     if (url.origin !== SUPABASE_URL || headers.get('apikey') !== PUBLISHABLE_KEY) {
       return json(401, { message: 'Invalid API key' });
     }
 
-    const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
     if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'password') {
       return this.passwordGrant(body);
     }
@@ -134,6 +148,58 @@ export class FakeSupabaseAuth {
   async sessionCount(): Promise<number> {
     const { rows } = await this.db.sql.query('SELECT count(*)::int AS n FROM auth.sessions');
     return Number(rows[0]?.n);
+  }
+
+  /** Contraseña actual de un usuario (para comprobar los cambios hechos por la API admin). */
+  passwordOf(email: string): string | undefined {
+    return this.users.get(email.toLowerCase())?.password;
+  }
+
+  private async admin(method: string, path: string, body: Record<string, unknown>): Promise<Response> {
+    const email = typeof body.email === 'string' ? body.email.toLowerCase() : undefined;
+    const password = typeof body.password === 'string' ? body.password : undefined;
+    if (password?.includes(WEAK_PASSWORD_MARK)) {
+      return json(422, { code: 422, error_code: 'weak_password', msg: 'Password should be stronger' });
+    }
+    if (email !== undefined && this.users.has(email)) {
+      return json(422, { code: 422, error_code: 'email_exists', msg: 'A user with this email address has already been registered' });
+    }
+
+    if (method === 'POST' && path === 'users') {
+      if (email === undefined || password === undefined) return json(400, { code: 400, error_code: 'validation_failed' });
+      const { rows } = await this.db.authSql.query('INSERT INTO auth.users (email) VALUES ($1) RETURNING id::text AS id', [email]);
+      const id = String(rows[0]?.id);
+      this.users.set(email, { id, password });
+      return json(200, { id, aud: 'authenticated', role: 'authenticated', email });
+    }
+
+    const match = /^users\/([0-9a-f-]{36})$/.exec(path);
+    const entry = match ? [...this.users.entries()].find(([, user]) => user.id === match[1]) : undefined;
+    if (match === null || entry === undefined) {
+      return json(404, { code: 404, error_code: 'user_not_found', msg: 'User not found' });
+    }
+    const [currentEmail, user] = entry;
+
+    if (method === 'PUT') {
+      if (email !== undefined) {
+        await this.db.authSql.query('UPDATE auth.users SET email = $2 WHERE id = $1::uuid', [user.id, email]);
+        this.users.delete(currentEmail);
+        this.users.set(email, user);
+      }
+      if (password !== undefined) user.password = password;
+      return json(200, { id: user.id, aud: 'authenticated', role: 'authenticated', email: email ?? currentEmail });
+    }
+    if (method === 'DELETE') {
+      try {
+        await this.db.authSql.query('DELETE FROM auth.users WHERE id = $1::uuid', [user.id]);
+      } catch {
+        // Ej.: el trigger que impide quedarse sin superadmin. GoTrue responde 500 con un error de base de datos.
+        return json(500, { code: 500, error_code: 'unexpected_failure', msg: 'Database error deleting user' });
+      }
+      this.users.delete(currentEmail);
+      return json(200, {});
+    }
+    return json(405, { code: 405, msg: 'Method not allowed' });
   }
 
   private async passwordGrant(body: Record<string, unknown>): Promise<Response> {
