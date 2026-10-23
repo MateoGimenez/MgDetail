@@ -5,6 +5,7 @@ API REST de MgDetailing, taller de detailing de autos en La Rioja, Argentina. Ha
 1. Recibe **solicitudes de turno** desde la landing (público, con anti-spam).
 2. **Autentica** a los usuarios del panel con **Supabase Auth**, en modo BFF: el backend habla con Supabase y guarda los tokens en cookies httpOnly; el navegador nunca ve un token ni una clave.
 3. Les permite **gestionar** esas solicitudes desde el panel `/admin` según su **rol** (`superadmin`, `admin`, `empleado`), y al `superadmin` gestionar los usuarios.
+4. Sirve el **catálogo de servicios** (textos, precios, duraciones, destacado, orden) desde la base: la landing lo lee de `GET /api/servicios` y `admin`/`superadmin` lo editan desde el panel sin volver a publicar la web.
 
 Stack: Node 24 + TypeScript (strict, ESM) + Express 5, **Postgres en Supabase** (driver `pg`) como único motor, **Supabase Auth** (API REST de GoTrue, sin `supabase-js`), zod, helmet, cors, express-rate-limit, jose (verificación de los JWT contra el JWKS del proyecto). Los tests usan PGlite (Postgres en memoria).
 
@@ -93,11 +94,13 @@ navegador --/api (cookies httpOnly)--> backend --POST /auth/v1/token, /auth/v1/l
 
 ### Roles y permisos (la regla vive en el backend; la UI solo esconde botones)
 
-| Rol | Ver turnos | Cambiar estado | Borrar turnos | Gestionar usuarios |
-|---|---|---|---|---|
-| `superadmin` | sí | a cualquier estado | sí | sí (crear, listar, cambiar rol, activar/desactivar, nombre, email y contraseña, eliminar) |
-| `admin` | sí | a cualquier estado | sí | no |
-| `empleado` | sí | **solo a `completado`** | no | no |
+| Rol | Ver turnos | Cambiar estado | Borrar turnos | Gestionar usuarios | Ver catálogo | Editar catálogo |
+|---|---|---|---|---|---|---|
+| `superadmin` | sí | a cualquier estado | sí | sí (crear, listar, cambiar rol, activar/desactivar, nombre, email y contraseña, eliminar) | sí | sí |
+| `admin` | sí | a cualquier estado | sí | no | sí | sí |
+| `empleado` | sí | **solo a `completado`** | no | no | sí | **no** (solo lectura) |
+
+"Editar catálogo" = crear servicios, editarlos (textos, precio, duración, destacado, activo) y reordenarlos (`puedeEditarCatalogo` en `src/domain/permisos.ts`).
 
 Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. Reglas de usuarios: nadie puede cambiarse su propio rol, ni desactivarse ni eliminarse a sí mismo (`409 CONFLICT`), y **nunca puede quedar el sistema sin un superadmin activo** (lo garantiza un trigger en la base, también ante dos cambios simultáneos; `409 CONFLICT`).
 
@@ -118,7 +121,7 @@ Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. R
 
 ## Base de datos
 
-**Postgres en Supabase es el único motor** (proyecto `iclsiweaqhupxvxbpekl`, esquema propio `mgdetailing`, no expuesto por la Data API). SQLite se retiró: con Supabase Auth el panel no funciona sin Supabase, y tener un solo motor evita dos implementaciones de cada repositorio. Las migraciones están en `supabase/migrations/*.sql` (formato Supabase CLI) y **no** las aplica el backend: se aplican con la CLI o el MCP de Supabase. Al arrancar, el backend **verifica** que estén (tablas, catálogo de servicios, roles y la función de sesión) y si no, no arranca y dice qué falta.
+**Postgres en Supabase es el único motor** (proyecto `iclsiweaqhupxvxbpekl`, esquema propio `mgdetailing`, no expuesto por la Data API). SQLite se retiró: con Supabase Auth el panel no funciona sin Supabase, y tener un solo motor evita dos implementaciones de cada repositorio. Las migraciones están en `supabase/migrations/*.sql` (formato Supabase CLI) y **no** las aplica el backend: se aplican con la CLI o el MCP de Supabase. Al arrancar, el backend **verifica** que estén (tablas, columnas del catálogo editable, roles y la función de sesión) y si no, no arranca y dice qué falta. Si no hay ningún servicio activo, arranca igual pero lo avisa en el log (la web no podría recibir turnos).
 
 ### Conexión a Postgres
 
@@ -138,10 +141,15 @@ erDiagram
     auth_users ||--o{ auth_sessions : "user_id (Supabase Auth)"
 
     servicios {
-        text id PK "slug: lavado-basico, pulido..."
+        text id PK "slug inmutable: lavado-basico, pulido..."
         text nombre
+        text resumen
+        text descripcion
+        jsonb incluye "array de textos"
+        jsonb glosario "array de termino + significado"
         text duracion_estimada "null = sin confirmar"
-        numeric precio_desde "null = Consultá"
+        integer precio_desde "ARS; null = Consultá"
+        boolean destacado "a lo sumo uno"
         boolean activo
         smallint orden
         timestamptz created_at
@@ -191,7 +199,7 @@ erDiagram
 
 | Tabla | Para qué | Restricciones e índices |
 |---|---|---|
-| `servicios` | Catálogo del taller (5 servicios, sembrados por migración con los nombres de `domain/servicios.ts` y las duraciones propuestas, sin confirmar). Un servicio que se deja de ofrecer se **desactiva** (`activo = false`), no se borra. | PK `id` (slug validado por CHECK), `precio_desde >= 0` (null = "Consultá"), largos. |
+| `servicios` | **Catálogo del taller, fuente de verdad** (editable desde el panel; ver [Catálogo editable](#catálogo-editable)). Sembrado con los 5 servicios y los textos que tenía `frontend/src/data/servicios.ts` (propuesta inicial, sin confirmar). Un servicio que se deja de ofrecer se **desactiva** (`activo = false`), no se borra: lo referencian turnos. | PK `id` (slug validado por CHECK, inmutable: `mgdetailing_app` no tiene `UPDATE` sobre él). CHECK de largos de `nombre`/`resumen`/`descripcion`/`duracion_estimada` (no vacía), `precio_desde` entero de 0 a 99.999.999, `incluye` y `glosario` validados ítem por ítem (funciones `mgdetailing.servicio_incluye_valido` / `servicio_glosario_valido`). Índice único parcial `servicios_un_destacado` (`WHERE destacado`): a lo sumo un destacado. Trigger `updated_at`. |
 | `bookings` | Solicitudes de turno. | PK `seq` (bigint identity: inserciones ordenadas, índice compacto y orden estable aunque dos turnos tengan el mismo `created_at`); `id` UUID **único**, el único que sale por la API (un id secuencial revelaría cuántos turnos hay). FK `servicio_id -> servicios` (`RESTRICT`). CHECK de `vehiculo_tipo`, `franja`, `estado` y de los largos de zod. Índices: `(estado, seq DESC)` para el listado filtrado y su `COUNT`; la PK sirve al listado sin filtro; `(servicio_id)` para la FK. |
 | `roles` | Los 3 roles del panel (sembrados por migración). Los permisos de cada rol los aplica el backend (`domain/permisos.ts`). | PK `id` (slug). |
 | `perfiles` | Un perfil por usuario de Supabase Auth: rol y si puede entrar. Lo crea el trigger de `auth.users`; se borra en cascada con el usuario. | PK/FK `id -> auth.users ON DELETE CASCADE`; FK `rol_id -> roles` con índice; CHECK de email en minúsculas y largo de nombre; trigger `updated_at`; trigger `perfiles_al_menos_un_superadmin`. |
@@ -213,7 +221,7 @@ Decisiones:
 ### Seguridad en la base (Supabase)
 
 - Todo vive en los esquemas **`mgdetailing`** y **`mgdetailing_private`**, que **no** están entre los expuestos por la Data API (PostgREST/GraphQL publican `public` y `graphql_public`; un pedido con `Accept-Profile: mgdetailing` responde `PGRST106`). La web **nunca** habla con Supabase: ni `supabase-js`, ni claves en el frontend. El único cliente de la base y de Supabase Auth es este backend.
-- **Rol dedicado `mgdetailing_app`** (migración `rol_app_minimo_privilegio`): el backend se conecta con él, **no** con `postgres`. Puede solo lo que el backend hace: `SELECT` en `servicios` y `roles`; `SELECT/INSERT/DELETE` en `bookings` y `UPDATE` solo de `estado` y `updated_at`; `SELECT` en `perfiles` y `UPDATE` solo de `rol_id`, `activo`, `nombre` y `updated_at` (sin `INSERT` ni `DELETE`: los hace el trigger / la cascada); `EXECUTE` solo de `mgdetailing_private.sesion_vigente`. Sin DDL, sin `TRUNCATE`, sin `BYPASSRLS`, sin acceso a `auth`, `storage` ni `public`. Topes de sesión: `statement_timeout` 10 s, `lock_timeout` 5 s, `idle_in_transaction_session_timeout` 30 s. Se crea **NOLOGIN y sin contraseña** (no hay secretos en el repo): el dueño le pone la contraseña (ver [Conectar Supabase](#conectar-supabase)). Si el backend arranca conectado con un rol privilegiado (`postgres`), lo avisa en el log.
+- **Rol dedicado `mgdetailing_app`** (migración `rol_app_minimo_privilegio`): el backend se conecta con él, **no** con `postgres`. Puede solo lo que el backend hace: `SELECT` en `roles`; `SELECT` en `servicios`, `INSERT` por columna (todas salvo `created_at`) y `UPDATE` por columna (los campos editables, `orden` y `updated_at`; nunca `id` ni `created_at`), sin `DELETE`, y `EXECUTE` de las dos funciones de validación del catálogo; `SELECT/INSERT/DELETE` en `bookings` y `UPDATE` solo de `estado` y `updated_at`; `SELECT` en `perfiles` y `UPDATE` solo de `rol_id`, `activo`, `nombre` y `updated_at` (sin `INSERT` ni `DELETE`: los hace el trigger / la cascada); `EXECUTE` solo de `mgdetailing_private.sesion_vigente`. Sin DDL, sin `TRUNCATE`, sin `BYPASSRLS`, sin acceso a `auth`, `storage` ni `public`. Topes de sesión: `statement_timeout` 10 s, `lock_timeout` 5 s, `idle_in_transaction_session_timeout` 30 s. Se crea **NOLOGIN y sin contraseña** (no hay secretos en el repo): el dueño le pone la contraseña (ver [Conectar Supabase](#conectar-supabase)). Si el backend arranca conectado con un rol privilegiado (`postgres`), lo avisa en el log.
 - **RLS habilitado en las 4 tablas**, con policies **solo para `mgdetailing_app`** (`USING (true)`: el backend es un único cliente de confianza que ve todas las filas; la autorización por usuario y por rol la hace la API con la sesión del panel). `anon`, `authenticated` y `service_role` no tienen ni privilegios ni policies: aunque alguien expusiera el esquema por error, no verían una fila. `postgres` (dueño de las tablas, con `BYPASSRLS`) queda para migraciones y backups.
 - **`REVOKE` de todo** (tablas, secuencias, funciones y el `USAGE` del esquema) a `public`, `anon`, `authenticated` y `service_role`, y privilegios por defecto revocados para lo que se cree después en el esquema. Un test lo comprueba en PGlite (incluso haciendo `SET ROLE anon`).
 - Advisors de Supabase (security y performance) después de aplicar: security sin avisos; performance solo con el INFO esperado *unused index* (la base está vacía; se usan en cuanto haya turnos). La migración `endurecer_rls_auto_enable` revocó el `EXECUTE` de `public.rls_auto_enable()` (una función de Supabase que ya venía en el proyecto, del event trigger que activa RLS en tablas nuevas de `public`) a `anon`/`authenticated`, que el linter marcaba como WARN.
@@ -228,7 +236,8 @@ Decisiones:
 - `20261022185000_superadmin_trigger_definer` (2026-10-22): pasa el trigger "nunca sin superadmin activo" a `SECURITY DEFINER` en `mgdetailing_private`. Sin ella, eliminar un superadmin activo (desde el panel o desde Supabase) falla con `permission denied for schema mgdetailing`. Si se aplica desde el SQL Editor, no queda en el historial: marcala con `supabase migration repair --status applied 20261022185000` antes de un `db push`.
 - Para aplicar una nueva: con la CLI (`supabase link --project-ref iclsiweaqhupxvxbpekl` y después `supabase db push`) o con el MCP de Supabase (`apply_migration`; después renombrá el archivo local a la versión que quedó registrada). Corré los advisors después de cada cambio.
 - Los tests aplican **las mismas migraciones** a un Postgres en memoria (PGlite). Como PGlite no tiene lo de Supabase, el test crea antes de migrar los roles `anon`, `authenticated` y `service_role` (sin login) y un esquema `auth` mínimo (`auth.users` y `auth.sessions` con las columnas que se usan): así las migraciones se prueban tal cual, sin saltear sentencias.
-- Si se agrega un servicio en `src/domain/servicios.ts`, hay que agregarlo también con una migración (`insert into mgdetailing.servicios ...`): el backend no arranca si al catálogo de la base le falta algún id que el código acepta.
+- **`20261022200000_catalogo_editable` (2026-10-22): PENDIENTE de aplicar en Supabase, con aprobación del dueño.** Agrega `resumen`, `descripcion`, `incluye`, `glosario` y `destacado` a `servicios`, copia los textos del frontend, pasa `precio_desde` a `integer`, crea el índice de destacado único y da a `mgdetailing_app` `INSERT`/`UPDATE` por columna con sus policies. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan columnas en mgdetailing.servicios"): aplicala antes de desplegar este backend y corré los advisors después.
+- Los servicios ya **no** se agregan por migración ni en el código: se crean desde el panel.
 
 ### Backups (Supabase)
 
@@ -244,9 +253,18 @@ Decisiones:
 - **Plan Pro**: backups diarios automáticos (7 días) en *Database > Backups*, y PITR como add-on. Igual conviene un `pg_dump` propio de vez en cuando.
 - Un proyecto Free **se pausa tras una semana sin actividad**. Con el sitio en uso no pasa, pero si el panel muestra el proyecto pausado, se reactiva desde ahí (mientras tanto `/api/health` da `503`).
 
-### Próximo paso natural: catálogo editable
+### Catálogo editable
 
-Hoy la lista de servicios válidos sigue fija en `src/domain/servicios.ts` (el contrato no cambió) y la tabla `servicios` solo aporta integridad. El siguiente paso es **leer el catálogo desde la base**: precios y duraciones editables desde el panel `/admin`, `activo` para dejar de ofrecer un servicio sin romper los turnos viejos, y que el frontend lo pida a la API en lugar de tenerlo en `frontend/src/data/servicios.ts`. No está implementado.
+Contrato acordado con el frontend: `reportes/2026-10-22_07_catalogo-editable.md`. La tabla `mgdetailing.servicios` es la única fuente de verdad (la lista fija `SERVICIO_IDS` se retiró):
+
+- **Landing**: `GET /api/servicios` (público) devuelve solo los activos, por `orden` y después por `id`, sin `activo`, `orden` ni `updatedAt`. Si la API falla, el frontend usa `frontend/src/data/servicios.ts` como respaldo.
+- **Panel**: `GET /api/admin/servicios` (todos los roles) y, para `admin`/`superadmin`, `POST` (crear, queda al final), `PATCH /:id` (editar, activar/desactivar, destacar) y `PUT /orden` (reordenar). `empleado` recibe `403`.
+- **Turnos**: `POST /api/bookings` acepta solo un `servicioId` que exista y esté **activo** en la base (si no, `400` en `fields.servicioId`; también con el honeypot, para no dar señales). El log del alta y el aviso al dueño usan el nombre del servicio de la base.
+- **No se borran servicios** (no hay `DELETE`): se desactivan. El `id` (slug `^[a-z0-9]+(-[a-z0-9]+)*$`, hasta 64) no cambia después de crearlo; `orden` está reservado (es un segmento de ruta).
+- **A lo sumo un destacado**: marcar uno desmarca al anterior en la misma transacción; el índice único parcial lo garantiza también en la base.
+- **Un inactivo no puede ser el destacado**: desactivar el destacado lo desmarca en la misma operación (queda sin destacado hasta que se marque otro); destacar un inactivo, o desactivar y destacar en el mismo cambio, da `400` en `fields.destacado`. El CHECK `servicios_destacado_activo` lo garantiza también en la base.
+- **Atomicidad**: crear, editar y reordenar corren en una transacción (`SqlClient.transaction`, una sola conexión del pool) que empieza con `pg_advisory_xact_lock(7340002)`: dos cambios simultáneos del catálogo se hacen de a uno. El reordenamiento guarda `orden = posición × 10` y solo cambia `updated_at` de los que se movieron.
+- Logs: `Servicio creado id=... por=<uuid>`, `Servicio actualizado id=... por=... campos=...`, `Catálogo reordenado por=...`; nunca los textos.
 
 ## Conectar Supabase
 
@@ -333,6 +351,32 @@ curl -b cookies.txt -X PATCH http://localhost:4000/api/admin/bookings/<id> \
 curl -b cookies.txt -X DELETE http://localhost:4000/api/admin/bookings/<id> \
   -H "Content-Type: application/json"
 
+# Catálogo público (lo que muestra la landing: solo los activos)
+curl http://localhost:4000/api/servicios
+
+# Catálogo en el panel (todos los roles; incluye inactivos, orden y updatedAt)
+curl -b cookies.txt http://localhost:4000/api/admin/servicios
+
+# Crear un servicio (admin y superadmin; queda al final del orden)
+curl -b cookies.txt -X POST http://localhost:4000/api/admin/servicios \
+  -H "Content-Type: application/json" \
+  -d '{"id":"tratamiento-ceramico","nombre":"Tratamiento cerámico","resumen":"Protección de larga duración.",
+       "descripcion":"Aplicamos una capa cerámica sobre la pintura.","incluye":["Lavado","Descontaminación"],
+       "glosario":[{"termino":"Cerámico","significado":"un recubrimiento duro y brillante."}],
+       "duracion":"1 día","precioDesde":150000}'
+# -> 201 {"servicio":{"id":"tratamiento-ceramico",...,"destacado":false,"activo":true,"orden":60,"updatedAt":"..."}}
+
+# Editar: precio y destacarlo (desmarca al anterior), o desactivarlo
+curl -b cookies.txt -X PATCH http://localhost:4000/api/admin/servicios/pulido \
+  -H "Content-Type: application/json" -d '{"precioDesde":85000,"destacado":true}'
+curl -b cookies.txt -X PATCH http://localhost:4000/api/admin/servicios/encerado \
+  -H "Content-Type: application/json" -d '{"activo":false}'
+
+# Reordenar (todos los ids, sin repetir, en el orden nuevo)
+curl -b cookies.txt -X PUT http://localhost:4000/api/admin/servicios/orden \
+  -H "Content-Type: application/json" \
+  -d '{"ids":["pulido","lavado-premium","lavado-basico","encerado","restauracion-opticas"]}'
+
 # Cerrar sesión
 curl -b cookies.txt -c cookies.txt -X POST http://localhost:4000/api/auth/logout \
   -H "Content-Type: application/json"
@@ -357,7 +401,7 @@ Esta sección es la referencia para el frontend. Todo viaja como JSON; las fecha
 | Campo | Valores |
 |---|---|
 | `vehiculoTipo` | `"auto"`, `"camioneta"`, `"moto"` |
-| `servicioId` | `"lavado-basico"` (Lavado Básico), `"lavado-premium"` (Lavado Premium), `"pulido"` (Pulido), `"encerado"` (Encerado), `"restauracion-opticas"` (Restauración de ópticas) |
+| `servicioId` | **Ya no es un enum fijo**: el `id` de un servicio del catálogo (`GET /api/servicios`). Los iniciales: `"lavado-basico"`, `"lavado-premium"`, `"pulido"`, `"encerado"`, `"restauracion-opticas"`. |
 | `franja` | `"manana"`, `"tarde"` |
 | `estado` | `"pendiente"` (inicial), `"confirmado"`, `"completado"`, `"cancelado"`. Se puede pasar de cualquiera a cualquiera. |
 
@@ -379,8 +423,9 @@ Esta sección es la referencia para el frontend. Todo viaja como JSON; las fecha
 | `FORBIDDEN_ORIGIN` | 403 | `Origin` no permitido. |
 | `FORBIDDEN` | 403 | El rol no permite la acción (la sesión sigue). Mensaje en español apto para mostrar. |
 | `NO_ACCESS` | 403 | La sesión es válida pero el usuario ya no tiene acceso al panel (desactivado o sin perfil): se borran las cookies y hay que volver al ingreso. |
-| `NOT_FOUND` | 404 | Ruta inexistente, o turno / usuario inexistente (un id con formato inválido también da 404). |
+| `NOT_FOUND` | 404 | Ruta inexistente, o turno / usuario / servicio inexistente (un id con formato inválido también da 404). |
 | `CONFLICT` | 409 | Gestión de usuarios: cambiarte tu propio rol, desactivarte, o dejar el sistema sin ningún superadmin activo. |
+| `SERVICIO_EXISTE` | 409 | `POST /api/admin/servicios` con un `id` que ya existe (activo o no). Trae `fields.id`. |
 | `PAYLOAD_TOO_LARGE` | 413 | Body de más de 10 kb. |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Falta `Content-Type: application/json` o el body viene comprimido. |
 | `RATE_LIMITED` | 429 | Demasiados pedidos (los del backend traen `Retry-After` en segundos). También si Supabase Auth limita los logins. |
@@ -402,7 +447,7 @@ Límite: **5 turnos creados por IP cada 15 minutos** (`429`). Los pedidos rechaz
 | `email` | no | Email válido, hasta 120 caracteres. `""`, `null` u omitido => `null`. Se guarda en minúsculas. |
 | `vehiculoTipo` | sí | Ver enums. |
 | `vehiculoModelo` | no | Hasta 80 caracteres. `""`, `null` u omitido => `null`. |
-| `servicioId` | sí | Ver enums. |
+| `servicioId` | sí | `id` de un servicio que exista y esté **activo** en el catálogo (`GET /api/servicios`). Si no: `400` con `fields.servicioId` = *"Elegí un servicio de la lista."* |
 | `fechaPreferida` | sí | `YYYY-MM-DD`, existente en el calendario, desde **hoy** hasta **hoy + 60 días** (ambos inclusive). "Hoy" se calcula en la zona `America/Argentina/La_Rioja`. |
 | `franja` | sí | Ver enums. |
 | `comentario` | no | Hasta 500 caracteres (admite saltos de línea). `""`, `null` u omitido => `null`. |
@@ -544,6 +589,45 @@ Body estricto con al menos uno de: `rol` (`"superadmin" | "admin" | "empleado"`)
 
 `204` sin body. Borra el usuario de Supabase Auth; su perfil y sus sesiones se borran en cascada (si tenía una sesión abierta, su siguiente pedido recibe `403 NO_ACCESS`). Errores: `404 NOT_FOUND`, `409 CONFLICT` (*"No podés eliminar tu propio usuario."*), `403 FORBIDDEN` si no sos superadmin, `503` como en el alta. No se puede deshacer: si solo querés sacarle el acceso, desactivalo.
 
+### Objeto `Servicio` (catálogo)
+
+| Campo | Tipo | Regla | Público | Panel |
+|---|---|---|---|---|
+| `id` | `string` | slug `^[a-z0-9]+(-[a-z0-9]+)*$`, 1 a 64. Inmutable. `orden` está reservado. | sí | sí |
+| `nombre` | `string` | trim, 1 a 80, una línea | sí | sí |
+| `resumen` | `string` | trim, 1 a 200, una línea | sí | sí |
+| `descripcion` | `string` | trim, 1 a 1500 (admite saltos de línea y tabs) | sí | sí |
+| `incluye` | `string[]` | 0 a 15 ítems, cada uno trim 1 a 120 | sí | sí |
+| `glosario` | `{ termino, significado }[]` | 0 a 10; `termino` 1 a 60, `significado` 1 a 300 (objetos estrictos) | sí | sí |
+| `duracion` | `string \| null` | trim, hasta 60; `""` => `null` | sí | sí |
+| `precioDesde` | `number \| null` | entero en ARS, 0 a 99.999.999; `null` = "Consultá" | sí | sí |
+| `destacado` | `boolean` | a lo sumo uno en `true` | sí | sí |
+| `activo` | `boolean` | | no | sí |
+| `orden` | `integer` | menor primero (lo asigna el servidor) | no | sí |
+| `updatedAt` | `string` (ISO 8601) | | no | sí |
+
+Las respuestas traen **exactamente** estos campos (el público, solo los marcados "Público"; nunca `createdAt`). Higiene de texto igual que en los turnos: los controles bidireccionales se quitan y los de control (C0/C1) se rechazan.
+
+### `GET /api/servicios` (público)
+
+`200 { "servicios": ServicioPublico[] }`: solo los activos, por `orden` y después por `id`.
+
+### `GET /api/admin/servicios` (requiere sesión; todos los roles)
+
+`200 { "servicios": Servicio[] }`: todos (activos e inactivos), mismo orden.
+
+### `POST /api/admin/servicios` (solo `admin` y `superadmin`)
+
+Body estricto: `id`, `nombre`, `resumen`, `descripcion` obligatorios; `incluye` (default `[]`), `glosario` (default `[]`), `duracion` (default `null`), `precioDesde` (default `null`), `destacado` (default `false`), `activo` (default `true`). `orden` no se manda (`400`): queda al final. Si viene `destacado: true`, desmarca al anterior (con `activo: false` a la vez, `400` en `fields.destacado`). `201 { "servicio": Servicio }`. Errores: `400 VALIDATION_ERROR` con `fields` (en las listas la clave lleva la posición: `incluye.1`, `glosario.0.termino`), `409 SERVICIO_EXISTE`, `403 FORBIDDEN` para `empleado` (*"Con tu rol solo podés ver el catálogo de servicios."*).
+
+### `PATCH /api/admin/servicios/:id` (solo `admin` y `superadmin`)
+
+Body estricto con al menos uno de: `nombre`, `resumen`, `descripcion`, `incluye`, `glosario`, `duracion`, `precioDesde`, `destacado`, `activo` (mismas reglas; `null` en `duracion` o `precioDesde` los borra). `activo: false` también desmarca el destacado; `destacado: true` sobre un servicio que queda inactivo (ya lo estaba o se desactiva en el mismo body) da `400` en `fields.destacado` (*"No se puede destacar un servicio inactivo. Activalo primero."*). El `id` no se puede cambiar: si viene en el body, `400`. `200 { "servicio": Servicio }`. Errores: `404 NOT_FOUND` (no existe, o el id no tiene formato de slug), `400` (campo desconocido, tipo inválido o body vacío), `403 FORBIDDEN` para `empleado`.
+
+### `PUT /api/admin/servicios/orden` (solo `admin` y `superadmin`)
+
+Body estricto `{ "ids": string[] }` con **todos** los ids del catálogo (activos e inactivos), sin repetir, en el orden nuevo. Se guarda `orden = posición × 10` (10, 20, 30...) en una transacción. `200 { "servicios": Servicio[] }` (el catálogo completo, ya ordenado). `400 VALIDATION_ERROR` con `fields.ids` si faltan, sobran o se repiten ids; `403 FORBIDDEN` para `empleado`. Pasa por el mismo control CSRF que `POST`/`PATCH`/`DELETE` (`Origin` + `Content-Type`).
+
 ## Avisos por WhatsApp
 
 Cuando entra una solicitud de turno, el dueño recibe un WhatsApp con el servicio, la fecha, la franja, el cliente, su teléfono, un link `wa.me` para escribirle (si el teléfono es interpretable), el comentario (máx. 200 caracteres) y, si existe `PUBLIC_URL`, el link al panel. El aviso se manda **después** de guardar el turno y **sin esperar**: si el proveedor falla o tarda (timeout de 5 s), el cliente igual recibe su `201`. Los turnos descartados por honeypot no avisan. En el log solo queda `Aviso de WhatsApp enviado id=<id>` o `Aviso de WhatsApp falló id=<id> (status X)`; nunca el texto, la apikey, el token ni la URL.
@@ -649,7 +733,7 @@ Igual que en desarrollo: los usuarios se crean en el panel de Supabase y se acti
 ### Glosario
 
 - **Booking** = turno / solicitud de turno. El dominio y la API están en español como el contrato (`turno`, `servicioId`, `franja`, `estado`...); el código técnico (clases, rutas internas, nombres de archivos de infraestructura) está en inglés.
-- **Nombres en la base** (snake_case): las tablas técnicas en inglés como el código (`bookings`); las del panel en español (`roles`, `perfiles`); las columnas de negocio en español como el contrato (`nombre`, `telefono`, `vehiculo_tipo`, `fecha_preferida`, `franja`, `estado`) y las técnicas en inglés (`id`, `seq`, `created_at`, `updated_at`). `servicios` va en español porque es el catálogo del negocio y coincide con `domain/servicios.ts` y `servicioId`. Los repositorios traducen a camelCase (`servicio_id` -> `servicioId`).
+- **Nombres en la base** (snake_case): las tablas técnicas en inglés como el código (`bookings`); las del panel en español (`roles`, `perfiles`); las columnas de negocio en español como el contrato (`nombre`, `telefono`, `vehiculo_tipo`, `fecha_preferida`, `franja`, `estado`) y las técnicas en inglés (`id`, `seq`, `created_at`, `updated_at`). `servicios` va en español porque es el catálogo del negocio y coincide con `domain/servicios.ts` y `servicioId`. `duracion_estimada` y `precio_desde` salen por la API como `duracion` y `precioDesde`. Los repositorios traducen a camelCase (`servicio_id` -> `servicioId`).
 - **`mgdetailing`** = esquema propio de la app en Postgres (no expuesto por la Data API de Supabase).
 - **Honeypot** = campo trampa `website` que solo completan los bots.
 - **Repositorio** = capa de acceso a datos detrás de una interfaz (`src/domain/`); la implementación es Postgres (`src/repositories/postgres/`).
@@ -679,9 +763,9 @@ backend/
     config.ts           lee .env y valida la configuración con zod
     domain/             tipos del negocio, reglas (permisos por rol) e interfaces async de los repositorios
     repositories/       fábrica de repositorios
-      postgres/         implementación Postgres (turnos, perfiles; SQL con $1...)
-    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno)
-    routes/             rutas HTTP (health, bookings, auth, admin/bookings, admin/usuarios)
+      postgres/         implementación Postgres (turnos, perfiles, servicios; SQL con $1...)
+    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno, catálogo)
+    routes/             rutas HTTP (health, bookings, servicios, auth, admin/bookings, admin/usuarios, admin/servicios)
     notifications/      avisos de WhatsApp al dueño (CallMeBot, Cloud API) y formato del mensaje
     middleware/         seguridad, CSRF, rate limit, errores, logger, estáticos
     schemas/            validación de entrada con zod
@@ -709,6 +793,7 @@ Los tests usan un reloj fijo, **PGlite** (Postgres compilado a WebAssembly, en m
 - `auth.test.ts`: login, cookies, credenciales inválidas, usuario inactivo o sin perfil, Supabase caído o limitando, refresh, refresh reutilizado, logout (el token viejo deja de servir), tokens manipulados (otra clave, HS256, `none`, `iss`/`aud` ajenos, anónimo, sesión inexistente), vencido sin refresh, desactivación y cambio de rol con la sesión abierta.
 - `usuarios.test.ts`: matriz de roles sobre los turnos y gestión de usuarios (listar, activar, no degradarse, nunca sin superadmin, validación).
 - `postgres.test.ts`: RLS y privilegios de `anon`/`authenticated`/`service_role` y de `mgdetailing_app`, trigger de `auth.users`, CHECK y `updated_at`, verificación del esquema y `/api/health` con Postgres caído.
-- `repositories.contract.test.ts`: turnos y perfiles sobre Postgres como `mgdetailing_app`.
+- `repositories.contract.test.ts`: turnos, perfiles y servicios (backfill, alta al final, id repetido, destacado único, edición parcial, reordenamiento y CHECK de la base) sobre Postgres como `mgdetailing_app`.
+- `servicios.test.ts`: API del catálogo (público y panel con los campos exactos, permisos por rol con `empleado` 403, validaciones 400, id reservado, caracteres de control, `409 SERVICIO_EXISTE`, 404, destacado único, orden, CSRF en `PUT`) y turnos contra la base (servicio inactivo, nuevo o renombrado).
 
 No hace falta internet ni ninguna clave de Supabase para correr los tests: ninguno hace requests reales. Un test adicional falla si algún fuente contiene caracteres invisibles escritos literalmente (ataque "Trojan Source").

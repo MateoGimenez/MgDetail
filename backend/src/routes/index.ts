@@ -10,12 +10,15 @@ import { requireSession } from '../middleware/require-session.js';
 import { corsPolicy, noStore } from '../middleware/security.js';
 import type { AuthService } from '../services/auth.js';
 import type { BookingService } from '../services/bookings.js';
+import type { ServicioService } from '../services/servicios.js';
 import type { UsuarioService } from '../services/usuarios.js';
 import { adminBookingsRouter } from './admin-bookings.js';
+import { adminServiciosRouter } from './admin-servicios.js';
 import { adminUsuariosRouter } from './admin-usuarios.js';
 import { authRouter } from './auth.js';
 import { publicBookingsRouter } from './bookings.js';
 import { healthRouter } from './health.js';
+import { publicServiciosRouter } from './servicios.js';
 
 export interface ApiDeps {
   config: AppConfig;
@@ -27,13 +30,15 @@ export interface ApiDeps {
   bookingService: BookingService;
   auth: AuthService;
   usuarios: UsuarioService;
+  servicios: ServicioService;
   cookies: SessionCookies;
   limiters: RateLimiters;
 }
 
 /** Router de /api. El ORDEN de los middlewares importa: cada uno protege a los que vienen después. */
 export function createApiRouter(deps: ApiDeps): Router {
-  const { config, logger, now, checkDatabase, bookings, bookingService, auth, usuarios, cookies, limiters } = deps;
+  const { config, logger, now, checkDatabase, bookings, bookingService, auth, usuarios, servicios, cookies, limiters } =
+    deps;
   const api = Router();
 
   api.use(corsPolicy(config.frontendOrigins)); // también responde los preflight (OPTIONS)
@@ -46,12 +51,14 @@ export function createApiRouter(deps: ApiDeps): Router {
   const withSession = requireSession(auth, cookies);
 
   api.use('/health', healthRouter(checkDatabase));
+  api.use('/servicios', publicServiciosRouter({ servicios }));
   api.use('/bookings', publicBookingsRouter({ bookings: bookingService, logger, now, limiter: limiters.bookings }));
   api.use('/auth', authRouter({ auth, cookies, loginLimiter: limiters.loginFailures, requireSession: withSession }));
   // Todo lo que cuelga de /admin exige sesión, existan o no las rutas (así no se revela cuáles existen).
   api.use('/admin', withSession);
   api.use('/admin/bookings', adminBookingsRouter({ bookings, now }));
   api.use('/admin/usuarios', adminUsuariosRouter({ usuarios }));
+  api.use('/admin/servicios', adminServiciosRouter({ servicios }));
 
   api.use(notFoundHandler); // 404 JSON para rutas /api desconocidas
   return api;

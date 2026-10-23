@@ -1,7 +1,20 @@
 import { ApiError, request } from './client';
 import { requestAdmin } from './sesion';
 import { listaDeTurnosSchema, respuestaTurnoSchema, type Estado, type Turno } from './contract';
-import { listaDeUsuariosSchema, respuestaSesionSchema, respuestaUsuarioSchema, type CambiosUsuario, type NuevoUsuario, type UsuarioPanel, type UsuarioSesion } from './contract-panel';
+import {
+  listaDeServiciosSchema,
+  listaDeUsuariosSchema,
+  respuestaServicioSchema,
+  respuestaSesionSchema,
+  respuestaUsuarioSchema,
+  type CambiosServicio,
+  type CambiosUsuario,
+  type NuevoServicio,
+  type NuevoUsuario,
+  type ServicioPanel,
+  type UsuarioPanel,
+  type UsuarioSesion,
+} from './contract-panel';
 
 export type ResultadoSesion = { usuario: UsuarioSesion } | { usuario: null; aviso?: string };
 
@@ -115,4 +128,42 @@ export async function actualizarUsuario(id: string, cambios: CambiosUsuario): Pr
     schema: respuestaUsuarioSchema,
   });
   return usuario;
+}
+
+/* ---------- Catálogo de servicios ---------- */
+
+/** GET /api/admin/servicios (todos los roles) → activos e inactivos, en el orden del catálogo. */
+export async function listarServiciosPanel(signal?: AbortSignal): Promise<ServicioPanel[]> {
+  const { servicios } = await requestAdmin('/admin/servicios', { signal, schema: listaDeServiciosSchema });
+  return servicios;
+}
+
+/** POST /api/admin/servicios → servicio creado (al final del orden). 409 SERVICIO_EXISTE si el id ya está usado. */
+export async function crearServicio(datos: NuevoServicio): Promise<ServicioPanel> {
+  const { servicio } = await requestAdmin('/admin/servicios', {
+    method: 'POST',
+    body: datos,
+    schema: respuestaServicioSchema,
+  });
+  return servicio;
+}
+
+/** PATCH /api/admin/servicios/:id → servicio actualizado. 404 si ya no existe. */
+export async function actualizarServicio(id: string, cambios: CambiosServicio): Promise<ServicioPanel> {
+  const { servicio } = await requestAdmin(`/admin/servicios/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: cambios,
+    schema: respuestaServicioSchema,
+  });
+  return servicio;
+}
+
+/** PUT /api/admin/servicios/orden con TODOS los ids, sin repetir, en el orden nuevo → catálogo completo. */
+export async function ordenarServicios(ids: readonly string[]): Promise<ServicioPanel[]> {
+  const { servicios } = await requestAdmin('/admin/servicios/orden', {
+    method: 'PUT',
+    body: { ids },
+    schema: listaDeServiciosSchema,
+  });
+  return servicios;
 }

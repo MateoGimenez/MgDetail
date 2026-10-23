@@ -842,6 +842,12 @@
   accent-color: var(--acento);
 }
 
+/* Deshabilitada (p. ej. "Destacado" en un servicio inactivo): la ayuda de abajo explica por qué. */
+.casilla:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .usuario__datos dt {
   display: inline;
   color: var(--texto-3);
@@ -870,5 +876,381 @@
   .panel__nombre {
     min-width: 5ch;
     max-width: 30vw;
+  }
+}
+
+/* ---------- Servicios (catálogo) ---------- */
+
+/* Botón de solo ícono (flechas de orden, quitar renglón): el nombre va en aria-label. */
+.boton-icono {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--campo-borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+  color: var(--texto-2);
+  cursor: pointer;
+  transition:
+    border-color var(--t-rapida),
+    color var(--t-rapida),
+    background-color var(--t-rapida);
+}
+
+.boton-icono:hover:not(:disabled) {
+  border-color: var(--texto-3);
+  color: var(--texto);
+}
+
+.boton-icono:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.boton-icono:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.boton-icono--quitar:hover:not(:disabled) {
+  border-color: rgb(179 38 30 / 0.5);
+  color: #a3221b;
+}
+
+.servicios-panel__aviso {
+  color: var(--texto-2);
+}
+
+.servicios-panel__error-orden {
+  margin-top: var(--e-3);
+}
+
+/* La fila: a la izquierda, el puesto en la web; a la derecha, lo que se ve y las acciones. */
+.servicio {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--e-4);
+}
+
+.servicio--esqueleto {
+  min-height: 150px;
+}
+
+.servicio__puesto {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 40px;
+}
+
+.servicio__numero {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  min-height: 36px;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.6rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--texto);
+}
+
+.servicio__cuerpo {
+  display: grid;
+  gap: var(--e-3);
+  min-width: 0;
+}
+
+.servicio__slug {
+  padding: 1px 6px;
+  border-radius: var(--radio-1);
+  background: var(--fondo-hundido);
+  color: var(--texto-3);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.servicio__sellos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sello--destacado {
+  color: var(--acento-texto);
+  background: #fdeef0;
+}
+
+.sello--destacado::before {
+  display: none;
+}
+
+.servicio__resumen {
+  max-width: 68ch;
+  color: var(--texto-2);
+}
+
+.servicio__datos {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
+}
+
+.servicio__consulta {
+  color: var(--texto-3);
+  font-weight: 500 !important;
+}
+
+.servicio__nota {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+.servicio__activar {
+  margin-left: auto;
+}
+
+.servicio--destacado {
+  border-color: rgb(200 16 46 / 0.45);
+}
+
+.servicio--inactivo {
+  border-style: dashed;
+  background: var(--fondo-hundido);
+  box-shadow: none;
+}
+
+.servicio--inactivo .turno__nombre {
+  color: var(--texto-2);
+}
+
+.servicio__detalle summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--texto);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgb(200 16 46 / 0.6);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.servicio__detalle p,
+.servicio__detalle ul {
+  max-width: 68ch;
+  margin-top: var(--e-2);
+  color: var(--texto-2);
+}
+
+.servicio__detalle ul {
+  display: grid;
+  gap: 4px;
+  padding-left: 1.1em;
+  list-style: disc;
+}
+
+/* ---------- Diálogo de servicio ---------- */
+
+.dialogo-servicio {
+  width: min(100vw - 16px, 680px);
+  max-height: calc(100dvh - 16px);
+  padding-bottom: 0;
+}
+
+.servicio-form {
+  gap: var(--e-5);
+}
+
+.servicio-form__cabeza {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.servicio-form__grupo {
+  display: grid;
+  gap: var(--e-4);
+  min-width: 0;
+  margin: 0;
+  padding: var(--e-5) 0 0;
+  border: 0;
+  border-top: 1px solid var(--borde-suave);
+}
+
+.servicio-form__titulo {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--e-1);
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: var(--display-tracking);
+}
+
+.servicio-form__titulo + * {
+  clear: both;
+}
+
+.servicio-form__corto {
+  min-height: 72px;
+}
+
+.servicio-form__slug {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.9375rem;
+}
+
+.servicio-form__fijo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.servicio-form__ayuda-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--e-3);
+}
+
+.servicio-form__contador {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.servicio-form__contador--cerca {
+  color: #8a5200;
+  font-weight: 600;
+}
+
+.servicio-form__par {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.servicio-form__precio {
+  position: relative;
+}
+
+.servicio-form__precio > span {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--texto-3);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.servicio-form__precio .entrada {
+  padding-left: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+.servicio-form__casillas {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.servicio-form__casillas .campo__ayuda {
+  margin-left: 30px;
+}
+
+/* Guardar siempre a mano, aunque el formulario sea largo (sobre todo en el celular). */
+.servicio-form__acciones {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-inline: calc(-1 * var(--e-5));
+  padding: var(--e-3) var(--e-5) var(--e-4);
+  border-top: 1px solid var(--borde-suave);
+  background: var(--superficie);
+}
+
+.dialogo-servicio .servicio-form .confirmar__acciones {
+  margin-top: 0;
+}
+
+/* Listas editables: "Incluye" y "En palabras simples" */
+.lista-editable {
+  display: grid;
+  gap: var(--e-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lista-editable__items {
+  display: grid;
+  gap: var(--e-2);
+  margin-top: var(--e-1);
+}
+
+.lista-editable__item {
+  display: grid;
+  gap: 6px;
+}
+
+.lista-editable__item--termino {
+  padding: var(--e-3);
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--radio-2);
+  background: var(--fondo-hundido);
+}
+
+.lista-editable__fila {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+}
+
+.lista-editable__fila > .entrada {
+  min-height: 44px;
+}
+
+.lista-editable__campos {
+  display: grid;
+  flex: 1;
+  gap: var(--e-3);
+  min-width: 0;
+}
+
+.lista-editable__botones {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.lista-editable__agregar {
+  justify-self: start;
+}
+
+@media (max-width: 519px) {
+  /* En el celular las flechas pasan debajo del término para que el texto tenga todo el ancho. */
+  .lista-editable__item--termino .lista-editable__fila {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .lista-editable__item--termino .lista-editable__botones {
+    justify-content: flex-end;
+  }
+
+  .servicio {
+    gap: var(--e-3);
+  }
+
+  .servicio__activar {
+    margin-left: 0;
+  }
+}
+
+@media (min-width: 600px) {
+  .servicio-form__par {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

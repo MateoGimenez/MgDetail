@@ -66,7 +66,7 @@ describe('aviso de turno nuevo', () => {
 
 describe('mensaje', () => {
   it('arma el aviso con servicio, fecha argentina, link de WhatsApp, comentario recortado y panel', () => {
-    const message = formatBookingMessage(BOOKING, 'https://mgdetailing.com.ar');
+    const message = formatBookingMessage(BOOKING, 'Lavado Premium', 'https://mgdetailing.com.ar');
     expect(message.split('\n').slice(0, 5)).toEqual([
       '🚗 Nuevo turno MgDetailing',
       'Lavado Premium · mar 20/10 · Mañana',
@@ -77,7 +77,7 @@ describe('mensaje', () => {
     expect(message).toMatch(/\nComentario: x{199}…\n/);
     expect(message.endsWith('\nPanel: https://mgdetailing.com.ar/admin')).toBe(true);
 
-    const bare = formatBookingMessage({ ...BOOKING, telefonoWhatsapp: null, comentario: null });
+    const bare = formatBookingMessage({ ...BOOKING, telefonoWhatsapp: null, comentario: null }, 'Lavado Premium');
     expect(bare).not.toMatch(/wa\.me|Comentario|Panel/);
   });
 });
@@ -90,7 +90,7 @@ describe('proveedores', () => {
       undefined,
       fetchFake,
     );
-    await notifier?.notifyNewBooking({ ...BOOKING, comentario: 'a&b=c' });
+    await notifier?.notifyNewBooking({ ...BOOKING, comentario: 'a&b=c' }, 'Lavado Premium');
 
     const target = fetchFake.mock.calls[0]?.[0];
     expect(typeof target).toBe('string');
@@ -107,7 +107,7 @@ describe('proveedores', () => {
   it('un status de error del proveedor se convierte en NotifyError', async () => {
     const fetchFake = vi.fn<typeof fetch>().mockResolvedValue(new Response('no', { status: 503 }));
     const notifier = createNotifier({ provider: 'callmebot', ownerPhone: '549380', apikey: 'k' }, undefined, fetchFake);
-    await expect(notifier?.notifyNewBooking(BOOKING)).rejects.toMatchObject({ status: 503 });
+    await expect(notifier?.notifyNewBooking(BOOKING, 'Lavado Premium')).rejects.toMatchObject({ status: 503 });
   });
 });
 
@@ -115,7 +115,7 @@ describe('Telegram y Cloud API (fetch falso)', () => {
   it('Telegram hace POST JSON a sendMessage con chat_id y el texto', async () => {
     const fetchFake = vi.fn<typeof fetch>().mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
     const notifier = createNotifier({ provider: 'telegram', botToken: '1:TOKEN', chatId: '42' }, undefined, fetchFake);
-    await notifier?.notifyNewBooking(BOOKING);
+    await notifier?.notifyNewBooking(BOOKING, 'Lavado Premium');
 
     const [target, init] = fetchFake.mock.calls[0] ?? [];
     expect(target).toBe('https://api.telegram.org/bot1:TOKEN/sendMessage');
@@ -132,7 +132,7 @@ describe('Telegram y Cloud API (fetch falso)', () => {
       undefined,
       fetchFake,
     );
-    await notifier?.notifyNewBooking(BOOKING);
+    await notifier?.notifyNewBooking(BOOKING, 'Lavado Premium');
 
     const [target, init] = fetchFake.mock.calls[0] ?? [];
     expect(target).toBe('https://graph.facebook.com/v23.0/555/messages');

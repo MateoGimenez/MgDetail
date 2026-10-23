@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { FRANJAS, VEHICULO_TIPOS } from '../domain/booking.js';
 import { MAX_DAYS_AHEAD } from '../domain/booking-dates.js';
-import { SERVICIO_IDS } from '../domain/servicios.js';
+import { SERVICIO_ID_MAX, SERVICIO_ID_REGEX } from '../domain/servicios.js';
 import { isValidCalendarDate } from '../lib/dates.js';
 
 /*
@@ -40,6 +40,8 @@ const nullToUndefined = (value: unknown): unknown => (value === null ? undefined
 
 const TELEFONO_MSG = 'Revisá el teléfono: usá solo números, espacios, +, - y paréntesis (mínimo 8 dígitos).';
 const EMAIL_MSG = 'Revisá el email.';
+/** Mismo mensaje si el servicio no tiene formato de id, no existe o está inactivo (ver BookingService). */
+export const SERVICIO_MSG = 'Elegí un servicio de la lista.';
 
 /**
  * Esquema de POST /api/bookings. Se arma por request porque el rango de fechas depende de "hoy".
@@ -109,7 +111,11 @@ export function createBookingSchema(range: { min: string; max: string }) {
         .default(null),
     ),
 
-    servicioId: z.enum(SERVICIO_IDS, { error: 'Elegí un servicio de la lista.' }),
+    // Acá solo el formato; que exista y esté activo en el catálogo lo verifica BookingService contra la base.
+    servicioId: z
+      .string({ error: SERVICIO_MSG })
+      .max(SERVICIO_ID_MAX, { error: SERVICIO_MSG })
+      .regex(SERVICIO_ID_REGEX, { error: SERVICIO_MSG }),
 
     // YYYY-MM-DD, existente en el calendario, desde hoy hasta hoy + 60 días (zona America/Argentina/La_Rioja).
     fechaPreferida: z

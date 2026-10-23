@@ -4,7 +4,6 @@ import { type Rol } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { whatsappClienteUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
-import { nombreDeServicio } from '../data/servicios';
 import { fechaCorta, fechaLarga, momentoEnLaRioja } from '../lib/fechas';
 import { referenciaDeTurno } from '../lib/turnos';
 import { accionesDeEstado, muestraSelectorDeEstado, puedeBorrarTurnos } from './permisos';
@@ -13,6 +12,8 @@ interface Props {
   turno: Turno;
   /** Rol de quien mira: esconde lo que no puede hacer (la regla real la aplica el backend). */
   rol: Rol;
+  /** Nombre del servicio pedido, ya resuelto con el catálogo. */
+  nombreServicio: string;
   nueva: boolean;
   cambiada: boolean;
   /** Estado nuevo (legible) si el turno ya no corresponde a la pestaña abierta. */
@@ -23,9 +24,9 @@ interface Props {
   alEliminar: () => void;
 }
 
-export function TarjetaTurno({ turno, rol, nueva, cambiada, salioDelFiltro, ocupada, error, alCambiarEstado, alEliminar }: Props) {
+export function TarjetaTurno({ turno, rol, nombreServicio, nueva, cambiada, salioDelFiltro, ocupada, error, alCambiarEstado, alEliminar }: Props) {
   const id = useId();
-  const servicio = nombreDeServicio(turno.servicioId);
+  const servicio = nombreServicio;
   const primerNombre = turno.nombre.trim().split(/\s+/)[0] ?? turno.nombre;
   const mensaje = `¡Hola ${primerNombre}! Te escribimos de ${negocio.nombre} por tu pedido de turno: ${servicio}, el ${fechaLarga(turno.fechaPreferida)} ${FRANJA_EN_FRASE[turno.franja]}.`;
   const whatsapp = whatsappClienteUrl(turno.telefonoWhatsapp, mensaje);

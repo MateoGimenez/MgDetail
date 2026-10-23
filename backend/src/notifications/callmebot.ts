@@ -16,8 +16,8 @@ export function createCallMeBotNotifier(
   { fetch, publicUrl, timeoutMs }: NotifierOptions,
 ): BookingNotifier {
   return {
-    async notifyNewBooking(booking) {
-      const url = callMeBotUrl(settings.ownerPhone, formatBookingMessage(booking, publicUrl), settings.apikey);
+    async notifyNewBooking(booking, servicioNombre) {
+      const url = callMeBotUrl(settings.ownerPhone, formatBookingMessage(booking, servicioNombre, publicUrl), settings.apikey);
       const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
       if (!response.ok) throw new NotifyError(response.status);
     },

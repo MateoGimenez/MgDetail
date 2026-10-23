@@ -17,6 +17,7 @@ import type { Repositories } from './repositories/index.js';
 import { createApiRouter } from './routes/index.js';
 import { AuthService } from './services/auth.js';
 import { BookingService } from './services/bookings.js';
+import { ServicioService } from './services/servicios.js';
 import { UsuarioService } from './services/usuarios.js';
 
 export interface AppDeps {
@@ -47,9 +48,10 @@ export function createApp(deps: AppDeps): Express {
   const logger = deps.logger ?? createLogger();
   const now = deps.now ?? (() => new Date());
 
-  const { bookings, perfiles } = deps.repositories;
+  const { bookings, perfiles, servicios } = deps.repositories;
   const bookingService = new BookingService({
     bookings,
+    servicios,
     logger,
     notifier: deps.notifier ?? createNotifier(config.whatsapp, config.publicUrl, deps.fetch),
   });
@@ -73,6 +75,7 @@ export function createApp(deps: AppDeps): Express {
     logger,
     now,
   });
+  const servicioService = new ServicioService({ servicios, logger, now });
   const cookies = new SessionCookies(config);
   const limiters = createRateLimiters(config.rateLimits);
 
@@ -95,6 +98,7 @@ export function createApp(deps: AppDeps): Express {
       bookingService,
       auth,
       usuarios,
+      servicios: servicioService,
       cookies,
       limiters,
     }),

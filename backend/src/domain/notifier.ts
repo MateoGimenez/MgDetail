@@ -1,12 +1,13 @@
 import type { Booking } from './booking.js';
 
 /**
- * Puerto de avisos al dueño cuando entra un turno nuevo. Si no puede avisar, la promesa se rechaza
+ * Puerto de avisos al dueño cuando entra un turno nuevo. `servicioNombre` es el nombre del servicio en el catálogo
+ * (mgdetailing.servicios) al momento del alta. Si no puede avisar, la promesa se rechaza
  * (con `NotifyError` si el proveedor respondió un status); quien la llama decide qué hacer (el servicio de turnos
  * solo lo registra en el log: un aviso fallido nunca debe afectar al cliente).
  */
 export interface BookingNotifier {
-  notifyNewBooking(booking: Booking): Promise<void>;
+  notifyNewBooking(booking: Booking, servicioNombre: string): Promise<void>;
 }
 
 /** El proveedor de avisos respondió con un error HTTP. Nunca incluye URL, token ni texto del mensaje. */

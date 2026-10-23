@@ -3,7 +3,7 @@ import { ETIQUETA_FRANJA, ETIQUETA_VEHICULO, FRANJA_EN_FRASE, type TurnoNuevo } 
 import { Icono } from '../components/Icono';
 import { whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
-import { buscarServicio } from '../data/servicios';
+import { useCatalogo } from './catalogo-contexto';
 import { fechaLarga } from '../lib/fechas';
 import { referenciaDeTurno } from '../lib/turnos';
 
@@ -16,7 +16,7 @@ interface Props {
 
 /** Pedido enviado: resumen y aviso opcional por WhatsApp con el mensaje armado. */
 export function ExitoTurno({ refTitulo, id, datos, alPedirOtro }: Props) {
-  const nombreServicio = buscarServicio(datos.servicioId)?.nombre ?? datos.servicioId;
+  const nombreServicio = useCatalogo().buscar(datos.servicioId)?.nombre ?? datos.servicioId;
   const primerNombre = datos.nombre.split(/\s+/)[0] ?? datos.nombre;
   const referencia = id ? referenciaDeTurno(id) : null;
   const vehiculo = [ETIQUETA_VEHICULO[datos.vehiculoTipo].toLowerCase(), datos.vehiculoModelo].filter(Boolean).join(' ');

@@ -21,8 +21,8 @@ export function createCloudNotifier(
   { fetch, publicUrl, timeoutMs }: NotifierOptions,
 ): BookingNotifier {
   return {
-    async notifyNewBooking(booking) {
-      const summary = formatBookingMessage(booking, publicUrl).replace(/\n/g, ' | ');
+    async notifyNewBooking(booking, servicioNombre) {
+      const summary = formatBookingMessage(booking, servicioNombre, publicUrl).replace(/\n/g, ' | ');
       const response = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${settings.phoneNumberId}/messages`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${settings.token}`, 'Content-Type': 'application/json' },

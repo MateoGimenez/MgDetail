@@ -475,6 +475,32 @@ legend.arranque__etiqueta + * {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
+/* Precio esperando al catálogo: ocupa su lugar para que no salte nada cuando llega */
+.plancha__precio-cargando {
+  display: inline-block;
+  width: 7.5ch;
+  height: 0.8em;
+  border-radius: var(--radio-1);
+  vertical-align: -0.05em;
+  background: linear-gradient(100deg, var(--grafito-750) 30%, var(--grafito-600) 50%, var(--grafito-750) 70%);
+  background-size: 300% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .plancha__precio-cargando {
+    animation: precio-brillo 1.4s linear infinite;
+  }
+}
+
+@keyframes precio-brillo {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
 .plancha__detalle {
   display: grid;
   gap: 14px;
@@ -1428,9 +1454,30 @@ legend.arranque__etiqueta + * {
   color: var(--rojo-300);
 }
 
+.aviso--info {
+  border: 1px solid var(--borde);
+  background: var(--superficie);
+  color: var(--texto-2);
+}
+
 .aviso__cuerpo {
   display: grid;
   gap: 6px;
+}
+
+/* Catálogo vacío: sin turnos online (SinTurnosOnline). */
+.sin-turnos {
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+.sin-turnos .aviso__cuerpo {
+  gap: var(--e-3);
+}
+
+.sin-turnos__titulo {
+  color: var(--texto);
+  font-weight: 700;
 }
 
 .aviso__acciones {

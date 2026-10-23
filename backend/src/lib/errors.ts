@@ -18,6 +18,7 @@ export type ErrorCode =
   | 'INVALID_CREDENTIALS'
   | 'NOT_FOUND'
   | 'CONFLICT'
+  | 'SERVICIO_EXISTE'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR'
   | 'SERVICE_UNAVAILABLE';
@@ -71,6 +72,12 @@ export class AppError extends Error {
   /** La operación choca con una regla de negocio (ej.: quedarse sin ningún superadmin). */
   static conflict(message: string, fields?: Record<string, string>): AppError {
     return new AppError(409, 'CONFLICT', message, fields);
+  }
+
+  /** POST /api/admin/servicios con un id (slug) que ya existe, activo o no. */
+  static servicioExiste(): AppError {
+    const message = 'Ya existe un servicio con ese identificador. Elegí otro.';
+    return new AppError(409, 'SERVICIO_EXISTE', message, { id: message });
   }
 
   static invalidCredentials(): AppError {

@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react';
-import { ETIQUETA_VEHICULO, VEHICULO_TIPOS, esServicioId, type ServicioId, type VehiculoTipo } from '../api/contract';
+import { ETIQUETA_VEHICULO, VEHICULO_TIPOS, type ServicioId, type VehiculoTipo } from '../api/contract';
 import { MarcoFilete, SubrayadoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
-import { servicios } from '../data/servicios';
+import { useCatalogo } from './catalogo-contexto';
 import { useReserva } from './reserva-contexto';
 
 /**
@@ -13,14 +13,17 @@ import { useReserva } from './reserva-contexto';
  */
 export function Hero() {
   const { reservar } = useReserva();
+  const { servicios, buscar } = useCatalogo();
   const [vehiculo, setVehiculo] = useState<VehiculoTipo | ''>('');
-  const [servicio, setServicio] = useState<ServicioId | ''>('');
+  const [servicio, setServicio] = useState<ServicioId>('');
+  // Si el catálogo cambia al llegar de la API y el elegido ya no está, el desplegable vuelve a "Elegí un servicio".
+  const elegido = buscar(servicio) ? servicio : '';
   const whatsapp = whatsappUrl(`¡Hola ${negocio.nombre}! Quiero consultar por un turno.`);
 
   const alEnviar = (evento: FormEvent<HTMLFormElement>) => {
     evento.preventDefault();
     reservar({
-      servicioId: servicio === '' ? undefined : servicio,
+      servicioId: elegido === '' ? undefined : elegido,
       vehiculoTipo: vehiculo === '' ? undefined : vehiculo,
     });
   };
@@ -69,10 +72,10 @@ export function Hero() {
                 <select
                   id="arranque-servicio"
                   className="entrada"
-                  value={servicio}
+                  value={elegido}
                   onChange={(evento) => {
                     const valor = evento.target.value;
-                    setServicio(esServicioId(valor) ? valor : '');
+                    setServicio(buscar(valor) ? valor : '');
                   }}
                 >
                   <option value="">Elegí un servicio</option>

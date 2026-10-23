@@ -29,17 +29,24 @@ export interface Database {
 export async function openConfiguredDatabase(config: DatabaseConfig, logger: Logger): Promise<Database> {
   const pool = createPgPool(config, logger);
   const client = pgPoolClient(pool);
+  const repositories = createPostgresRepositories(client);
   try {
     await verifyPostgresSchema(client);
     const roleWarning = await privilegedRoleWarning(client);
     if (roleWarning !== undefined) logger.warn(roleWarning);
+    // El catálogo lo edita el dueño desde el panel: sin servicios activos la web no puede recibir turnos (no es
+    // motivo para no arrancar, pero conviene verlo en el log).
+    const activos = await repositories.servicios.list({ soloActivos: true });
+    if (activos.length === 0) {
+      logger.warn('No hay ningún servicio activo en el catálogo: la web no puede recibir turnos. Activá uno desde el panel.');
+    }
   } catch (error) {
     await pool.end().catch(() => undefined);
     throw error;
   }
   return {
     description: `Postgres ${config.label}, esquema mgdetailing, TLS ${config.sslCaFile === undefined ? 'SIN verificar el certificado' : 'verificado'}`,
-    repositories: createPostgresRepositories(client),
+    repositories,
     checkDatabase: createPostgresCheck(client),
     close: () => pool.end(),
   };

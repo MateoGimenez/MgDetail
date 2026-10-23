@@ -3,7 +3,7 @@ import { ETIQUETA_FRANJA, ETIQUETA_VEHICULO, esFranja, esVehiculoTipo } from '..
 import { Icono } from '../components/Icono';
 import { whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
-import { buscarServicio } from '../data/servicios';
+import { useCatalogo } from './catalogo-contexto';
 import { fechaLarga } from '../lib/fechas';
 import type { Envio, Errores, Valores } from './useFormularioTurno';
 
@@ -18,7 +18,7 @@ const vacio = <span className="resumen__vacio">Sin elegir</span>;
 
 /** Columna lateral: el pedido armándose en vivo, avisos, envío y aviso de privacidad. */
 export function ResumenPedido({ valores, errores, validarEnVivo, envio }: Props) {
-  const servicio = buscarServicio(valores.servicioId);
+  const servicio = useCatalogo().buscar(valores.servicioId);
   const whatsappAyuda = whatsappUrl(`¡Hola ${negocio.nombre}! Quiero pedir un turno.`);
   const cantidadErrores = Object.keys(errores).length;
 
@@ -46,7 +46,7 @@ export function ResumenPedido({ valores, errores, validarEnVivo, envio }: Props)
             </div>
           ))}
         </dl>
-        {servicio && (
+        {servicio?.duracion && (
           <p className="resumen__nota">
             <Icono nombre="reloj" tamano={18} />
             Duración estimada: {servicio.duracion}

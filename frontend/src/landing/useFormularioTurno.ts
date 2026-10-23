@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ApiError } from '../api/client';
-import { crearEsquemaTurno, esServicioId, type CampoTurno, type TurnoNuevo } from '../api/contract';
+import { crearEsquemaTurno, esSlugDeServicio, type CampoTurno, type TurnoNuevo } from '../api/contract';
 import { crearTurno } from '../api/turnos';
 import { rangoDeTurno } from '../lib/fechas';
+import { useCatalogo } from './catalogo-contexto';
 import { useReserva } from './reserva-contexto';
 
 export type Valores = Record<CampoTurno, string>;
@@ -48,8 +49,12 @@ const MENSAJE_DEMASIADOS_PEDIDOS =
 
 const esCampo = (clave: string): clave is CampoTurno => Object.hasOwn(VACIOS, clave);
 
-function validar(valores: Valores, ahora: Date): { ok: true; datos: TurnoNuevo } | { ok: false; errores: Errores } {
-  const resultado = crearEsquemaTurno(ahora).safeParse(valores);
+function validar(
+  valores: Valores,
+  ahora: Date,
+  idsDeServicio: readonly string[],
+): { ok: true; datos: TurnoNuevo } | { ok: false; errores: Errores } {
+  const resultado = crearEsquemaTurno(ahora, idsDeServicio).safeParse(valores);
   if (resultado.success) return { ok: true, datos: resultado.data };
   const errores: Errores = {};
   for (const issue of resultado.error.issues) {
@@ -64,10 +69,14 @@ const primerError = (errores: Errores) => ORDEN.find((campo) => errores[campo] !
 /** Estado, validación (mismas reglas que el backend) y envío del formulario de turno. */
 export function useFormularioTurno() {
   const { registrar } = useReserva();
+  const { servicios } = useCatalogo();
+  const idsDeServicio = servicios.map((servicio) => servicio.id);
   const [parametros] = useSearchParams();
   const [valores, setValores] = useState<Valores>(() => {
     const servicio = parametros.get('servicio') ?? '';
-    return { ...VACIOS, servicioId: esServicioId(servicio) ? servicio : '' };
+    // El catálogo puede no haber llegado todavía: se acepta cualquier id con forma válida y, si no está en el
+    // catálogo que se termina mostrando, simplemente no queda elegido (y la validación lo pide).
+    return { ...VACIOS, servicioId: esSlugDeServicio(servicio) ? servicio : '' };
   });
   const [errores, setErrores] = useState<Errores>({});
   const [validarEnVivo, setValidarEnVivo] = useState(false);
@@ -130,7 +139,7 @@ export function useFormularioTurno() {
   }, [envio.fase]);
 
   const revalidarCampo = (campo: CampoTurno, siguientes: Valores) => {
-    const resultado = validar(siguientes, new Date());
+    const resultado = validar(siguientes, new Date(), idsDeServicio);
     const mensaje = resultado.ok ? undefined : resultado.errores[campo];
     setErrores((previos) => {
       if (previos[campo] === mensaje) return previos;
@@ -153,7 +162,7 @@ export function useFormularioTurno() {
 
   const enviar = async () => {
     if (envio.fase === 'enviando') return;
-    const resultado = validar(valores, new Date());
+    const resultado = validar(valores, new Date(), idsDeServicio);
     setValidarEnVivo(true);
     if (!resultado.ok) {
       setErrores(resultado.errores);

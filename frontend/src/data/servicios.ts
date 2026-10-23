@@ -1,21 +1,21 @@
-import type { ServicioId } from '../api/contract';
 import type { Servicio } from '../types';
 
 /**
- * CATÁLOGO DE SERVICIOS — textos y precios de cada servicio.
+ * CATÁLOGO DE RESPALDO — los servicios ahora se editan desde el panel (/admin → Servicios) y la landing los lee de
+ * GET /api/servicios. Esta lista se usa solo:
+ *  - mientras la web carga el catálogo, y
+ *  - si la API no responde: la web nunca queda sin servicios, pero sin precios (muestra "Consultá").
  *
- * PROVISIONAL: las descripciones, lo que incluye cada servicio y las
- * duraciones son una propuesta inicial que el dueño todavía no confirmó.
- * Todo este contenido es provisional hasta que el taller lo revise
- * (buscá "COMPLETAR: confirmar con el taller").
+ * Por eso no lleva `precioDesde`: los precios se cargan en el panel. Conviene que los textos de acá sigan
+ * parecidos a los de la base (la migración del catálogo copió estos mismos), para que no "salte" el contenido
+ * cuando llega la respuesta.
  *
- * Precios: cargá `precioDesde` en pesos, como número y sin puntos ni "$"
- * (ej.: `precioDesde: 25000`). Mientras sea `null`, la web muestra "Consultá".
- *
- * Los `id` son el contrato con el backend (src/api/contract.ts): no los cambies.
- * Si falta o sobra un servicio respecto del contrato, el proyecto no compila.
+ * PROVISIONAL: descripciones, lo que incluye cada servicio y las duraciones son una propuesta inicial que el
+ * dueño todavía no confirmó (buscá "COMPLETAR: confirmar con el taller").
  */
-export const servicios = [
+type ServicioDeRespaldo = Omit<Servicio, 'precioDesde' | 'duracion'> & { readonly duracion: string };
+
+const respaldo = [
   {
     id: 'lavado-basico',
     nombre: 'Lavado Básico',
@@ -34,7 +34,6 @@ export const servicios = [
     ],
     // COMPLETAR: confirmar con el taller
     duracion: '1 a 1,5 h',
-    precioDesde: null,
     destacado: false,
     glosario: [
       {
@@ -65,7 +64,6 @@ export const servicios = [
     ],
     // COMPLETAR: confirmar con el taller
     duracion: '3 a 4 h',
-    precioDesde: null,
     destacado: true,
     glosario: [
       {
@@ -98,7 +96,6 @@ export const servicios = [
     ],
     // COMPLETAR: confirmar con el taller
     duracion: 'Alrededor de 1 día',
-    precioDesde: null,
     destacado: false,
     glosario: [
       {
@@ -136,7 +133,6 @@ export const servicios = [
     ],
     // COMPLETAR: confirmar con el taller
     duracion: '2 a 3 h',
-    precioDesde: null,
     destacado: false,
     glosario: [
       {
@@ -164,7 +160,6 @@ export const servicios = [
     incluye: ['Lijado al agua', 'Pulido de las ópticas', 'Sellado UV'],
     // COMPLETAR: confirmar con el taller
     duracion: '1,5 a 2 h',
-    precioDesde: null,
     destacado: false,
     glosario: [
       {
@@ -177,12 +172,13 @@ export const servicios = [
       },
     ],
   },
-] as const satisfies readonly Servicio[];
+] as const satisfies readonly ServicioDeRespaldo[];
 
-/* Control en compilación: el catálogo tiene exactamente los servicios del contrato. */
-type IdsDelCatalogo = (typeof servicios)[number]['id'];
-type Iguales<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-export const catalogoCompleto: Iguales<IdsDelCatalogo, ServicioId> = true;
+/** Ids del respaldo: con ellos, las preguntas frecuentes pueden nombrar servicios con control en compilación. */
+export type IdDeRespaldo = (typeof respaldo)[number]['id'];
+
+/** El respaldo con la forma del catálogo público: siempre sin precio. */
+export const serviciosDeRespaldo: readonly Servicio[] = respaldo.map((servicio) => ({ ...servicio, precioDesde: null }));
 
 const PRECIO = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -195,18 +191,19 @@ export function textoPrecio(precioDesde: number | null): string {
   return precioDesde === null ? 'Consultá' : `Desde ${PRECIO.format(precioDesde)}`;
 }
 
-export function buscarServicio(id: string): Servicio | undefined {
-  return servicios.find((servicio) => servicio.id === id);
+/** Servicio de una lista por id (undefined si no está). */
+export function buscarServicio(id: string, catalogo: readonly Servicio[] = serviciosDeRespaldo): Servicio | undefined {
+  return catalogo.find((servicio) => servicio.id === id);
 }
 
-/** Servicio del catálogo por id del contrato (el control de arriba garantiza que existe). */
-export function servicioPorId(id: ServicioId): Servicio {
+/** Servicio del respaldo por id (el tipo garantiza que existe). */
+export function servicioDeRespaldo(id: IdDeRespaldo): Servicio {
   const servicio = buscarServicio(id);
-  if (!servicio) throw new Error(`Falta el servicio "${id}" en el catálogo.`);
+  if (!servicio) throw new Error(`Falta el servicio "${id}" en el respaldo.`);
   return servicio;
 }
 
-/** Nombre legible de un servicio, o el id tal cual si ya no está en el catálogo. */
-export function nombreDeServicio(id: string): string {
-  return buscarServicio(id)?.nombre ?? id;
+/** Nombre legible de un servicio: el del catálogo, el del respaldo o, si no está en ninguno, el id tal cual. */
+export function nombreDeServicio(id: string, catalogo: readonly Servicio[] = []): string {
+  return buscarServicio(id, catalogo)?.nombre ?? buscarServicio(id)?.nombre ?? id;
 }

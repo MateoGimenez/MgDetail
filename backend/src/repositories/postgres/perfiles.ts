@@ -1,5 +1,5 @@
 import type { SqlClient } from '../../db/postgres.js';
-import { type Row, isoTimestamp, oneOf, str, strOrNull } from '../../db/rows.js';
+import { type Row, bool, isoTimestamp, oneOf, str, strOrNull } from '../../db/rows.js';
 import {
   type CambiosPerfil,
   type Perfil,
@@ -12,14 +12,6 @@ import { isUuid } from './uuid.js';
 
 /** SQLSTATE propio del trigger mgdetailing_private.impedir_sin_superadmin (migración superadmin_trigger_definer). */
 const SIN_SUPERADMIN_SQLSTATE = 'MG001';
-
-function bool(row: Row, key: string): boolean {
-  const value = row[key];
-  if (typeof value !== 'boolean') {
-    throw new TypeError(`La columna "${key}" debería ser booleana`);
-  }
-  return value;
-}
 
 function toPerfil(row: Row): Perfil {
   return {

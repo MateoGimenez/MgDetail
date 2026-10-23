@@ -8,10 +8,12 @@ import {
   whatsappUrl,
 } from '../config/enlaces';
 import { negocio } from '../config/sitio';
+import { useCatalogo } from './catalogo-contexto';
 import { useReserva } from './reserva-contexto';
 
 export function Contacto() {
   const { reservar } = useReserva();
+  const { estado } = useCatalogo();
   const direccion = direccionDelTaller();
   const horarios = horariosDelTaller();
   const mapa = mapsUrl();
@@ -75,6 +77,9 @@ export function Contacto() {
                   </a>
                 )}
               </div>
+            ) : estado === 'vacio' ? (
+              // Sin servicios activos no hay formulario al que llevar (ver SinTurnosOnline).
+              <p className="contacto__texto">Por ahora no estamos tomando turnos online.</p>
             ) : (
               <>
                 <p className="contacto__texto">

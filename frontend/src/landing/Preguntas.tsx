@@ -2,10 +2,12 @@ import { Icono } from '../components/Icono';
 import { whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 import { preguntasFrecuentes } from '../data/preguntas';
+import { useCatalogo } from './catalogo-contexto';
 
 export function Preguntas() {
   const whatsapp = whatsappUrl(`¡Hola ${negocio.nombre}! Tengo una consulta.`);
-  const preguntas = preguntasFrecuentes({ conWhatsapp: whatsapp !== null });
+  const { servicios } = useCatalogo();
+  const preguntas = preguntasFrecuentes({ conWhatsapp: whatsapp !== null, catalogo: servicios });
 
   return (
     <section id="preguntas" className="seccion preguntas" aria-labelledby="preguntas-titulo">

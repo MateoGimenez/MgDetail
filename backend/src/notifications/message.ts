@@ -1,5 +1,4 @@
 import type { Booking, Franja } from '../domain/booking.js';
-import { SERVICIO_IDS, type ServicioId, nombreDeServicio } from '../domain/servicios.js';
 
 const MAX_COMMENT = 200;
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'] as const;
@@ -14,22 +13,21 @@ function fechaArgentina(isoDate: string): string {
   return `${weekday} ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
 }
 
-function nombreServicio(id: string): string {
-  return (SERVICIO_IDS as readonly string[]).includes(id) ? nombreDeServicio(id as ServicioId) : id;
-}
-
 /** Una sola línea y, como mucho, ~200 caracteres. */
 function recortar(text: string): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > MAX_COMMENT ? `${flat.slice(0, MAX_COMMENT - 1).trimEnd()}…` : flat;
 }
 
-/** Texto del aviso al dueño (corto, en español). `publicUrl` sin barra final; si no hay, no se incluye el panel. */
-export function formatBookingMessage(booking: Booking, publicUrl?: string): string {
+/**
+ * Texto del aviso al dueño (corto, en español). `servicioNombre`: el nombre del catálogo (lo lee BookingService de la
+ * base). `publicUrl` sin barra final; si no hay, no se incluye el panel.
+ */
+export function formatBookingMessage(booking: Booking, servicioNombre: string, publicUrl?: string): string {
   const vehiculo = [VEHICULOS[booking.vehiculoTipo], booking.vehiculoModelo].filter(Boolean).join(' ');
   const lines = [
     '🚗 Nuevo turno MgDetailing',
-    `${nombreServicio(booking.servicioId)} · ${fechaArgentina(booking.fechaPreferida)} · ${FRANJAS[booking.franja]}`,
+    `${recortar(servicioNombre)} · ${fechaArgentina(booking.fechaPreferida)} · ${FRANJAS[booking.franja]}`,
     `${recortar(booking.nombre)} · ${vehiculo}`,
     `Tel: ${recortar(booking.telefono)}`,
   ];

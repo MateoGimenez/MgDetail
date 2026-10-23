@@ -11,13 +11,13 @@ export function createTelegramNotifier(
   { fetch, publicUrl, timeoutMs }: NotifierOptions,
 ): BookingNotifier {
   return {
-    async notifyNewBooking(booking) {
+    async notifyNewBooking(booking, servicioNombre) {
       const response = await fetch(`https://api.telegram.org/bot${settings.botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: settings.chatId,
-          text: formatBookingMessage(booking, publicUrl),
+          text: formatBookingMessage(booking, servicioNombre, publicUrl),
           link_preview_options: { is_disabled: true },
         }),
         signal: AbortSignal.timeout(timeoutMs),

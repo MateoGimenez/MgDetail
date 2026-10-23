@@ -3,23 +3,22 @@ import { esFechaValida, rangoDeTurno } from '../lib/fechas';
 
 /**
  * CONTRATO CON EL BACKEND. Única definición de los valores que viajan por la
- * API, tomados de backend/src/domain/booking.ts y backend/src/data/servicios.ts.
+ * API, tomados de backend/src/domain/booking.ts y del contrato del catálogo
+ * (reportes/2026-10-22_07_catalogo-editable.md).
  * Tipos, etiquetas y esquemas se derivan de acá: no repetir estos valores.
  */
 
-export const SERVICIO_IDS = [
-  'lavado-basico',
-  'lavado-premium',
-  'pulido',
-  'encerado',
-  'restauracion-opticas',
-] as const;
 export const VEHICULO_TIPOS = ['auto', 'camioneta', 'moto'] as const;
 /** Sin ñ: en la interfaz se lee "Mañana". */
 export const FRANJAS = ['manana', 'tarde'] as const;
 export const ESTADOS = ['pendiente', 'confirmado', 'completado', 'cancelado'] as const;
 
-export type ServicioId = (typeof SERVICIO_IDS)[number];
+/**
+ * Id (slug) de un servicio. Ya no es una lista fija: el catálogo vive en la base y se edita desde el panel.
+ * Que tenga la forma de SLUG_SERVICIO lo controla el front; que exista y esté activo lo decide el catálogo
+ * cargado y, en última instancia, el backend.
+ */
+export type ServicioId = string;
 export type VehiculoTipo = (typeof VEHICULO_TIPOS)[number];
 export type Franja = (typeof FRANJAS)[number];
 export type Estado = (typeof ESTADOS)[number];
@@ -53,10 +52,38 @@ const incluido =
   (valor: string): valor is T =>
     (lista as readonly string[]).includes(valor);
 
-export const esServicioId = incluido(SERVICIO_IDS);
 export const esVehiculoTipo = incluido(VEHICULO_TIPOS);
 export const esFranja = incluido(FRANJAS);
 export const esEstado = incluido(ESTADOS);
+
+/* ---------- Catálogo de servicios ---------- */
+
+/** Formato del id de un servicio: minúsculas, números y guiones simples, hasta 64 caracteres. */
+export const SLUG_SERVICIO = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const SLUG_SERVICIO_MAXIMO = 64;
+
+export const esSlugDeServicio = (valor: string): boolean =>
+  valor.length <= SLUG_SERVICIO_MAXIMO && SLUG_SERVICIO.test(valor);
+
+/** Campos públicos de un servicio (GET /api/servicios). El panel suma activo, orden y updatedAt. */
+export const camposServicioPublico = {
+  id: z.string(),
+  nombre: z.string(),
+  resumen: z.string(),
+  descripcion: z.string(),
+  incluye: z.array(z.string()),
+  glosario: z.array(z.object({ termino: z.string(), significado: z.string() })),
+  duracion: z.nullable(z.string()),
+  /** Entero en pesos; null = "Consultá". */
+  precioDesde: z.nullable(z.int()),
+  destacado: z.boolean(),
+};
+
+/** La landing lee con tolerancia (z.object descarta campos de más); si la forma no cierra, usa el respaldo. */
+export const servicioPublicoSchema = z.object(camposServicioPublico);
+export type ServicioPublico = z.output<typeof servicioPublicoSchema>;
+
+export const catalogoPublicoSchema = z.object({ servicios: z.array(servicioPublicoSchema) });
 
 /** Límites de POST /api/bookings (backend/src/schemas/bookings.ts). */
 export const LIMITES = {
@@ -76,9 +103,10 @@ const esEmail = z.email();
 
 /**
  * Esquema de la solicitud de turno, con las mismas reglas que el backend.
- * Se arma con `now` porque el rango de fechas depende de "hoy".
+ * Se arma con `now` porque el rango de fechas depende de "hoy", y con los ids del catálogo que
+ * se está mostrando (sin lista, solo se controla la forma del id).
  */
-export function crearEsquemaTurno(now: Date) {
+export function crearEsquemaTurno(now: Date, idsDeServicio?: readonly string[]) {
   const { min, max } = rangoDeTurno(now);
 
   return z.strictObject({
@@ -121,7 +149,14 @@ export function crearEsquemaTurno(now: Date) {
         z.maxLength(LIMITES.vehiculoModelo.max, 'El modelo puede tener hasta 80 caracteres.'),
         z.refine((v) => !PROHIBIDO_UNA_LINEA.test(v), 'El modelo tiene caracteres que no se permiten.'),
       ),
-    servicioId: z.enum(SERVICIO_IDS, { error: 'Elegí un servicio.' }),
+    servicioId: z
+      .string({ error: 'Elegí un servicio.' })
+      .check(
+        z.refine(
+          (v) => esSlugDeServicio(v) && (idsDeServicio === undefined || idsDeServicio.includes(v)),
+          'Elegí un servicio.',
+        ),
+      ),
     fechaPreferida: z.string().check(
       z.trim(),
       z.superRefine((valor, ctx) => {

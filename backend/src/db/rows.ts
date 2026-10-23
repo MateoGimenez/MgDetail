@@ -29,6 +29,19 @@ export function int(row: Row, key: string): number {
   return value;
 }
 
+/** Entero o null (una columna integer nullable). */
+export function intOrNull(row: Row, key: string): number | null {
+  return row[key] === null ? null : int(row, key);
+}
+
+export function bool(row: Row, key: string): boolean {
+  const value = row[key];
+  if (typeof value !== 'boolean') {
+    throw new TypeError(`La columna "${key}" debería ser booleana`);
+  }
+  return value;
+}
+
 export function oneOf<T extends string>(allowed: readonly T[], row: Row, key: string): T {
   const value = str(row, key);
   const match = allowed.find((candidate) => candidate === value);

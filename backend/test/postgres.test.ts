@@ -66,7 +66,10 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
       'DELETE FROM mgdetailing.perfiles', // se borran en cascada con auth.users
       "UPDATE mgdetailing.perfiles SET email = 'x@y.z'", // el email lo copia el trigger
       "UPDATE mgdetailing.roles SET nombre = 'x'",
-      "INSERT INTO mgdetailing.servicios (id, nombre) VALUES ('nuevo', 'Nuevo')",
+      "UPDATE mgdetailing.servicios SET id = 'otro' WHERE id = 'pulido'", // el id (slug) es inmutable
+      'UPDATE mgdetailing.servicios SET created_at = now()',
+      "INSERT INTO mgdetailing.servicios (id, nombre, resumen, descripcion, created_at) VALUES ('n', 'N', 'r', 'd', now())",
+      "DELETE FROM mgdetailing.servicios WHERE id = 'pulido'", // un servicio se desactiva, no se borra
       'SELECT * FROM auth.users',
       'SELECT * FROM auth.sessions',
       'SELECT mgdetailing_private.sincronizar_perfil()',
@@ -154,8 +157,9 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     expect(await privilegedRoleWarning(appSql)).toBeUndefined();
     expect(await privilegedRoleWarning(sql)).toMatch(/privilegios de administrador.*mgdetailing_app/);
 
-    await pg.exec("DELETE FROM mgdetailing.servicios WHERE id = 'encerado'");
-    await expect(verifyPostgresSchema(sql)).rejects.toThrow(/Faltan servicios en mgdetailing\.servicios \(encerado\)/);
+    // Si la migración catalogo_editable no está aplicada (o al rol le falta el GRANT), lo explica.
+    await pg.exec('ALTER TABLE mgdetailing.servicios DROP COLUMN glosario');
+    await expect(verifyPostgresSchema(sql)).rejects.toThrow(/Faltan columnas en mgdetailing\.servicios \(glosario\)/);
   });
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type RefObject, type SyntheticEvent } from 'react';
+import { useId, useState, type FormEvent, type RefObject } from 'react';
 import {
   ETIQUETA_ROL,
   LIMITE_EMAIL_USUARIO,
@@ -13,6 +13,8 @@ import {
 } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { CampoPassword } from './CampoPassword';
+import { bloquearEscape, useMontado } from './dialogo';
+import { ErrorCampo, ErrorGeneral } from './ErroresFormulario';
 import type { Problema } from './useUsuarios';
 import { errorEmail, errorNombre, errorPassword, normalizarEmail, soloErrores, type ErroresCampos } from './validacionUsuario';
 
@@ -20,50 +22,10 @@ const AYUDA_PASSWORD = `De ${String(PASSWORD_MINIMO)} a ${String(PASSWORD_MAXIMO
 
 const nombreDe = (usuario: UsuarioPanel | null) => usuario?.nombre ?? usuario?.email ?? 'este usuario';
 
-/**
- * Mientras hay una petición en curso el diálogo no se cierra con Escape (y Cancelar está deshabilitado): si se
- * cerrara, la respuesta tardía cerraría o ensuciaría el diálogo siguiente, que puede ser de otro usuario.
- */
-const bloquearEscape = (ocupado: boolean) => (evento: SyntheticEvent<HTMLDialogElement>) => {
-  if (ocupado) evento.preventDefault();
-};
-
-/** false después de desmontarse: una respuesta que llega tarde no toca un formulario que ya no está. */
-function useMontado() {
-  const montado = useRef(true);
-  useEffect(() => {
-    montado.current = true;
-    return () => {
-      montado.current = false;
-    };
-  }, []);
-  return montado;
-}
-
 /** Errores del servidor por campo (400 VALIDATION_ERROR), solo los que el formulario muestra. */
 function erroresDelServidor(problema: Problema): ErroresCampos {
   const { email, password, nombre } = problema.campos ?? {};
   return soloErrores({ email, password, nombre });
-}
-
-function ErrorCampo({ id, mensaje }: { id: string; mensaje: string | undefined }) {
-  if (!mensaje) return null;
-  return (
-    <p id={id} className="campo__error">
-      <Icono nombre="alerta" tamano={18} />
-      {mensaje}
-    </p>
-  );
-}
-
-function ErrorGeneral({ mensaje }: { mensaje: string | null }) {
-  if (!mensaje) return null;
-  return (
-    <p className="turno__error" role="alert">
-      <Icono nombre="alerta" tamano={18} />
-      {mensaje}
-    </p>
-  );
 }
 
 /* ---------- Alta ---------- */

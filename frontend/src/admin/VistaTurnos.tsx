@@ -25,11 +25,13 @@ const VACIO_POR_FILTRO: Readonly<Record<Filtro, string>> = {
 
 interface Props {
   rol: Rol;
+  /** Nombre legible de un servicio (catálogo del panel, respaldo o el id tal cual). */
+  nombreServicio: (id: string) => string;
   alVencerSesion: (mensaje: string) => void;
 }
 
 /** Solicitudes de turno: pestañas por estado, tarjetas y paginación. */
-export function VistaTurnos({ rol, alVencerSesion }: Props) {
+export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
   const [filtro, setFiltro] = useState<Filtro>('pendiente');
   const [pagina, setPagina] = useState(0);
   const [aEliminar, setAEliminar] = useState<Turno | null>(null);
@@ -135,6 +137,7 @@ export function VistaTurnos({ rol, alVencerSesion }: Props) {
                 key={turno.id}
                 turno={turno}
                 rol={rol}
+                nombreServicio={nombreServicio(turno.servicioId)}
                 nueva={esNueva(turno)}
                 cambiada={t.cambiadas.has(turno.id)}
                 salioDelFiltro={filtro !== 'todas' && turno.estado !== filtro ? ETIQUETA_ESTADO[turno.estado] : null}

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BookingRepository } from '../src/domain/booking.js';
+import { createPostgresRepositories } from '../src/repositories/index.js';
 import { BookingService } from '../src/services/bookings.js';
 import {
   MemoryLogger,
@@ -14,8 +15,13 @@ import {
   rawPost,
   validBooking,
 } from './helpers.js';
+import { createPgliteDatabase } from './pglite.js';
 
-afterEach(closeAllContexts);
+const cleanups: (() => Promise<void>)[] = [];
+afterEach(async () => {
+  await closeAllContexts();
+  for (const cleanup of cleanups.splice(0)) await cleanup();
+});
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -349,13 +355,21 @@ describe('POST /api/bookings: logging', () => {
       email: null,
       vehiculoTipo: 'auto' as const,
       vehiculoModelo: null,
-      servicioId: 'pulido' as const,
+      servicioId: 'pulido',
       fechaPreferida: '2026-10-20',
       franja: 'manana' as const,
       comentario: null,
     };
 
-    await expect(new BookingService({ bookings: failing, logger }).createBooking(data, NOW)).rejects.toThrow('sin espacio');
+    // El catálogo responde bien (el servicio existe y está activo): lo que falla es guardar el turno.
+    const servicios = (await createPgliteDatabase().then((db) => {
+      cleanups.push(db.close);
+      return createPostgresRepositories(db.appSql);
+    })).servicios;
+
+    await expect(new BookingService({ bookings: failing, servicios, logger }).createBooking(data, NOW)).rejects.toThrow(
+      'sin espacio',
+    );
     expect(logger.lines).toEqual([]);
   });
 });

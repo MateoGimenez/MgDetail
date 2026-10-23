@@ -1,8 +1,10 @@
-import { servicioPorId } from './servicios';
+import type { Servicio } from '../types';
+import { buscarServicio, servicioDeRespaldo, type IdDeRespaldo } from './servicios';
 
 /**
  * PREGUNTAS FRECUENTES — editá los textos acá. Cada respuesta es una lista de
- * párrafos. Los nombres y duraciones de servicios salen del catálogo.
+ * párrafos. Los nombres y duraciones de servicios salen del catálogo que muestra la web
+ * (el de la API o, si no está, el respaldo de servicios.ts).
  */
 
 export interface PreguntaFrecuente {
@@ -10,10 +12,21 @@ export interface PreguntaFrecuente {
   respuesta: readonly string[];
 }
 
-export function preguntasFrecuentes({ conWhatsapp }: { conWhatsapp: boolean }): PreguntaFrecuente[] {
-  const basico = servicioPorId('lavado-basico');
-  const premium = servicioPorId('lavado-premium');
-  const pulido = servicioPorId('pulido');
+export function preguntasFrecuentes({
+  conWhatsapp,
+  catalogo,
+}: {
+  conWhatsapp: boolean;
+  catalogo: readonly Servicio[];
+}): PreguntaFrecuente[] {
+  // Si el dueño renombra un servicio en el panel, la pregunta usa el nombre nuevo; si lo desactiva, el del respaldo.
+  const servicio = (id: IdDeRespaldo) => buscarServicio(id, catalogo) ?? servicioDeRespaldo(id);
+  const basico = servicio('lavado-basico');
+  const premium = servicio('lavado-premium');
+  const pulido = servicio('pulido');
+  const ejemplos = [basico, pulido]
+    .filter((s): s is Servicio & { duracion: string } => s.duracion !== null)
+    .map((s, i) => `${s.nombre}, ${i === 0 ? s.duracion : s.duracion.toLowerCase()}`);
 
   return [
     {
@@ -62,7 +75,9 @@ export function preguntasFrecuentes({ conWhatsapp }: { conWhatsapp: boolean }): 
     {
       pregunta: '¿Cuánto tarda cada servicio?',
       respuesta: [
-        `Depende del servicio y del estado del vehículo. Por ejemplo: ${basico.nombre}, ${basico.duracion}; ${pulido.nombre}, ${pulido.duracion.toLowerCase()}. En cada servicio vas a ver la duración estimada.`,
+        ejemplos.length > 0
+          ? `Depende del servicio y del estado del vehículo. Por ejemplo: ${ejemplos.join('; ')}. En cada servicio vas a ver la duración estimada.`
+          : 'Depende del servicio y del estado del vehículo. En cada servicio vas a ver la duración estimada.',
       ],
     },
     {

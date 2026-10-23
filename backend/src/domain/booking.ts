@@ -1,5 +1,3 @@
-import type { ServicioId } from './servicios.js';
-
 export const VEHICULO_TIPOS = ['auto', 'camioneta', 'moto'] as const;
 export const FRANJAS = ['manana', 'tarde'] as const;
 export const ESTADOS = ['pendiente', 'confirmado', 'completado', 'cancelado'] as const;
@@ -16,7 +14,8 @@ export interface NewBooking {
   email: string | null;
   vehiculoTipo: VehiculoTipo;
   vehiculoModelo: string | null;
-  servicioId: ServicioId;
+  /** id de un servicio del catálogo (mgdetailing.servicios) que estaba activo al pedir el turno. */
+  servicioId: string;
   /** YYYY-MM-DD */
   fechaPreferida: string;
   franja: Franja;
@@ -24,10 +23,8 @@ export interface NewBooking {
 }
 
 /** Turno tal como lo devuelve la API de administración (camelCase, fechas ISO 8601). */
-export interface Booking extends Omit<NewBooking, 'servicioId'> {
+export interface Booking extends NewBooking {
   id: string;
-  /** string (no ServicioId): un turno viejo puede apuntar a un servicio que ya no está en el catálogo. */
-  servicioId: string;
   /**
    * Teléfono listo para https://wa.me/<n>: solo dígitos, formato internacional, sin "+".
    * null si el teléfono no se puede interpretar. Se calcula al leer (no se guarda): ver domain/telefono.ts.
@@ -41,7 +38,7 @@ export interface Booking extends Omit<NewBooking, 'servicioId'> {
 /** Lo único que se devuelve al público al crear un turno (sin datos personales). */
 export interface PublicBooking {
   id: string;
-  servicioId: ServicioId;
+  servicioId: string;
   fechaPreferida: string;
   franja: Franja;
   estado: 'pendiente';

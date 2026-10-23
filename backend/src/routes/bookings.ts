@@ -27,6 +27,8 @@ export function publicBookingsRouter({ bookings, logger, now, limiter }: PublicB
 
     // Honeypot: un bot completó el campo oculto. Se responde igual que un éxito (para no darle señales) pero NO se guarda nada.
     if (website !== undefined && website.trim() !== '') {
+      // Mismas respuestas que un pedido real: un servicio inexistente o inactivo también da 400 acá.
+      await bookings.servicioReservable(data.servicioId);
       logger.info('Solicitud de turno descartada por honeypot');
       const decoy: PublicBooking = {
         id: randomUUID(),

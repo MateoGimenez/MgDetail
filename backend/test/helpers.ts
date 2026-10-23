@@ -190,6 +190,7 @@ export function createClient(app: Express) {
     get: (url: string) => agent.get(url).set('Origin', ORIGIN),
     post: (url: string, body?: unknown) => json(agent.post(url)).send(body as object | undefined),
     patch: (url: string, body?: unknown) => json(agent.patch(url)).send(body as object | undefined),
+    put: (url: string, body?: unknown) => json(agent.put(url)).send(body as object | undefined),
     delete: (url: string) => json(agent.delete(url)),
   };
 }

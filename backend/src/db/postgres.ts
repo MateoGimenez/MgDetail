@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import type { DatabaseConfig } from '../config.js';
 import { ROLES } from '../domain/perfil.js';
-import { SERVICIO_IDS } from '../domain/servicios.js';
 import type { Logger } from '../lib/logger.js';
 import type { Row } from './rows.js';
 
@@ -13,11 +12,19 @@ import type { Row } from './rows.js';
  */
 export interface SqlClient {
   query(text: string, params?: readonly unknown[]): Promise<{ rows: Row[]; rowCount: number }>;
+  /**
+   * Corre `fn` en una transacción, sobre UNA sola conexión: BEGIN, COMMIT si `fn` resuelve y ROLLBACK si rechaza
+   * (el error se propaga). Dentro de `fn` se usa el cliente que recibe, no este. Llamarla sobre el cliente de una
+   * transacción ya abierta corre `fn` en esa misma transacción (no anida).
+   */
+  transaction<T>(fn: (sql: SqlClient) => Promise<T>): Promise<T>;
 }
 
 /** Esquema propio de la app en Postgres (no expuesto por la Data API de Supabase). Ver supabase/migrations/. */
 export const PG_SCHEMA = 'mgdetailing';
 const REQUIRED_TABLES = ['servicios', 'bookings', 'roles', 'perfiles'] as const;
+/** Columnas que agrega la migración catalogo_editable (las que lee el repositorio de servicios). */
+const CATALOGO_COLUMNS = ['resumen', 'descripcion', 'incluye', 'glosario', 'destacado'] as const;
 
 /**
  * Pool chico y con timeouts: un taller con un servidor Node de larga vida no necesita más, y el pooler de
@@ -63,15 +70,50 @@ export function createPgPool(config: DatabaseConfig, logger: Logger): pg.Pool {
   return pool;
 }
 
+async function runQuery(
+  target: pg.Pool | pg.PoolClient,
+  text: string,
+  params: readonly unknown[],
+): Promise<{ rows: Row[]; rowCount: number }> {
+  // Adaptador: acá el SQL llega como variable a propósito. La regla de "SQL literal" se aplica donde se
+  // escribe la consulta: en cada llamada a sql.query() de los repositorios.
+  const result = await target.query<Record<string, unknown>>(text, [...params]);
+  return { rows: result.rows, rowCount: result.rowCount ?? 0 };
+}
+
+/** Cliente de una transacción abierta sobre una conexión del pool. */
+function transactionClient(connection: pg.PoolClient): SqlClient {
+  const client: SqlClient = {
+    query: (text, params = []) => runQuery(connection, text, params),
+    transaction: (fn) => fn(client),
+  };
+  return client;
+}
+
 /** Adapta el Pool de node-postgres a SqlClient. */
 export function pgPoolClient(pool: pg.Pool): SqlClient {
   return {
-    async query(text, params = []) {
-      // Adaptador: acá el SQL llega como variable a propósito. La regla de "SQL literal" se aplica donde se
-      // escribe la consulta: en cada llamada a sql.query() de los repositorios.
-      // eslint-disable-next-line no-restricted-syntax
-      const result = await pool.query<Record<string, unknown>>(text, [...params]);
-      return { rows: result.rows, rowCount: result.rowCount ?? 0 };
+    query: (text, params = []) => runQuery(pool, text, params),
+
+    async transaction(fn) {
+      const connection = await pool.connect();
+      let result;
+      try {
+        await connection.query('BEGIN');
+        result = await fn(transactionClient(connection));
+        await connection.query('COMMIT');
+      } catch (error) {
+        try {
+          await connection.query('ROLLBACK');
+          connection.release();
+        } catch {
+          // Si ni el ROLLBACK anda, la conexión no vuelve al pool en un estado desconocido: se descarta.
+          connection.release(true);
+        }
+        throw error;
+      }
+      connection.release();
+      return result;
     },
   };
 }
@@ -102,9 +144,9 @@ export async function privilegedRoleWarning(client: SqlClient): Promise<string |
 }
 
 /**
- * Verifica al arrancar que las migraciones de supabase/migrations/ estén aplicadas: que existan las tablas y que
- * el catálogo `servicios` tenga todos los ids que acepta el backend (domain/servicios.ts). Si faltara uno, los
- * turnos de ese servicio fallarían por la FK; mejor no arrancar y decir qué hacer.
+ * Verifica al arrancar que las migraciones de supabase/migrations/ estén aplicadas: que existan las tablas, las
+ * columnas del catálogo editable, los roles y la función de sesión. Si falta algo, mejor no arrancar y decir qué
+ * hacer. Qué servicios se pueden reservar ya no se verifica acá: lo decide la tabla servicios (activo = true).
  * El backend NO aplica migraciones de Postgres por su cuenta: se aplican con la CLI o el MCP de Supabase.
  */
 export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
@@ -121,15 +163,19 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     );
   }
 
-  const servicios = await client.query('SELECT id FROM mgdetailing.servicios WHERE id = ANY($1::text[])', [
-    SERVICIO_IDS,
-  ]);
-  const known = new Set(servicios.rows.map((row) => row.id));
-  const missingServicios = SERVICIO_IDS.filter((id) => !known.has(id));
-  if (missingServicios.length > 0) {
+  // El catálogo editable (migración catalogo_editable). information_schema solo lista las columnas que el rol
+  // puede ver: si falta una, o la migración no se aplicó o al rol le falta el GRANT.
+  const columns = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = 'servicios' AND column_name = ANY($2::text[])`,
+    [PG_SCHEMA, CATALOGO_COLUMNS],
+  );
+  const presentColumns = new Set(columns.rows.map((row) => row.column_name));
+  const missingColumns = CATALOGO_COLUMNS.filter((column) => !presentColumns.has(column));
+  if (missingColumns.length > 0) {
     throw new Error(
-      `Faltan servicios en mgdetailing.servicios (${missingServicios.join(', ')}). ` +
-        'Agregalos con una migración nueva: el backend los acepta pero la base los rechazaría.',
+      `Faltan columnas en mgdetailing.servicios (${missingColumns.join(', ')}). ` +
+        'Aplicá la migración catalogo_editable de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
   }
 

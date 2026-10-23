@@ -3,7 +3,7 @@ import * as z from 'zod/mini';
 /**
  * Único punto de salida a la red de toda la app (no usar fetch fuera de src/api/).
  * - URL relativa bajo /api (en desarrollo, Vite la pasa al backend).
- * - POST, PATCH y DELETE van SIEMPRE con Content-Type: application/json,
+ * - POST, PUT, PATCH y DELETE van SIEMPRE con Content-Type: application/json,
  *   aunque no haya datos: el backend lo exige como defensa CSRF (si falta, 415).
  * - 204 sin leer el cuerpo; cuerpos que no son JSON (un 502 del proxy) y
  *   fallas de red terminan en un ApiError con un mensaje en español.
@@ -29,7 +29,7 @@ export function esAbortado(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-export type Metodo = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+export type Metodo = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export interface Opciones<T> {
   method?: Metodo;

@@ -1,4 +1,4 @@
-import type { ServicioId } from './api/contract';
+import type { ServicioId, ServicioPublico } from './api/contract';
 
 /** Tipos del contenido editable de la web (servicios, galería, datos del taller). */
 
@@ -7,18 +7,15 @@ export interface Termino {
   readonly significado: string;
 }
 
-export interface Servicio {
-  readonly id: ServicioId;
-  readonly nombre: string;
-  readonly resumen: string;
-  readonly descripcion: string;
+/**
+ * Servicio tal como lo muestra la landing: el mismo dato que GET /api/servicios (los campos públicos del contrato),
+ * de solo lectura. El catálogo se edita desde el panel; src/data/servicios.ts es el respaldo.
+ */
+export type Servicio = Readonly<Omit<ServicioPublico, 'incluye' | 'glosario'>> & {
   readonly incluye: readonly string[];
-  readonly duracion: string;
-  readonly precioDesde: number | null;
-  readonly destacado: boolean;
   /** Palabras técnicas del servicio, explicadas en una línea. */
-  readonly glosario?: readonly Termino[];
-}
+  readonly glosario: readonly Termino[];
+};
 
 export interface FotoGaleria {
   /** Ruta dentro de public, ej.: '/fotos/hilux-pulido.jpg'. */

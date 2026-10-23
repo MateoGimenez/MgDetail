@@ -1,4 +1,5 @@
 import * as z from 'zod/mini';
+import { SLUG_SERVICIO_MAXIMO, camposServicioPublico } from './contract';
 
 /**
  * Contrato del panel con Supabase Auth en modo BFF (usuario de la sesión, roles y
@@ -74,3 +75,54 @@ export const LIMITE_NOMBRE_USUARIO = 80;
 export const LIMITE_EMAIL_USUARIO = 120;
 export const PASSWORD_MINIMO = 8;
 export const PASSWORD_MAXIMO = 72;
+
+/* ---------- Catálogo de servicios (reportes/2026-10-22_07_catalogo-editable.md) ---------- */
+
+/** Servicio tal como lo ve el panel: los campos públicos más activo, orden y updatedAt. */
+export const servicioPanelSchema = z.strictObject({
+  ...camposServicioPublico,
+  activo: z.boolean(),
+  orden: z.int(),
+  updatedAt: z.string(),
+});
+export type ServicioPanel = z.output<typeof servicioPanelSchema>;
+
+export const listaDeServiciosSchema = z.strictObject({ servicios: z.array(servicioPanelSchema) });
+export const respuestaServicioSchema = z.strictObject({ servicio: servicioPanelSchema });
+
+/** Límites del contrato (mismos que el backend). Los textos se miden después de recortar espacios. */
+export const LIMITES_SERVICIO = {
+  id: { max: SLUG_SERVICIO_MAXIMO },
+  nombre: { max: 80 },
+  resumen: { max: 200 },
+  descripcion: { max: 1500 },
+  incluye: { items: 15, max: 120 },
+  glosario: { items: 10, termino: 60, significado: 300 },
+  duracion: { max: 60 },
+  precioDesde: { max: 99_999_999 },
+} as const;
+
+/** 409 de POST /api/admin/servicios cuando el id ya existe. */
+export const CODIGO_SERVICIO_EXISTE = 'SERVICIO_EXISTE';
+
+export interface TerminoGlosario {
+  termino: string;
+  significado: string;
+}
+
+/** Body de POST /api/admin/servicios. orden lo asigna el backend (al final). */
+export interface NuevoServicio {
+  id: string;
+  nombre: string;
+  resumen: string;
+  descripcion: string;
+  incluye: string[];
+  glosario: TerminoGlosario[];
+  duracion: string | null;
+  precioDesde: number | null;
+  destacado: boolean;
+  activo: boolean;
+}
+
+/** Body de PATCH /api/admin/servicios/:id: al menos un campo; el id no se manda nunca. */
+export type CambiosServicio = Partial<Omit<NuevoServicio, 'id'>>;

@@ -75,7 +75,7 @@ El panel no tiene registro público. El primer superadmin se crea en Supabase y 
 | Qué | Dónde |
 |---|---|
 | WhatsApp, Instagram, dirección, horarios, link de Maps, URL pública | `frontend/src/config/sitio.ts`. Lo que queda vacío no se muestra. |
-| Servicios: textos, qué incluye, duración y precio | `frontend/src/data/servicios.ts` (`precioDesde: null` muestra "Consultá") |
+| Servicios: textos, qué incluye, glosario, duración, precio, destacado, activo y orden | Panel `/admin` → **Servicios** (superadmin y admin; sin precio la web muestra "Consultá"). `frontend/src/data/servicios.ts` queda como respaldo: se muestra mientras carga y si la API falla, siempre sin precios |
 | Preguntas frecuentes | `frontend/src/data/preguntas.ts` |
 | Fotos de trabajos | Fotos en `frontend/public/fotos/` y entradas en `frontend/src/data/galeria.ts` |
 | Logo y archivos de marca | Originales en `frontend/public/fotos/MgDetailing-*`. Versiones livianas con `npm --prefix frontend run marca`. |

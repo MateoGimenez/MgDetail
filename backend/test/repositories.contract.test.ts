@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { NewBooking } from '../src/domain/booking.js';
+import { DestacadoInactivoError, type NuevoServicio, OrdenInvalidoError, ServicioExisteError } from '../src/domain/servicios.js';
 import { SinSuperadminError } from '../src/domain/perfil.js';
 import { type Repositories, createPostgresRepositories } from '../src/repositories/index.js';
 import { NOW } from './helpers.js';
@@ -117,8 +118,8 @@ describe('integridad en la base', () => {
   it('un turno con un servicio que no está en mgdetailing.servicios se rechaza por la FK', async () => {
     const { bookings } = await repos();
 
-    // El cast salta el tipo ServicioId a propósito: zod lo frena antes, esto prueba la última línea de defensa.
-    await expect(bookings.create(newBooking({ servicioId: 'teletransporte' as 'pulido' }), NOW)).rejects.toThrow(
+    // BookingService lo frena antes (servicio inexistente o inactivo => 400); esto prueba la última línea de defensa.
+    await expect(bookings.create(newBooking({ servicioId: 'teletransporte' }), NOW)).rejects.toThrow(
       /bookings_servicio_id_fkey/,
     );
     expect((await bookings.list({ limit: 50, offset: 0 })).total).toBe(0);
@@ -183,5 +184,195 @@ describe('perfiles', () => {
       'jefe@mgdetailing.test',
       'ana@mgdetailing.test',
     ]);
+  });
+});
+
+describe('servicios', () => {
+  const LATER = new Date('2026-10-17T10:30:00.000Z');
+
+  function nuevoServicio(overrides: Partial<NuevoServicio> = {}): NuevoServicio {
+    return {
+      id: 'tratamiento-ceramico',
+      nombre: 'Tratamiento cerámico',
+      resumen: 'Protección de larga duración.',
+      descripcion: 'Una capa cerámica sobre la pintura.\nDura meses.',
+      incluye: ['Lavado', 'Aplicación'],
+      glosario: [{ termino: 'Cerámico', significado: 'un recubrimiento duro y brillante.' }],
+      duracion: '1 día',
+      precioDesde: 150000,
+      destacado: false,
+      activo: true,
+      ...overrides,
+    };
+  }
+
+  const destacados = async (repositories: Repositories): Promise<string[]> =>
+    (await repositories.servicios.list()).filter((servicio) => servicio.destacado).map((servicio) => servicio.id);
+
+  it('el backfill trae los textos del frontend, con lavado-premium destacado, ordenados por orden', async () => {
+    const { servicios } = await repos();
+    const list = await servicios.list();
+
+    expect(list.map((servicio) => [servicio.id, servicio.orden])).toEqual([
+      ['lavado-basico', 10],
+      ['lavado-premium', 20],
+      ['pulido', 30],
+      ['encerado', 40],
+      ['restauracion-opticas', 50],
+    ]);
+    expect(list.filter((servicio) => servicio.destacado).map((servicio) => servicio.id)).toEqual(['lavado-premium']);
+    expect(await servicios.findById('pulido')).toEqual({
+      id: 'pulido',
+      nombre: 'Pulido',
+      resumen: expect.stringMatching(/^Corrección de pintura/),
+      descripcion: expect.stringMatching(/clay bar/),
+      incluye: expect.arrayContaining(['Corrección de pintura en 1 o 2 etapas']),
+      glosario: expect.arrayContaining([{ termino: 'Swirls', significado: expect.any(String) }]),
+      duracion: 'Alrededor de 1 día',
+      precioDesde: null,
+      destacado: false,
+      activo: true,
+      orden: 30,
+      updatedAt: expect.stringMatching(/Z$/),
+    });
+    for (const servicio of list) {
+      expect(servicio.incluye.length, servicio.id).toBeGreaterThan(0);
+      expect(servicio.glosario.length, servicio.id).toBeGreaterThan(0);
+    }
+    expect(await servicios.findById('no-existe')).toBeUndefined();
+  });
+
+  it('create agrega al final; un id repetido lanza ServicioExisteError sin tocar nada (ni el destacado)', async () => {
+    const { repositories } = await open();
+    const { servicios } = repositories;
+
+    expect(await servicios.create(nuevoServicio(), NOW)).toEqual({
+      ...nuevoServicio(),
+      orden: 60,
+      updatedAt: NOW.toISOString(),
+    });
+
+    await expect(servicios.create(nuevoServicio({ id: 'pulido', destacado: true }), LATER)).rejects.toBeInstanceOf(
+      ServicioExisteError,
+    );
+    expect((await servicios.findById('pulido'))?.nombre).toBe('Pulido');
+    expect(await destacados(repositories)).toEqual(['lavado-premium']);
+  });
+
+  it('a lo sumo un destacado: crear o marcar uno desmarca al anterior en la misma transacción', async () => {
+    const { repositories } = await open();
+    const { servicios } = repositories;
+
+    await servicios.create(nuevoServicio({ destacado: true }), NOW);
+    expect(await destacados(repositories)).toEqual(['tratamiento-ceramico']);
+    expect((await servicios.findById('lavado-premium'))?.updatedAt).toBe(NOW.toISOString());
+
+    await servicios.update('pulido', { destacado: true }, LATER);
+    expect(await destacados(repositories)).toEqual(['pulido']);
+
+    await servicios.update('pulido', { destacado: false }, LATER);
+    expect(await destacados(repositories)).toEqual([]);
+  });
+
+  it('desactivar el destacado lo desmarca; destacar un inactivo lanza DestacadoInactivoError sin tocar nada', async () => {
+    const { repositories } = await open();
+    const { servicios } = repositories;
+
+    expect(await servicios.update('lavado-premium', { activo: false }, LATER)).toMatchObject({
+      activo: false,
+      destacado: false,
+    });
+    expect(await destacados(repositories)).toEqual([]);
+
+    await servicios.update('pulido', { destacado: true }, LATER);
+    for (const [id, cambios] of [
+      ['lavado-premium', { destacado: true }],
+      ['encerado', { activo: false, destacado: true }],
+    ] as const) {
+      await expect(servicios.update(id, cambios, LATER), id).rejects.toBeInstanceOf(DestacadoInactivoError);
+    }
+    await expect(
+      servicios.create(nuevoServicio({ destacado: true, activo: false }), LATER),
+    ).rejects.toBeInstanceOf(DestacadoInactivoError);
+    expect(await destacados(repositories)).toEqual(['pulido']);
+    expect(await servicios.findById('encerado')).toMatchObject({ activo: true });
+    expect(await servicios.findById('tratamiento-ceramico')).toBeUndefined();
+  });
+
+  it('update cambia solo lo indicado, null borra duración y precio, y un id inexistente no toca nada', async () => {
+    const { repositories } = await open();
+    const { servicios } = repositories;
+
+    const updated = await servicios.update(
+      'encerado',
+      { nombre: 'Encerado premium', precioDesde: 30000, incluye: [], activo: false },
+      LATER,
+    );
+    expect(updated).toMatchObject({
+      id: 'encerado',
+      nombre: 'Encerado premium',
+      precioDesde: 30000,
+      incluye: [],
+      activo: false,
+      duracion: '2 a 3 h',
+      orden: 40,
+      updatedAt: LATER.toISOString(),
+    });
+    expect(updated?.glosario.length).toBeGreaterThan(0);
+
+    expect(await servicios.update('encerado', { duracion: null, precioDesde: null }, LATER)).toMatchObject({
+      duracion: null,
+      precioDesde: null,
+      nombre: 'Encerado premium',
+    });
+
+    // Marcar como destacado un id que no existe no desmarca al actual.
+    expect(await servicios.update('no-existe', { destacado: true }, LATER)).toBeUndefined();
+    expect(await destacados(repositories)).toEqual(['lavado-premium']);
+
+    expect((await servicios.list({ soloActivos: true })).map((servicio) => servicio.id)).not.toContain('encerado');
+    expect((await servicios.list()).map((servicio) => servicio.id)).toContain('encerado');
+  });
+
+  it('reorder guarda posición × 10 y exige exactamente los ids del catálogo (si no, no cambia nada)', async () => {
+    const { servicios } = await repos();
+    const nuevo = ['restauracion-opticas', 'pulido', 'lavado-basico', 'encerado', 'lavado-premium'];
+
+    const list = await servicios.reorder(nuevo, LATER);
+    expect(list.map((servicio) => [servicio.id, servicio.orden])).toEqual(nuevo.map((id, i) => [id, (i + 1) * 10]));
+    // Solo cambia updated_at de los que se movieron: encerado sigue en 40.
+    expect(list.find((servicio) => servicio.id === 'encerado')?.updatedAt).not.toBe(LATER.toISOString());
+    expect(list.find((servicio) => servicio.id === 'pulido')?.updatedAt).toBe(LATER.toISOString());
+
+    for (const ids of [
+      nuevo.slice(1), // falta uno
+      [...nuevo, 'no-existe'], // sobra uno
+      [...nuevo.slice(1), 'pulido'], // repetido y falta uno
+      [...nuevo, 'pulido'], // repetido
+    ]) {
+      await expect(servicios.reorder(ids, NOW), ids.join(',')).rejects.toBeInstanceOf(OrdenInvalidoError);
+    }
+    expect((await servicios.list()).map((servicio) => servicio.id)).toEqual(nuevo);
+  });
+
+  it('la base rechaza por sí sola dos destacados, listas mal formadas y valores fuera de rango', async () => {
+    const { db } = await open();
+    const statements: [sql: string, constraint: RegExp][] = [
+      ["UPDATE mgdetailing.servicios SET destacado = true WHERE id = 'pulido'", /servicios_un_destacado/],
+      [`UPDATE mgdetailing.servicios SET incluye = '[""]' WHERE id = 'pulido'`, /servicios_incluye_valido/],
+      ["UPDATE mgdetailing.servicios SET incluye = '{}' WHERE id = 'pulido'", /servicios_incluye_valido/],
+      [`UPDATE mgdetailing.servicios SET glosario = '[{"termino":"a"}]' WHERE id = 'pulido'`, /servicios_glosario_valido/],
+      [
+        `UPDATE mgdetailing.servicios SET glosario = '[{"termino":"a","significado":"b","x":1}]' WHERE id = 'pulido'`,
+        /servicios_glosario_valido/,
+      ],
+      ["UPDATE mgdetailing.servicios SET precio_desde = 100000000 WHERE id = 'pulido'", /servicios_precio_tope/],
+      ["UPDATE mgdetailing.servicios SET duracion_estimada = '  ' WHERE id = 'pulido'", /servicios_duracion_no_vacia/],
+      ["UPDATE mgdetailing.servicios SET resumen = '' WHERE id = 'pulido'", /servicios_resumen_largo/],
+      ["UPDATE mgdetailing.servicios SET activo = false WHERE id = 'lavado-premium'", /servicios_destacado_activo/],
+    ];
+    for (const [statement, constraint] of statements) {
+      await expect(db.appSql.query(statement), statement).rejects.toThrow(constraint);
+    }
   });
 });

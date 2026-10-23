@@ -79,21 +79,37 @@ export async function createPgliteDatabase(): Promise<PgliteDatabase> {
   template ??= createMigratedTemplate();
   const pg = await (await template).clone();
 
+  // Adaptador: el SQL literal lo controla la regla en cada repositorio que llama a sql.query().
+  const run = async (target: Pick<PGliteInterface, 'query'>, text: string, params: readonly unknown[]) => {
+    const result = await target.query<Record<string, unknown>>(text, [...params]);
+    return { rows: result.rows, rowCount: result.affectedRows ?? result.rows.length };
+  };
+
+  /** Cliente de una transacción ya abierta: transaction() corre en la misma (no anida). */
+  const inTransaction = (tx: Pick<PGliteInterface, 'query'>): SqlClient => {
+    const client: SqlClient = {
+      query: (text, params = []) => run(tx, text, params),
+      transaction: (fn) => fn(client),
+    };
+    return client;
+  };
+
   const sql: SqlClient = {
-    async query(text, params = []) {
-      // Adaptador: el SQL literal lo controla la regla en cada repositorio que llama a sql.query().
-      // eslint-disable-next-line no-restricted-syntax
-      const result = await pg.query<Record<string, unknown>>(text, [...params]);
-      return { rows: result.rows, rowCount: result.affectedRows ?? result.rows.length };
-    },
+    query: (text, params = []) => run(pg, text, params),
+    transaction: (fn) => pg.transaction((tx) => fn(inTransaction(tx))),
   };
 
   const asRole = (role: 'mgdetailing_app' | 'supabase_auth_admin'): SqlClient => ({
     query(text, params = []) {
       return pg.transaction(async (tx) => {
         await tx.exec(`SET LOCAL ROLE ${role}`); // rol fijo de esta función, no dato de usuario
-        const result = await tx.query<Record<string, unknown>>(text, [...params]);
-        return { rows: result.rows, rowCount: result.affectedRows ?? result.rows.length };
+        return run(tx, text, params);
+      });
+    },
+    transaction(fn) {
+      return pg.transaction(async (tx) => {
+        await tx.exec(`SET LOCAL ROLE ${role}`);
+        return fn(inTransaction(tx));
       });
     },
   });

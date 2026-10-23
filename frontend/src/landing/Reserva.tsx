@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { ETIQUETA_FRANJA, ETIQUETA_VEHICULO, FRANJAS, LIMITES, VEHICULO_TIPOS } from '../api/contract';
 import { MarcoFilete, SubrayadoFilete } from '../components/Filete';
-import { servicios } from '../data/servicios';
+import { useCatalogo } from './catalogo-contexto';
 import { CampoTexto, ErrorDeCampo } from './CampoTexto';
 import { ExitoTurno } from './ExitoTurno';
 import { ID_SECCION_RESERVA } from './reserva-contexto';
 import { ResumenPedido } from './ResumenPedido';
+import { SinTurnosOnline } from './SinTurnosOnline';
 import { useFormularioTurno } from './useFormularioTurno';
 
 function Grupo({ titulo, children, describedBy }: { titulo: string; children: ReactNode; describedBy?: string }) {
@@ -34,6 +35,7 @@ export function Reserva() {
     enviar,
     nuevoPedido,
   } = useFormularioTurno();
+  const { servicios, estado } = useCatalogo();
   const describe = (campo: 'servicioId' | 'vehiculoTipo' | 'franja') => (errores[campo] ? ids.error(campo) : undefined);
 
   return (
@@ -43,10 +45,12 @@ export function Reserva() {
           <h2 id="reserva-titulo" className="seccion__titulo">
             Reservá tu turno
           </h2>
-          <p className="seccion__bajada">
-            Elegí el servicio y el día que te queda bien. Te contactamos para confirmar el turno: lleva menos de un
-            minuto.
-          </p>
+          {estado !== 'vacio' && (
+            <p className="seccion__bajada">
+              Elegí el servicio y el día que te queda bien. Te contactamos para confirmar el turno: lleva menos de un
+              minuto.
+            </p>
+          )}
         </header>
 
         <div className="reserva__panel">
@@ -54,6 +58,9 @@ export function Reserva() {
 
           {envio.fase === 'exito' ? (
             <ExitoTurno refTitulo={exitoRef} id={envio.id} datos={envio.datos} alPedirOtro={nuevoPedido} />
+          ) : estado === 'vacio' ? (
+            // Catálogo vacío: no hay servicios que reservar (el backend rechazaría cualquiera).
+            <SinTurnosOnline />
           ) : (
             <form
               ref={formRef}
@@ -83,7 +90,7 @@ export function Reserva() {
                           {servicio.nombre}
                           <SubrayadoFilete className="opcion-servicio__trazo" />
                         </span>
-                        <span className="opcion-servicio__duracion">{servicio.duracion}</span>
+                        <span className="opcion-servicio__duracion">{servicio.duracion ?? ''}</span>
                       </label>
                     ))}
                   </div>

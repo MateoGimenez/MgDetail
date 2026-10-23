@@ -10,6 +10,9 @@ const TRAZOS = {
   cerrar: <path d="M6 6l12 12M18 6 6 18" />,
   flecha: <path d="M5 12h14M13 6l6 6-6 6" />,
   abajo: <path d="m6 9 6 6 6-6" />,
+  arriba: <path d="m6 15 6-6 6 6" />,
+  lapiz: <path d="M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16v4ZM13 7l4 4" />,
+  estrella: <path d="m12 4.2 2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.6l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8Z" />,
   mas: <path d="M12 5v14M5 12h14" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   ubicacion: (

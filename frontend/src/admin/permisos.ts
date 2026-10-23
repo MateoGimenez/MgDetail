@@ -5,11 +5,11 @@ import type { Rol } from '../api/contract-panel';
  * Qué muestra el panel según el rol. Espejo de backend/src/domain/permisos.ts:
  * la regla real la aplica el backend (403); acá solo se esconden botones.
  *
- * | Rol        | Cambiar estado      | Borrar turnos | Usuarios |
- * |------------|---------------------|---------------|----------|
- * | superadmin | a cualquier estado  | sí            | sí       |
- * | admin      | a cualquier estado  | sí            | no       |
- * | empleado   | solo a "completado" | no            | no       |
+ * | Rol        | Cambiar estado      | Borrar turnos | Usuarios | Editar catálogo |
+ * |------------|---------------------|---------------|----------|-----------------|
+ * | superadmin | a cualquier estado  | sí            | sí       | sí              |
+ * | admin      | a cualquier estado  | sí            | no       | sí              |
+ * | empleado   | solo a "completado" | no            | no       | no (solo ver)   |
  */
 
 export function puedeCambiarEstado(rol: Rol, estado: Estado): boolean {
@@ -22,6 +22,11 @@ export function puedeBorrarTurnos(rol: Rol): boolean {
 
 export function puedeGestionarUsuarios(rol: Rol): boolean {
   return rol === 'superadmin';
+}
+
+/** Crear, editar, activar, destacar y ordenar servicios. Ver el catálogo pueden todos los roles. */
+export function puedeEditarCatalogo(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
 }
 
 /** El selector completo de estado solo tiene sentido si hay más de un destino posible. */
