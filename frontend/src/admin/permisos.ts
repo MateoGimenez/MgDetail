@@ -5,11 +5,11 @@ import type { Rol } from '../api/contract-panel';
  * Qué muestra el panel según el rol. Espejo de backend/src/domain/permisos.ts:
  * la regla real la aplica el backend (403); acá solo se esconden botones.
  *
- * | Rol        | Cambiar estado      | Borrar turnos | Usuarios | Editar catálogo |
- * |------------|---------------------|---------------|----------|-----------------|
- * | superadmin | a cualquier estado  | sí            | sí       | sí              |
- * | admin      | a cualquier estado  | sí            | no       | sí              |
- * | empleado   | solo a "completado" | no            | no       | no (solo ver)   |
+ * | Rol        | Cambiar estado      | Borrar turnos | Usuarios | Editar catálogo | Reprogramar |
+ * |------------|---------------------|---------------|----------|-----------------|-------------|
+ * | superadmin | a cualquier estado  | sí            | sí       | sí              | sí          |
+ * | admin      | a cualquier estado  | sí            | no       | sí              | sí          |
+ * | empleado   | solo a "completado" | no            | no       | no (solo ver)   | no          |
  */
 
 export function puedeCambiarEstado(rol: Rol, estado: Estado): boolean {
@@ -27,6 +27,19 @@ export function puedeGestionarUsuarios(rol: Rol): boolean {
 /** Crear, editar, activar, destacar y ordenar servicios. Ver el catálogo pueden todos los roles. */
 export function puedeEditarCatalogo(rol: Rol): boolean {
   return rol === 'superadmin' || rol === 'admin';
+}
+
+/**
+ * Cambiar la fecha y franja confirmadas (reprogramar, o confirmar para otra fecha). La agenda la ven todos.
+ * Espejo de puedeReprogramar en backend/src/domain/permisos.ts.
+ */
+export function puedeReprogramar(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
+}
+
+/** Un turno cancelado o completado conserva su fecha: el backend responde 400 si se intenta cambiar. */
+export function admiteNuevaFecha(estado: Estado): boolean {
+  return estado === 'pendiente' || estado === 'confirmado';
 }
 
 /** El selector completo de estado solo tiene sentido si hay más de un destino posible. */

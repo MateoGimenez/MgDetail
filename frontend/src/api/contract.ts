@@ -204,14 +204,35 @@ export const turnoSchema = z.object({
   vehiculoModelo: z.nullable(z.string()),
   /** Texto libre: un turno viejo puede apuntar a un servicio que ya no está en el catálogo. */
   servicioId: z.string(),
+  /** Lo que pidió el cliente: nunca se pisa. */
   fechaPreferida: z.string(),
   franja: z.enum(FRANJAS),
+  /**
+   * Fecha y franja que confirmó el taller (contrato de la agenda, reportes/2026-10-22_08_agenda.md).
+   * null = vale lo que pidió el cliente. Van siempre juntas: las dos null o las dos con valor.
+   */
+  fechaConfirmada: z.nullable(z.string()),
+  franjaConfirmada: z.nullable(z.enum(FRANJAS)),
   comentario: z.nullable(z.string()),
   estado: z.enum(ESTADOS),
   createdAt: z.string(),
   updatedAt: z.string(),
-});
+}).check(
+  z.refine(
+    (t) => (t.fechaConfirmada === null) === (t.franjaConfirmada === null),
+    'La fecha y la franja confirmadas van juntas.',
+  ),
+);
 export type Turno = z.output<typeof turnoSchema>;
+
+/**
+ * Cuerpo de PATCH /api/admin/bookings/:id: al menos uno de `estado` o la fecha/franja confirmadas, que viajan
+ * juntas (null las dos = volver a lo que pidió el cliente). Cambiar la fecha es solo de superadmin y admin.
+ */
+export type FechaConfirmada =
+  | { fechaConfirmada: string; franjaConfirmada: Franja }
+  | { fechaConfirmada: null; franjaConfirmada: null };
+export type CambiosTurno = { estado: Estado } | FechaConfirmada | ({ estado: Estado } & FechaConfirmada);
 
 export const listaDeTurnosSchema = z.object({
   bookings: z.array(turnoSchema),
@@ -219,6 +240,9 @@ export const listaDeTurnosSchema = z.object({
 });
 
 export const respuestaTurnoSchema = z.object({ booking: turnoSchema });
+
+/** GET /api/admin/agenda: turnos no cancelados del rango, ya ordenados por fecha de agenda, franja y llegada. */
+export const agendaSchema = z.object({ turnos: z.array(turnoSchema) });
 
 /** POST /api/bookings: con un 2xx el turno ya quedó creado, así que se lee con tolerancia. */
 export const turnoCreadoSchema = z.catch(

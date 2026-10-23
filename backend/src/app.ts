@@ -15,6 +15,7 @@ import { securityHeaders } from './middleware/security.js';
 import { createNotifier } from './notifications/index.js';
 import type { Repositories } from './repositories/index.js';
 import { createApiRouter } from './routes/index.js';
+import { AgendaService } from './services/agenda.js';
 import { AuthService } from './services/auth.js';
 import { BookingService } from './services/bookings.js';
 import { ServicioService } from './services/servicios.js';
@@ -75,6 +76,7 @@ export function createApp(deps: AppDeps): Express {
     logger,
     now,
   });
+  const agenda = new AgendaService({ bookings, logger, now });
   const servicioService = new ServicioService({ servicios, logger, now });
   const cookies = new SessionCookies(config);
   const limiters = createRateLimiters(config.rateLimits);
@@ -96,6 +98,7 @@ export function createApp(deps: AppDeps): Express {
       checkDatabase,
       bookings,
       bookingService,
+      agenda,
       auth,
       usuarios,
       servicios: servicioService,

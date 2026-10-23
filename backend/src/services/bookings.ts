@@ -16,7 +16,7 @@ export interface BookingServiceDeps {
 
 /**
  * Casos de uso de turnos que tienen lógica propia. Listar, cambiar el estado y borrar no pasan por acá:
- * serían pasamanos al repositorio sin nada que agregar.
+ * serían pasamanos al repositorio sin nada que agregar. La agenda y la reprogramación están en services/agenda.ts.
  */
 export class BookingService {
   constructor(private readonly deps: BookingServiceDeps) {}

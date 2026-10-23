@@ -80,6 +80,8 @@ describe('GET /api/admin/bookings', () => {
       servicioId: 'pulido',
       fechaPreferida: '2026-10-20',
       franja: 'manana',
+      fechaConfirmada: null,
+      franjaConfirmada: null,
       comentario: 'Tiene rayones en el capot.',
       estado: 'pendiente',
       createdAt: '2026-10-16T15:00:00.000Z',

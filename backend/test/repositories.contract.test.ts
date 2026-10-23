@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { NewBooking } from '../src/domain/booking.js';
+import { type NewBooking, TurnoCerradoError } from '../src/domain/booking.js';
 import { DestacadoInactivoError, type NuevoServicio, OrdenInvalidoError, ServicioExisteError } from '../src/domain/servicios.js';
 import { SinSuperadminError } from '../src/domain/perfil.js';
 import { type Repositories, createPostgresRepositories } from '../src/repositories/index.js';
@@ -62,6 +62,8 @@ describe('turnos', () => {
       servicioId: 'pulido',
       fechaPreferida: '2026-10-20',
       franja: 'manana',
+      fechaConfirmada: null,
+      franjaConfirmada: null,
       comentario: 'Rayones en el capot',
       estado: 'pendiente',
       createdAt: '2026-10-16T15:00:00.000Z',
@@ -112,6 +114,70 @@ describe('turnos', () => {
     expect((await bookings.list({ limit: 50, offset: 0 })).total).toBe(0);
   });
 
+  it('reprogramar guarda fecha/franja confirmadas (y el estado si viene), null vuelve a la pedida', async () => {
+    const { bookings } = await repos();
+    const { id } = await bookings.create(newBooking(), NOW);
+    const later = new Date('2026-10-17T10:30:00.000Z');
+
+    const movido = await bookings.reprogramar(id, { confirmada: { fecha: '2026-10-25', franja: 'tarde' } }, later);
+    expect(movido).toMatchObject({
+      id,
+      estado: 'pendiente',
+      fechaPreferida: '2026-10-20',
+      franja: 'manana',
+      fechaConfirmada: '2026-10-25',
+      franjaConfirmada: 'tarde',
+      updatedAt: later.toISOString(),
+    });
+
+    const confirmado = await bookings.reprogramar(
+      id,
+      { confirmada: { fecha: '2026-10-26', franja: 'manana' }, estado: 'confirmado' },
+      later,
+    );
+    expect(confirmado).toMatchObject({ estado: 'confirmado', fechaConfirmada: '2026-10-26', franjaConfirmada: 'manana' });
+
+    const vuelta = await bookings.reprogramar(id, { confirmada: null }, later);
+    expect(vuelta).toMatchObject({ estado: 'confirmado', fechaConfirmada: null, franjaConfirmada: null });
+
+    for (const unknown of ['00000000-0000-4000-8000-000000000000', 'no-es-un-uuid']) {
+      expect(await bookings.reprogramar(unknown, { confirmada: null }, later)).toBeUndefined();
+    }
+  });
+
+  it('reprogramar un turno cancelado o completado lanza TurnoCerradoError y no lo modifica', async () => {
+    const { bookings } = await repos();
+    for (const estado of ['cancelado', 'completado'] as const) {
+      const { id } = await bookings.create(newBooking(), NOW);
+      await bookings.updateEstado(id, estado, NOW);
+      const intento = bookings.reprogramar(id, { confirmada: { fecha: '2026-10-25', franja: 'tarde' } }, NOW);
+      await expect(intento).rejects.toBeInstanceOf(TurnoCerradoError);
+      await expect(intento).rejects.toMatchObject({ estado });
+    }
+    const { bookings: todos } = await bookings.list({ limit: 50, offset: 0 });
+    expect(todos.map((booking) => booking.fechaConfirmada)).toEqual([null, null]);
+  });
+
+  it('agenda: no cancelados con fecha de agenda en el rango, por fecha, franja y llegada', async () => {
+    const { bookings } = await repos();
+    const crear = async (nombre: string, fechaPreferida: string, franja: 'manana' | 'tarde') =>
+      (await bookings.create(newBooking({ nombre, fechaPreferida, franja }), NOW)).id;
+
+    await crear('Martes tarde', '2026-10-20', 'tarde');
+    const movido = await crear('Movido al lunes', '2026-10-22', 'tarde');
+    await crear('Martes mañana', '2026-10-20', 'manana');
+    const cancelado = await crear('Cancelado', '2026-10-20', 'manana');
+    await crear('Fuera', '2026-10-26', 'manana');
+    const afuera = await crear('Movido afuera', '2026-10-21', 'manana');
+    await bookings.updateEstado(cancelado, 'cancelado', NOW);
+    await bookings.reprogramar(movido, { confirmada: { fecha: '2026-10-19', franja: 'manana' } }, NOW);
+    await bookings.reprogramar(afuera, { confirmada: { fecha: '2026-11-03', franja: 'manana' } }, NOW);
+
+    const semana = await bookings.agenda('2026-10-19', '2026-10-25');
+    expect(semana.map((booking) => booking.nombre)).toEqual(['Movido al lunes', 'Martes mañana', 'Martes tarde']);
+    expect(await bookings.agenda('2026-11-03', '2026-11-03')).toMatchObject([{ nombre: 'Movido afuera' }]);
+    expect(await bookings.agenda('2027-01-01', '2027-01-31')).toEqual([]);
+  });
 });
 
 describe('integridad en la base', () => {

@@ -140,12 +140,14 @@ export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
                 nombreServicio={nombreServicio(turno.servicioId)}
                 nueva={esNueva(turno)}
                 cambiada={t.cambiadas.has(turno.id)}
-                salioDelFiltro={filtro !== 'todas' && turno.estado !== filtro ? ETIQUETA_ESTADO[turno.estado] : null}
+                aviso={
+                  filtro !== 'todas' && turno.estado !== filtro
+                    ? `Pasó a ${ETIQUETA_ESTADO[turno.estado]}. Sale de esta lista al actualizar.`
+                    : null
+                }
                 ocupada={t.ocupadas.has(turno.id)}
                 error={t.erroresPorTurno[turno.id]}
-                alCambiarEstado={(estado) => {
-                  void t.cambiar(turno, estado);
-                }}
+                alCambiar={(cambios) => t.cambiar(turno, cambios)}
                 alEliminar={() => {
                   setAEliminar(turno);
                   dialogoRef.current?.showModal();

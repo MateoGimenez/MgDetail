@@ -8,10 +8,12 @@ import type { RateLimiters } from '../middleware/rate-limit.js';
 import { requestGuard } from '../middleware/request-guard.js';
 import { requireSession } from '../middleware/require-session.js';
 import { corsPolicy, noStore } from '../middleware/security.js';
+import type { AgendaService } from '../services/agenda.js';
 import type { AuthService } from '../services/auth.js';
 import type { BookingService } from '../services/bookings.js';
 import type { ServicioService } from '../services/servicios.js';
 import type { UsuarioService } from '../services/usuarios.js';
+import { adminAgendaRouter } from './admin-agenda.js';
 import { adminBookingsRouter } from './admin-bookings.js';
 import { adminServiciosRouter } from './admin-servicios.js';
 import { adminUsuariosRouter } from './admin-usuarios.js';
@@ -28,6 +30,7 @@ export interface ApiDeps {
   checkDatabase: () => Promise<void>;
   bookings: BookingRepository;
   bookingService: BookingService;
+  agenda: AgendaService;
   auth: AuthService;
   usuarios: UsuarioService;
   servicios: ServicioService;
@@ -37,7 +40,7 @@ export interface ApiDeps {
 
 /** Router de /api. El ORDEN de los middlewares importa: cada uno protege a los que vienen después. */
 export function createApiRouter(deps: ApiDeps): Router {
-  const { config, logger, now, checkDatabase, bookings, bookingService, auth, usuarios, servicios, cookies, limiters } =
+  const { config, logger, now, checkDatabase, bookings, bookingService, agenda, auth, usuarios, servicios, cookies, limiters } =
     deps;
   const api = Router();
 
@@ -56,7 +59,8 @@ export function createApiRouter(deps: ApiDeps): Router {
   api.use('/auth', authRouter({ auth, cookies, loginLimiter: limiters.loginFailures, requireSession: withSession }));
   // Todo lo que cuelga de /admin exige sesión, existan o no las rutas (así no se revela cuáles existen).
   api.use('/admin', withSession);
-  api.use('/admin/bookings', adminBookingsRouter({ bookings, now }));
+  api.use('/admin/bookings', adminBookingsRouter({ bookings, agenda, now }));
+  api.use('/admin/agenda', adminAgendaRouter({ agenda }));
   api.use('/admin/usuarios', adminUsuariosRouter({ usuarios }));
   api.use('/admin/servicios', adminServiciosRouter({ servicios }));
 

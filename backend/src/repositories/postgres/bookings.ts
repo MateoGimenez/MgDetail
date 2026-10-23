@@ -1,13 +1,15 @@
 import type { SqlClient } from '../../db/postgres.js';
-import { type Row, int, isoTimestamp, oneOf, str, strOrNull } from '../../db/rows.js';
+import { type Row, int, isoTimestamp, oneOf, oneOfOrNull, str, strOrNull } from '../../db/rows.js';
 import {
   type Booking,
   type BookingRepository,
   type Estado,
   type ListBookingsOptions,
   type NewBooking,
+  type Reprogramacion,
   ESTADOS,
   FRANJAS,
+  TurnoCerradoError,
   VEHICULO_TIPOS,
 } from '../../domain/booking.js';
 import { telefonoWhatsapp } from '../../domain/telefono.js';
@@ -27,6 +29,8 @@ function toBooking(row: Row): Booking {
     servicioId: str(row, 'servicio_id'),
     fechaPreferida: str(row, 'fecha_preferida'),
     franja: oneOf(FRANJAS, row, 'franja'),
+    fechaConfirmada: strOrNull(row, 'fecha_confirmada'),
+    franjaConfirmada: oneOfOrNull(FRANJAS, row, 'franja_confirmada'),
     comentario: strOrNull(row, 'comentario'),
     estado: oneOf(ESTADOS, row, 'estado'),
     createdAt: isoTimestamp(row, 'created_at'),
@@ -36,13 +40,13 @@ function toBooking(row: Row): Booking {
 
 /*
  * Las columnas que se devuelven se repiten literalmente en cada consulta (la regla de ESLint exige SQL literal,
- * sin interpolar). fecha_preferida sale como texto YYYY-MM-DD (to_char) para no depender de cómo cada driver
+ * sin interpolar). Las fechas (date) salen como texto YYYY-MM-DD (to_char) para no depender de cómo cada driver
  * convierte el tipo date; id, como texto.
  */
 
 /**
- * Turnos sobre Postgres (esquema mgdetailing). Mismo comportamiento que SqliteBookingRepository: el orden
- * "más nuevos primero" es por `seq` (identity), estable aunque dos turnos tengan el mismo created_at.
+ * Turnos sobre Postgres (esquema mgdetailing). El orden "más nuevos primero" es por `seq` (identity), estable
+ * aunque dos turnos tengan el mismo created_at; en la agenda, `seq` es el orden de llegada.
  */
 export class PostgresBookingRepository implements BookingRepository {
   constructor(private readonly sql: SqlClient) {}
@@ -55,8 +59,9 @@ export class PostgresBookingRepository implements BookingRepository {
          servicio_id, fecha_preferida, franja, comentario, estado, created_at, updated_at
        ) VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, 'pendiente', $10::timestamptz, $10::timestamptz)
        RETURNING id::text AS id, nombre, telefono, email, vehiculo_tipo, vehiculo_modelo, servicio_id,
-                 to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja, comentario, estado,
-                 created_at, updated_at`,
+                 to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja,
+                 to_char(fecha_confirmada, 'YYYY-MM-DD') AS fecha_confirmada, franja_confirmada,
+                 comentario, estado, created_at, updated_at`,
       [
         input.nombre,
         input.telefono,
@@ -83,8 +88,9 @@ export class PostgresBookingRepository implements BookingRepository {
         ? await Promise.all([
             this.sql.query(
               `SELECT id::text AS id, nombre, telefono, email, vehiculo_tipo, vehiculo_modelo, servicio_id,
-                      to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja, comentario, estado,
-                      created_at, updated_at
+                      to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja,
+                      to_char(fecha_confirmada, 'YYYY-MM-DD') AS fecha_confirmada, franja_confirmada,
+                      comentario, estado, created_at, updated_at
                FROM mgdetailing.bookings
                ORDER BY seq DESC
                LIMIT $1 OFFSET $2`,
@@ -95,8 +101,9 @@ export class PostgresBookingRepository implements BookingRepository {
         : await Promise.all([
             this.sql.query(
               `SELECT id::text AS id, nombre, telefono, email, vehiculo_tipo, vehiculo_modelo, servicio_id,
-                      to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja, comentario, estado,
-                      created_at, updated_at
+                      to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja,
+                      to_char(fecha_confirmada, 'YYYY-MM-DD') AS fecha_confirmada, franja_confirmada,
+                      comentario, estado, created_at, updated_at
                FROM mgdetailing.bookings
                WHERE estado = $1
                ORDER BY seq DESC
@@ -117,12 +124,55 @@ export class PostgresBookingRepository implements BookingRepository {
        SET estado = $1, updated_at = $2::timestamptz
        WHERE id = $3::uuid
        RETURNING id::text AS id, nombre, telefono, email, vehiculo_tipo, vehiculo_modelo, servicio_id,
-                 to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja, comentario, estado,
-                 created_at, updated_at`,
+                 to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja,
+                 to_char(fecha_confirmada, 'YYYY-MM-DD') AS fecha_confirmada, franja_confirmada,
+                 comentario, estado, created_at, updated_at`,
       [estado, now.toISOString(), id],
     );
     const row = rows[0];
     return row ? toBooking(row) : undefined;
+  }
+
+  async reprogramar(id: string, { confirmada, estado }: Reprogramacion, now: Date): Promise<Booking | undefined> {
+    if (!isUuid(id)) return undefined;
+    // La condición "no cerrado" va en el mismo UPDATE: si otro pedido lo cancela o completa en el medio, no se
+    // reprograma igual. coalesce($3, estado): sin estado nuevo, queda el que tenía.
+    const { rows } = await this.sql.query(
+      `UPDATE mgdetailing.bookings
+       SET fecha_confirmada = $1::date, franja_confirmada = $2::text,
+           estado = coalesce($3::text, estado), updated_at = $4::timestamptz
+       WHERE id = $5::uuid AND estado NOT IN ('cancelado', 'completado')
+       RETURNING id::text AS id, nombre, telefono, email, vehiculo_tipo, vehiculo_modelo, servicio_id,
+                 to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja,
+                 to_char(fecha_confirmada, 'YYYY-MM-DD') AS fecha_confirmada, franja_confirmada,
+                 comentario, estado, created_at, updated_at`,
+      [confirmada?.fecha ?? null, confirmada?.franja ?? null, estado ?? null, now.toISOString(), id],
+    );
+    const row = rows[0];
+    if (row) return toBooking(row);
+
+    // No se actualizó: o no existe, o está cerrado.
+    const actual = await this.sql.query('SELECT estado FROM mgdetailing.bookings WHERE id = $1::uuid', [id]);
+    const existente = actual.rows[0];
+    if (!existente) return undefined;
+    throw new TurnoCerradoError(oneOf(ESTADOS, existente, 'estado'));
+  }
+
+  async agenda(desde: string, hasta: string): Promise<Booking[]> {
+    // Mismas expresiones y mismo predicado que el índice parcial bookings_agenda_idx (migración
+    // agenda_fecha_confirmada). 'manana' < 'tarde' como texto: mañana antes que tarde.
+    const { rows } = await this.sql.query(
+      `SELECT id::text AS id, nombre, telefono, email, vehiculo_tipo, vehiculo_modelo, servicio_id,
+              to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja,
+              to_char(fecha_confirmada, 'YYYY-MM-DD') AS fecha_confirmada, franja_confirmada,
+              comentario, estado, created_at, updated_at
+       FROM mgdetailing.bookings
+       WHERE estado <> 'cancelado'
+         AND coalesce(fecha_confirmada, fecha_preferida) BETWEEN $1::date AND $2::date
+       ORDER BY coalesce(fecha_confirmada, fecha_preferida), coalesce(franja_confirmada, franja), seq`,
+      [desde, hasta],
+    );
+    return rows.map(toBooking);
   }
 
   async delete(id: string): Promise<boolean> {

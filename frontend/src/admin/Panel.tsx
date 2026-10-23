@@ -6,11 +6,12 @@ import { Logo } from '../components/Logo';
 import { nombreDeServicio } from '../data/servicios';
 import { puedeEditarCatalogo, puedeGestionarUsuarios } from './permisos';
 import { useServicios } from './useServicios';
+import { VistaAgenda } from './VistaAgenda';
 import { VistaServicios } from './VistaServicios';
 import { VistaTurnos } from './VistaTurnos';
 import { VistaUsuarios } from './VistaUsuarios';
 
-type Vista = 'turnos' | 'servicios' | 'usuarios';
+type Vista = 'turnos' | 'agenda' | 'servicios' | 'usuarios';
 
 interface Props {
   usuario: UsuarioSesion;
@@ -29,6 +30,7 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
 
   const secciones: readonly (readonly [Vista, string])[] = [
     ['turnos', 'Turnos'],
+    ['agenda', 'Agenda'],
     ['servicios', 'Servicios'],
     ...(gestionaUsuarios ? ([['usuarios', 'Usuarios']] as const) : []),
   ];
@@ -90,6 +92,8 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
       <main className="panel__trabajo">
         {vista === 'usuarios' && gestionaUsuarios ? (
           <VistaUsuarios idPropio={usuario.id} alVencerSesion={alVencerSesion} />
+        ) : vista === 'agenda' ? (
+          <VistaAgenda rol={usuario.rol} nombreServicio={nombreServicio} alVencerSesion={alVencerSesion} />
         ) : vista === 'servicios' ? (
           <VistaServicios catalogo={catalogo} editable={puedeEditarCatalogo(usuario.rol)} />
         ) : (

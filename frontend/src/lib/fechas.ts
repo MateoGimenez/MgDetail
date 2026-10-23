@@ -106,3 +106,106 @@ export function momentoEnLaRioja(isoCompleto: string): string {
   const fecha = new Date(isoCompleto);
   return Number.isNaN(fecha.getTime()) ? isoCompleto : formatoMomento.format(fecha).replace(',', '');
 }
+
+/* ---------- Agenda (semana de lunes a domingo, hora de La Rioja) ---------- */
+
+/** El taller puede confirmar o reprogramar un turno de hoy a hoy + 120 días (contrato de la agenda). */
+export const DIAS_MAXIMOS_CONFIRMACION = 120;
+
+/** Rango para la fecha confirmada: de hoy a hoy + 120 días, ambos inclusive. */
+export function rangoDeConfirmacion(now: Date): { min: string; max: string } {
+  const min = hoyEnLaRioja(now);
+  return { min, max: sumarDias(min, DIAS_MAXIMOS_CONFIRMACION) };
+}
+
+/** Día de la semana de una fecha YYYY-MM-DD válida: 0 = lunes … 6 = domingo. */
+export function diaDeLaSemana(fechaIso: string): number {
+  const fecha = aFechaUtc(fechaIso);
+  if (!fecha) throw new RangeError('Fecha inválida');
+  return (fecha.getUTCDay() + 6) % 7;
+}
+
+/** Lunes de la semana (lunes a domingo) que contiene la fecha. */
+export function lunesDeLaSemana(fechaIso: string): string {
+  return sumarDias(fechaIso, -diaDeLaSemana(fechaIso));
+}
+
+/** Los siete días, de lunes a domingo, de la semana que empieza en `lunes`. */
+export function diasDeLaSemana(lunes: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
+}
+
+/*
+ * Nombres propios en lugar de Intl para lo corto: según la versión de ICU, es-AR escribe "sáb." o "sáb",
+ * y en la agenda el texto tiene que ser siempre el mismo.
+ */
+const DIAS_CORTOS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'] as const;
+const DIAS_LARGOS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'] as const;
+const MESES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+] as const;
+
+function partesDe(fechaIso: string): { anio: number; mes: number; dia: number; semana: number } | null {
+  const partes = esFechaValida(fechaIso) ? leer(fechaIso) : null;
+  if (!partes) return null;
+  return { anio: partes[0], mes: partes[1], dia: partes[2], semana: diaDeLaSemana(fechaIso) };
+}
+
+/** "lun", "mié"… (para la tira de días). */
+export function nombreCortoDelDia(fechaIso: string): string {
+  const p = partesDe(fechaIso);
+  return p ? (DIAS_CORTOS[p.semana] ?? '') : fechaIso;
+}
+
+/** "lunes", "miércoles"… */
+export function nombreDelDia(fechaIso: string): string {
+  const p = partesDe(fechaIso);
+  return p ? (DIAS_LARGOS[p.semana] ?? '') : fechaIso;
+}
+
+/** Número del día del mes: "1"… "31". */
+export function numeroDelDia(fechaIso: string): string {
+  const p = partesDe(fechaIso);
+  return p ? String(p.dia) : fechaIso;
+}
+
+/** "jue 24" (la aclaración "Pidió: jue 24" de la agenda). */
+export function diaCorto(fechaIso: string): string {
+  const p = partesDe(fechaIso);
+  return p ? `${DIAS_CORTOS[p.semana] ?? ''} ${String(p.dia)}` : fechaIso;
+}
+
+/** "jueves 24 de octubre" (sin depender de Intl, para títulos de la agenda). */
+export function diaConMes(fechaIso: string): string {
+  const p = partesDe(fechaIso);
+  return p ? `${DIAS_LARGOS[p.semana] ?? ''} ${String(p.dia)} de ${MESES[p.mes - 1] ?? ''}` : fechaIso;
+}
+
+/**
+ * Nombre de la semana que empieza en `lunes`, sin repetir lo que comparten las dos puntas:
+ * "19 al 25 de octubre", "26 de octubre al 1 de noviembre", "28 de diciembre de 2026 al 3 de enero de 2027".
+ */
+export function nombreDeLaSemana(lunes: string): string {
+  const desde = partesDe(lunes);
+  const hasta = partesDe(sumarDias(lunes, 6));
+  if (!desde || !hasta) return lunes;
+  const mes = (n: number) => MESES[n - 1] ?? '';
+  if (desde.anio !== hasta.anio) {
+    return `${String(desde.dia)} de ${mes(desde.mes)} de ${String(desde.anio)} al ${String(hasta.dia)} de ${mes(hasta.mes)} de ${String(hasta.anio)}`;
+  }
+  if (desde.mes !== hasta.mes) {
+    return `${String(desde.dia)} de ${mes(desde.mes)} al ${String(hasta.dia)} de ${mes(hasta.mes)}`;
+  }
+  return `${String(desde.dia)} al ${String(hasta.dia)} de ${mes(hasta.mes)}`;
+}

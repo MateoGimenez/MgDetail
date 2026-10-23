@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { cambiarEstado, contarTurnos, eliminarTurno, listarTurnos } from '../api/admin';
-import { esAbortado } from '../api/client';
+import { actualizarTurno, contarTurnos, eliminarTurno, listarTurnos } from '../api/admin';
+import { ApiError, esAbortado } from '../api/client';
 import { esSesionPerdida } from '../api/sesion';
-import type { Estado, Turno } from '../api/contract';
+import type { CambiosTurno, Estado, Turno } from '../api/contract';
+import type { Problema } from './useUsuarios';
 
 export const POR_PAGINA = 20;
 
@@ -98,11 +99,12 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: (mensa
     };
   }, [conteo]);
 
-  const cambiar = async (turno: Turno, estado: Estado) => {
+  /** Cambia estado y/o fecha confirmada. Devuelve null si salió bien o el problema (con los campos, si los hay). */
+  const cambiar = async (turno: Turno, cambios: CambiosTurno): Promise<Problema | null> => {
     setOcupadas((o) => conCambio(o, turno.id, true));
     setErroresPorTurno((previos) => Object.fromEntries(Object.entries(previos).filter(([id]) => id !== turno.id)));
     try {
-      const actualizado = await cambiarEstado(turno.id, estado);
+      const actualizado = await actualizarTurno(turno.id, cambios);
       setResultado((previo) => {
         if (!previo || !('turnos' in previo)) return previo;
         // El total del filtro se ajusta en memoria: la tarjeta queda a la vista hasta actualizar.
@@ -116,13 +118,15 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: (mensa
       });
       setCambiadas((c) => conCambio(c, turno.id, true));
       setConteo((n) => n + 1);
+      return null;
     } catch (error) {
       if (esSesionPerdida(error)) {
         alVencerSesion(error.message);
-        return;
+        return null;
       }
       const mensaje = error instanceof Error ? error.message : 'No se pudo guardar el cambio.';
       setErroresPorTurno((previos) => ({ ...previos, [turno.id]: mensaje }));
+      return { mensaje, campos: error instanceof ApiError ? error.fields : undefined };
     } finally {
       setOcupadas((o) => conCambio(o, turno.id, false));
     }

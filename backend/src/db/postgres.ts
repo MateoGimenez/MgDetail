@@ -25,6 +25,8 @@ export const PG_SCHEMA = 'mgdetailing';
 const REQUIRED_TABLES = ['servicios', 'bookings', 'roles', 'perfiles'] as const;
 /** Columnas que agrega la migración catalogo_editable (las que lee el repositorio de servicios). */
 const CATALOGO_COLUMNS = ['resumen', 'descripcion', 'incluye', 'glosario', 'destacado'] as const;
+/** Columnas que agrega la migración agenda_fecha_confirmada (las que lee el repositorio de turnos). */
+const AGENDA_COLUMNS = ['fecha_confirmada', 'franja_confirmada'] as const;
 
 /**
  * Pool chico y con timeouts: un taller con un servidor Node de larga vida no necesita más, y el pooler de
@@ -145,7 +147,7 @@ export async function privilegedRoleWarning(client: SqlClient): Promise<string |
 
 /**
  * Verifica al arrancar que las migraciones de supabase/migrations/ estén aplicadas: que existan las tablas, las
- * columnas del catálogo editable, los roles y la función de sesión. Si falta algo, mejor no arrancar y decir qué
+ * columnas del catálogo editable y de la agenda, los roles y la función de sesión. Si falta algo, mejor no arrancar y decir qué
  * hacer. Qué servicios se pueden reservar ya no se verifica acá: lo decide la tabla servicios (activo = true).
  * El backend NO aplica migraciones de Postgres por su cuenta: se aplican con la CLI o el MCP de Supabase.
  */
@@ -176,6 +178,21 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     throw new Error(
       `Faltan columnas en mgdetailing.servicios (${missingColumns.join(', ')}). ` +
         'Aplicá la migración catalogo_editable de backend/supabase/migrations/ (ver README, "Migraciones").',
+    );
+  }
+
+  // La agenda (migración agenda_fecha_confirmada): mismas razones que con el catálogo.
+  const agendaColumns = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = 'bookings' AND column_name = ANY($2::text[])`,
+    [PG_SCHEMA, AGENDA_COLUMNS],
+  );
+  const presentAgenda = new Set(agendaColumns.rows.map((row) => row.column_name));
+  const missingAgenda = AGENDA_COLUMNS.filter((column) => !presentAgenda.has(column));
+  if (missingAgenda.length > 0) {
+    throw new Error(
+      `Faltan columnas en mgdetailing.bookings (${missingAgenda.join(', ')}). ` +
+        'Aplicá la migración agenda_fecha_confirmada de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
   }
 

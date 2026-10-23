@@ -17,6 +17,8 @@ const BOOKING: Booking = {
   servicioId: 'lavado-premium',
   fechaPreferida: '2026-10-20',
   franja: 'manana',
+  fechaConfirmada: null,
+  franjaConfirmada: null,
   comentario: 'x'.repeat(300),
   telefonoWhatsapp: '5493804123456',
   estado: 'pendiente',

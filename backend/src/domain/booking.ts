@@ -30,6 +30,12 @@ export interface Booking extends NewBooking {
    * null si el teléfono no se puede interpretar. Se calcula al leer (no se guarda): ver domain/telefono.ts.
    */
   telefonoWhatsapp: string | null;
+  /**
+   * Fecha (YYYY-MM-DD) que confirmó el taller, si es distinta de la pedida. null = se confirmó (o se confirmará)
+   * para `fechaPreferida`. Va siempre junto con `franjaConfirmada` (las dos null o las dos con valor).
+   */
+  fechaConfirmada: string | null;
+  franjaConfirmada: Franja | null;
   estado: Estado;
   createdAt: string;
   updatedAt: string;
@@ -50,9 +56,35 @@ export interface ListBookingsOptions {
   offset: number;
 }
 
+/** Estados en los que un turno ya no se puede reprogramar. */
+export const ESTADOS_CERRADOS: readonly Estado[] = ['cancelado', 'completado'];
+
+/** Fecha y franja confirmadas por el taller (siempre juntas). */
+export interface Confirmada {
+  /** YYYY-MM-DD */
+  fecha: string;
+  franja: Franja;
+}
+
+/** Cambio de la fecha de agenda de un turno (PATCH /api/admin/bookings/:id con fechaConfirmada + franjaConfirmada). */
+export interface Reprogramacion {
+  /** null = volver a lo que pidió el cliente. */
+  confirmada: Confirmada | null;
+  /** Si viene, se cambia el estado en la misma escritura (p. ej. "confirmar para otra fecha"). */
+  estado?: Estado;
+}
+
+/** El turno está cancelado o completado: no se le puede cambiar la fecha. */
+export class TurnoCerradoError extends Error {
+  constructor(readonly estado: Estado) {
+    super(`No se puede cambiar la fecha de un turno ${estado}.`);
+    this.name = 'TurnoCerradoError';
+  }
+}
+
 /**
- * Puerto de persistencia de turnos. Los métodos son async para que la implementación pueda cambiar
- * (SQLite hoy, otra base mañana) sin tocar rutas ni servicios.
+ * Puerto de persistencia de turnos. Los métodos son async para que la implementación pueda cambiar sin tocar
+ * rutas ni servicios.
  */
 export interface BookingRepository {
   /** Guarda un turno nuevo en estado "pendiente". */
@@ -61,6 +93,16 @@ export interface BookingRepository {
   list(options: ListBookingsOptions): Promise<{ bookings: Booking[]; total: number }>;
   /** undefined si el turno no existe. */
   updateEstado(id: string, estado: Estado, now: Date): Promise<Booking | undefined>;
+  /**
+   * Cambia la fecha/franja confirmadas (y el estado, si viene) en una sola escritura. undefined si el turno no
+   * existe; TurnoCerradoError si está cancelado o completado (se verifica en el mismo UPDATE, sin carreras).
+   */
+  reprogramar(id: string, cambios: Reprogramacion, now: Date): Promise<Booking | undefined>;
+  /**
+   * Turnos no cancelados cuya fecha de agenda (la confirmada si existe, si no la pedida) cae en [desde, hasta],
+   * ambos inclusive. Orden: fecha de agenda, franja de agenda (mañana antes que tarde) y orden de llegada.
+   */
+  agenda(desde: string, hasta: string): Promise<Booking[]>;
   /** true si existía y se borró. */
   delete(id: string): Promise<boolean>;
 }

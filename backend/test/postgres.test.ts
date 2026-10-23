@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { PGlite } from '@electric-sql/pglite';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
@@ -7,10 +10,12 @@ import {
   pgPoolClient,
   privilegedRoleWarning,
   verifyPostgresSchema,
+  type SqlClient,
 } from '../src/db/postgres.js';
 import { createPostgresRepositories } from '../src/repositories/index.js';
 import { MemoryLogger, testConfig } from './helpers.js';
-import { type PgliteDatabase, createPgliteDatabase } from './pglite.js';
+import { PostgresBookingRepository } from '../src/repositories/postgres/bookings.js';
+import { MIGRATIONS_DIR, type PgliteDatabase, SUPABASE_STUB, createPgliteDatabase, migrationFiles } from './pglite.js';
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -61,7 +66,9 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     expect(role.rows[0]).toEqual({ usuario: 'mgdetailing_app', bypass: false, superuser: false });
 
     const denied = [
-      "UPDATE mgdetailing.bookings SET nombre = 'otro'", // solo estado y updated_at
+      "UPDATE mgdetailing.bookings SET nombre = 'otro'", // solo estado, updated_at y las confirmadas
+      "UPDATE mgdetailing.bookings SET fecha_preferida = '2026-10-21'", // el pedido del cliente no se pisa
+      "UPDATE mgdetailing.bookings SET franja = 'tarde'",
       "INSERT INTO mgdetailing.perfiles (id) VALUES (gen_random_uuid())", // los crea el trigger
       'DELETE FROM mgdetailing.perfiles', // se borran en cascada con auth.users
       "UPDATE mgdetailing.perfiles SET email = 'x@y.z'", // el email lo copia el trigger
@@ -150,6 +157,52 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     expect(row.rows[0]?.fresh).toBe(true);
   });
 
+  it('agenda: fecha y franja confirmadas van juntas, la franja es manana|tarde y mgdetailing_app puede actualizarlas', async () => {
+    const { pg, appSql } = await pglite();
+    const insert = (columns: string, values: string) =>
+      // eslint-disable-next-line no-restricted-syntax -- SQL de prueba armado con literales del propio test
+      pg.exec(`INSERT INTO mgdetailing.bookings (nombre, telefono, vehiculo_tipo, servicio_id, fecha_preferida, franja${columns})
+               VALUES ('N', '12345678', 'auto', 'pulido', '2026-10-20', 'manana'${values})`);
+
+    await expect(insert(', fecha_confirmada', ", '2026-10-22'")).rejects.toThrow(/bookings_confirmada_juntas/);
+    await expect(insert(', franja_confirmada', ", 'tarde'")).rejects.toThrow(/bookings_confirmada_juntas/);
+    await expect(insert(', fecha_confirmada, franja_confirmada', ", '2026-10-22', 'noche'")).rejects.toThrow(
+      /bookings_franja_confirmada_valida/,
+    );
+    await insert(', fecha_confirmada, franja_confirmada', ", '2026-10-22', 'tarde'");
+    await insert('', ''); // las dos null
+
+    // Como el rol de la app: puede poner y sacar las confirmadas, pero no dejar una sola.
+    const { rowCount } = await appSql.query(
+      "UPDATE mgdetailing.bookings SET fecha_confirmada = '2026-10-23', franja_confirmada = 'manana'",
+    );
+    expect(rowCount).toBe(2);
+    await expect(appSql.query('UPDATE mgdetailing.bookings SET franja_confirmada = NULL')).rejects.toThrow(
+      /bookings_confirmada_juntas/,
+    );
+    await appSql.query('UPDATE mgdetailing.bookings SET fecha_confirmada = NULL, franja_confirmada = NULL');
+  });
+
+  it('agenda: índice parcial por fecha y franja de agenda (sin cancelados), y la consulta lo puede usar', async () => {
+    const { pg } = await pglite();
+    const index = await pg.query<{ indexdef: string }>(
+      "SELECT indexdef FROM pg_indexes WHERE schemaname = 'mgdetailing' AND indexname = 'bookings_agenda_idx'",
+    );
+    const def = index.rows[0]?.indexdef ?? '';
+    expect(def).toMatch(/COALESCE\(fecha_confirmada, fecha_preferida\)/);
+    expect(def).toMatch(/COALESCE\(franja_confirmada, franja\)/);
+    expect(def).toMatch(/WHERE \(estado <> 'cancelado'::text\)/);
+
+    await pg.exec('SET enable_seqscan = off');
+    const plan = await pg.query<{ 'QUERY PLAN': string }>(
+      `EXPLAIN SELECT id FROM mgdetailing.bookings
+       WHERE estado <> 'cancelado'
+         AND coalesce(fecha_confirmada, fecha_preferida) BETWEEN '2026-10-19'::date AND '2026-10-25'::date
+       ORDER BY coalesce(fecha_confirmada, fecha_preferida), coalesce(franja_confirmada, franja), seq`,
+    );
+    expect(plan.rows.map((row) => row['QUERY PLAN']).join('\n')).toContain('bookings_agenda_idx');
+  });
+
   it('verifyPostgresSchema pasa con el esquema completo y explica qué falta; avisa si se conecta un rol privilegiado', async () => {
     const { pg, sql, appSql } = await pglite();
 
@@ -160,6 +213,56 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     // Si la migración catalogo_editable no está aplicada (o al rol le falta el GRANT), lo explica.
     await pg.exec('ALTER TABLE mgdetailing.servicios DROP COLUMN glosario');
     await expect(verifyPostgresSchema(sql)).rejects.toThrow(/Faltan columnas en mgdetailing\.servicios \(glosario\)/);
+  });
+
+  it('agenda: la migración se aplica sobre una base con turnos (los conserva sin confirmada y siguen en la agenda)', async () => {
+    // Como en producción: la base ya tiene todas las migraciones anteriores y turnos en todos los estados.
+    const AGENDA = '20261023120000_agenda_fecha_confirmada.sql';
+    const leer = (file: string) => readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
+    expect(migrationFiles()).toContain(AGENDA);
+    const pg = await PGlite.create();
+    cleanups.push(() => pg.close());
+    // eslint-disable-next-line no-restricted-syntax -- constante del propio test
+    await pg.exec(SUPABASE_STUB);
+    for (const file of migrationFiles().filter((name) => name < AGENDA)) {
+      // eslint-disable-next-line no-restricted-syntax -- migraciones versionadas (confiables)
+      await pg.exec(leer(file));
+    }
+    await pg.exec(`INSERT INTO mgdetailing.bookings (nombre, telefono, vehiculo_tipo, servicio_id, fecha_preferida, franja, estado)
+                   VALUES ('P', '12345678', 'auto', 'pulido', '2026-10-20', 'tarde', 'pendiente'),
+                          ('C', '12345678', 'auto', 'pulido', '2026-10-20', 'manana', 'confirmado'),
+                          ('H', '12345678', 'auto', 'pulido', '2026-09-01', 'manana', 'completado'),
+                          ('X', '12345678', 'auto', 'pulido', '2026-10-21', 'manana', 'cancelado')`);
+
+    // eslint-disable-next-line no-restricted-syntax -- migración versionada (confiable)
+    await pg.exec(leer(AGENDA));
+
+    const filas = await pg.query('SELECT nombre, fecha_confirmada, franja_confirmada FROM mgdetailing.bookings ORDER BY seq');
+    expect(filas.rows).toEqual(
+      ['P', 'C', 'H', 'X'].map((nombre) => ({ nombre, fecha_confirmada: null, franja_confirmada: null })),
+    );
+    const sql: SqlClient = {
+      query: async (text, params = []) => {
+        // eslint-disable-next-line no-restricted-syntax -- adaptador: el SQL literal lo controla el repositorio
+        const result = await pg.query<Record<string, unknown>>(text, [...params]);
+        return { rows: result.rows, rowCount: result.affectedRows ?? result.rows.length };
+      },
+      transaction: () => Promise.reject(new Error('no hace falta en este test')),
+    };
+    const repo = new PostgresBookingRepository(sql);
+    expect((await repo.agenda('2026-10-19', '2026-10-25')).map((b) => [b.nombre, b.fechaConfirmada])).toEqual([
+      ['C', null],
+      ['P', null],
+    ]);
+    expect((await repo.agenda('2026-09-01', '2026-09-01')).map((b) => b.nombre)).toEqual(['H']);
+  });
+
+  it('verifyPostgresSchema avisa si falta la migración de la agenda', async () => {
+    const { pg, sql } = await pglite();
+    await pg.exec('ALTER TABLE mgdetailing.bookings DROP COLUMN franja_confirmada');
+    await expect(verifyPostgresSchema(sql)).rejects.toThrow(
+      /Faltan columnas en mgdetailing\.bookings \(franja_confirmada\).*agenda_fecha_confirmada/,
+    );
   });
 });
 

@@ -22,7 +22,7 @@ export interface PgliteDatabase {
   close: () => Promise<void>;
 }
 
-const migrationFiles = (): string[] =>
+export const migrationFiles = (): string[] =>
   readdirSync(MIGRATIONS_DIR)
     .filter((file) => /^\d{14}_[a-z0-9_]+\.sql$/.test(file))
     .sort();
@@ -36,7 +36,7 @@ const migrationFiles = (): string[] =>
  *  - el rol supabase_auth_admin, dueño de ese esquema como en Supabase: Auth escribe en auth.users con ese rol, y
  *    los triggers que eso dispara (también en mgdetailing.perfiles, por el ON DELETE CASCADE) corren con él.
  */
-const SUPABASE_STUB = `
+export const SUPABASE_STUB = `
   CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;
   CREATE ROLE supabase_auth_admin NOLOGIN;
   CREATE SCHEMA auth AUTHORIZATION supabase_auth_admin;

@@ -3,10 +3,9 @@ import type { BookingRepository } from '../domain/booking.js';
 import { puedeBorrarTurnos, puedeCambiarEstado } from '../domain/permisos.js';
 import { AppError } from '../lib/errors.js';
 import { getUsuario } from '../middleware/require-session.js';
-import { bookingIdSchema, listBookingsQuerySchema, updateEstadoSchema } from '../schemas/admin.js';
+import { bookingIdSchema, listBookingsQuerySchema, updateBookingSchema } from '../schemas/admin.js';
 import { parseOrThrow } from '../schemas/common.js';
-
-const NOT_FOUND_MESSAGE = 'No encontramos ese turno.';
+import { type AgendaService, NOT_FOUND_MESSAGE, SOLO_COMPLETAR_MESSAGE } from '../services/agenda.js';
 
 /** Un id con formato inválido no puede existir: se trata igual que uno inexistente (404). */
 function parseBookingId(raw: string): string {
@@ -21,10 +20,11 @@ function parseBookingId(raw: string): string {
  * Rutas de gestión de turnos. Se montan detrás de requireSession. Permisos (domain/permisos.ts):
  *  - listar: todos los roles;
  *  - cambiar el estado: empleado solo a "completado"; admin y superadmin, a cualquiera;
+ *  - reprogramar (fecha/franja confirmadas): solo admin y superadmin;
  *  - borrar: solo admin y superadmin.
  */
-export function adminBookingsRouter(deps: { bookings: BookingRepository; now: () => Date }): Router {
-  const { bookings, now } = deps;
+export function adminBookingsRouter(deps: { bookings: BookingRepository; agenda: AgendaService; now: () => Date }): Router {
+  const { bookings, agenda, now } = deps;
   const router = Router();
 
   // GET /api/admin/bookings?estado=&limit=&offset= => { bookings, total }, más nuevas primero
@@ -33,12 +33,23 @@ export function adminBookingsRouter(deps: { bookings: BookingRepository; now: ()
     res.json(await bookings.list(query));
   });
 
-  // PATCH /api/admin/bookings/:id { estado } => { booking }
+  // PATCH /api/admin/bookings/:id { estado?, fechaConfirmada?, franjaConfirmada? } => { booking }
   router.patch('/:id', async (req, res) => {
     const id = parseBookingId(req.params.id);
-    const { estado } = parseOrThrow(updateEstadoSchema, req.body ?? {});
-    if (!puedeCambiarEstado(getUsuario(res).rol, estado)) {
-      throw AppError.forbidden('Con tu rol solo podés marcar los turnos como completados.');
+    const { estado, confirmada } = parseOrThrow(updateBookingSchema, req.body ?? {});
+    const usuario = getUsuario(res);
+
+    // Con fecha/franja: reprogramar (y, si viene, el estado en la misma escritura).
+    if (confirmada !== undefined) {
+      const booking = await agenda.reprogramar(usuario, id, estado === undefined ? { confirmada } : { confirmada, estado });
+      res.json({ booking });
+      return;
+    }
+
+    // Solo el estado: las mismas reglas de siempre. El schema garantiza que viene estado si no viene la fecha.
+    if (estado === undefined) throw AppError.validation();
+    if (!puedeCambiarEstado(usuario.rol, estado)) {
+      throw AppError.forbidden(SOLO_COMPLETAR_MESSAGE);
     }
     const booking = await bookings.updateEstado(id, estado, now());
     if (!booking) {

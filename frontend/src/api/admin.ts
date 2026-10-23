@@ -1,6 +1,13 @@
 import { ApiError, request } from './client';
 import { requestAdmin } from './sesion';
-import { listaDeTurnosSchema, respuestaTurnoSchema, type Estado, type Turno } from './contract';
+import {
+  agendaSchema,
+  listaDeTurnosSchema,
+  respuestaTurnoSchema,
+  type CambiosTurno,
+  type Estado,
+  type Turno,
+} from './contract';
 import {
   listaDeServiciosSchema,
   listaDeUsuariosSchema,
@@ -80,14 +87,33 @@ export async function contarTurnos(estado: Estado, signal?: AbortSignal): Promis
   return total;
 }
 
-/** PATCH /api/admin/bookings/:id → turno actualizado. */
-export async function cambiarEstado(id: string, estado: Estado): Promise<Turno> {
+/**
+ * PATCH /api/admin/bookings/:id → turno actualizado. Cambia el estado, la fecha/franja confirmadas o las dos
+ * cosas en el mismo pedido ("confirmar con otra fecha"). 403 si el rol no puede reprogramar; 400 con
+ * `fields.fechaConfirmada` si la fecha está fuera de rango o el turno está cancelado o completado.
+ */
+export async function actualizarTurno(id: string, cambios: CambiosTurno): Promise<Turno> {
   const { booking } = await requestAdmin(`/admin/bookings/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    body: { estado },
+    body: cambios,
     schema: respuestaTurnoSchema,
   });
   return booking;
+}
+
+/** PATCH /api/admin/bookings/:id con solo el estado. */
+export async function cambiarEstado(id: string, estado: Estado): Promise<Turno> {
+  return actualizarTurno(id, { estado });
+}
+
+/**
+ * GET /api/admin/agenda?desde&hasta (todos los roles) → turnos no cancelados cuya fecha de agenda
+ * (la confirmada o, si no hay, la pedida) cae en el rango inclusivo, de hasta 42 días.
+ */
+export async function listarAgenda(desde: string, hasta: string, signal?: AbortSignal): Promise<Turno[]> {
+  const parametros = new URLSearchParams({ desde, hasta });
+  const { turnos } = await requestAdmin(`/admin/agenda?${parametros.toString()}`, { signal, schema: agendaSchema });
+  return turnos;
 }
 
 /** DELETE /api/admin/bookings/:id → 204. */

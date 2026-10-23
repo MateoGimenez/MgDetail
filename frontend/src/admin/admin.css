@@ -1254,3 +1254,582 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ---------- Turno: fecha confirmada distinta de la pedida ---------- */
+
+.turno__pidio {
+  display: block;
+  margin-top: 2px;
+  color: var(--texto-3);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Confirmar para otra fecha y reprogramar: dentro de la misma tarjeta, en lugar de los botones. */
+.fecha-turno {
+  display: grid;
+  gap: var(--e-4);
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--fondo-hundido);
+}
+
+.fecha-turno__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: var(--display-tracking);
+}
+
+.fecha-turno__grupo,
+.fecha-turno__franjas {
+  display: grid;
+  gap: var(--e-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fecha-turno__opcion {
+  align-items: flex-start;
+  min-height: 44px;
+  padding-block: 10px;
+}
+
+.fecha-turno__opcion input {
+  flex: none;
+  margin-top: 1px;
+}
+
+.fecha-turno__detalle {
+  display: block;
+  margin-top: 2px;
+  color: var(--texto-3);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.fecha-turno__campos {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.fecha-turno__campos--anidados {
+  margin-left: 30px;
+}
+
+.fecha-turno__campos .entrada {
+  max-width: 17rem;
+  min-height: 48px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fecha-turno__franjas-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--e-5);
+}
+
+.fecha-turno__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+/* ---------- Agenda ---------- */
+
+.agenda__navegacion {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin-top: var(--e-5);
+}
+
+.agenda__navegacion .boton-icono {
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+
+.agenda__semana {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.5rem);
+  line-height: 1.15;
+  letter-spacing: var(--display-tracking);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.agenda__hoy {
+  flex: none;
+}
+
+.agenda__esqueleto {
+  min-height: 320px;
+  margin-top: var(--e-2);
+}
+
+/* Celular: tira de días que se desliza si no entra, y el día elegido debajo */
+.agenda__celular {
+  margin-top: var(--e-2);
+}
+
+.agenda__ancha {
+  display: none;
+}
+
+.tira {
+  display: grid;
+  grid-auto-columns: minmax(46px, 1fr);
+  grid-auto-flow: column;
+  gap: 4px;
+  margin-inline: -3px;
+  padding: 3px 3px 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.tira > li {
+  scroll-snap-align: center;
+}
+
+.tira__dia {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  width: 100%;
+  min-height: 76px;
+  padding: 9px 2px 16px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+  color: var(--texto-2);
+  cursor: pointer;
+  transition:
+    border-color var(--t-rapida),
+    background-color var(--t-rapida);
+}
+
+.tira__dia:hover {
+  border-color: var(--texto-3);
+}
+
+.tira__dia:focus-visible {
+  outline-offset: 2px;
+}
+
+.tira__nombre {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.tira__numero {
+  color: var(--texto);
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.55rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.tira__punto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rojo-600);
+}
+
+.tira__punto--vacio {
+  background: transparent;
+}
+
+/* Hoy: el número en chapa grafito (forma, no solo color) y el rótulo "Hoy" en lugar del día */
+.tira__dia--hoy .tira__nombre {
+  color: var(--acento-texto);
+  font-weight: 750;
+}
+
+.tira__dia--hoy .tira__numero {
+  padding: 2px 6px 1px;
+  border-radius: var(--radio-1);
+  background: var(--grafito-900);
+  color: #ffffff;
+}
+
+.tira__dia--pasado {
+  background: var(--fondo-hundido);
+}
+
+.tira__dia--pasado .tira__numero {
+  color: var(--texto-3);
+}
+
+.tira__dia--elegido {
+  border-color: var(--texto);
+  background: var(--superficie);
+  box-shadow: inset 0 0 0 1px var(--texto);
+}
+
+.tira__trazo {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 30px;
+  height: 9px;
+  translate: -50% 0;
+}
+
+.agenda__dia {
+  display: grid;
+  gap: var(--e-5);
+  margin-top: var(--e-5);
+}
+
+.agenda__dia-titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.45rem;
+  line-height: 1.15;
+  letter-spacing: var(--display-tracking);
+}
+
+.agenda__marca-hoy,
+.grilla__hoy {
+  padding: 1px 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  color: var(--acento-texto);
+  font-family: var(--f-texto);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.agenda__franja {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.agenda__franja-titulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e-3);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--borde);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.agenda__cuenta {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.agenda__fichas {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.agenda__libre {
+  color: var(--texto-3);
+  font-size: 0.9375rem;
+}
+
+/* Un turno en la agenda */
+.ficha {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+  color: var(--texto);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(21 24 27 / 0.06);
+  transition:
+    border-color var(--t-rapida),
+    box-shadow var(--t-media);
+}
+
+.ficha:hover {
+  border-color: var(--texto-3);
+}
+
+.ficha:focus-visible {
+  outline-offset: 2px;
+}
+
+.ficha__nombre {
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.ficha__servicio {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+
+.ficha__vehiculo {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ficha__pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+
+.ficha__pidio {
+  color: var(--texto-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pendiente = tentativo: el taller todavía no lo aceptó. Borde punteado y fondo rayado, además del sello. */
+.ficha--pendiente {
+  border-style: dashed;
+  border-color: #9a6a1f;
+  background: repeating-linear-gradient(-45deg, #ffffff 0 7px, #fff6e6 7px 14px);
+  box-shadow: none;
+}
+
+.ficha--completado {
+  background: var(--fondo-hundido);
+  box-shadow: none;
+}
+
+.ficha--completado .ficha__nombre {
+  color: var(--texto-2);
+}
+
+.ficha--cambiada {
+  box-shadow:
+    0 0 0 2px rgb(200 16 46 / 0.35),
+    0 6px 16px -12px rgb(21 24 27 / 0.25);
+}
+
+.sello--chico {
+  gap: 5px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+}
+
+.sello--chico::before {
+  width: 6px;
+  height: 6px;
+}
+
+/* Pantalla ancha: grilla semanal 7 × 2 */
+@media (min-width: 900px) {
+  .agenda__celular {
+    display: none;
+  }
+
+  .agenda__ancha {
+    display: block;
+    margin-top: var(--e-2);
+  }
+}
+
+.grilla {
+  width: 100%;
+  table-layout: fixed;
+  border: 1px solid var(--borde);
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: var(--radio-3);
+  overflow: hidden;
+  background: var(--superficie);
+  box-shadow:
+    0 1px 2px rgb(21 24 27 / 0.06),
+    0 6px 16px -12px rgb(21 24 27 / 0.25);
+}
+
+.grilla th,
+.grilla td {
+  border-right: 1px solid var(--borde-suave);
+  border-bottom: 1px solid var(--borde-suave);
+  vertical-align: top;
+}
+
+.grilla tr > :last-child {
+  border-right: 0;
+}
+
+.grilla tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.grilla thead th {
+  border-bottom-color: var(--borde);
+}
+
+.grilla__esquina {
+  width: 84px;
+  background: var(--fondo-hundido);
+}
+
+.grilla__dia {
+  padding: 10px 10px 8px;
+  background: var(--fondo-hundido);
+  font-weight: inherit;
+  text-align: left;
+}
+
+.grilla__nombre {
+  display: block;
+  color: var(--texto-3);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.grilla__numero {
+  color: var(--texto);
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.55rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.grilla__hoy {
+  margin-left: 8px;
+  vertical-align: 3px;
+}
+
+/* La columna de hoy: encabezado blanco con el filete arriba y celdas apenas entonadas */
+.grilla__dia--hoy {
+  background: var(--superficie);
+  box-shadow: inset 0 3px 0 var(--rojo-600);
+}
+
+.grilla__dia--pasado .grilla__numero {
+  color: var(--texto-3);
+}
+
+.grilla__franja {
+  padding: 12px 10px;
+  background: var(--fondo-hundido);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.grilla__celda {
+  height: 132px;
+  padding: 8px;
+}
+
+.grilla__celda--hoy {
+  background: #fdf7f8;
+}
+
+.grilla__celda--pasado {
+  background: var(--fondo-hundido);
+}
+
+.grilla__cuenta {
+  display: block;
+  margin: 0 2px 6px;
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.grilla__vacia {
+  display: block;
+  padding: 4px 2px;
+  color: var(--texto-3);
+}
+
+.grilla .agenda__fichas {
+  gap: 6px;
+}
+
+.grilla .ficha {
+  padding: 8px 9px;
+}
+
+.grilla .ficha__nombre {
+  font-size: 0.9375rem;
+}
+
+.grilla .ficha__servicio,
+.grilla .ficha__vehiculo {
+  font-size: 0.8125rem;
+}
+
+.grilla .ficha__pie {
+  margin-top: 4px;
+}
+
+/* Detalle de un turno de la agenda: la misma tarjeta de Turnos dentro de un <dialog> */
+.detalle-turno {
+  width: min(100vw - 16px, 640px);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  padding: 0;
+}
+
+.detalle-turno__barra {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  padding: 8px 8px 8px clamp(16px, 2.4vw, 24px);
+  border-bottom: 1px solid var(--borde-suave);
+  background: var(--superficie);
+}
+
+.detalle-turno__cuando {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.detalle-turno__barra .boton-icono {
+  width: 44px;
+  height: 44px;
+  border-color: transparent;
+}
+
+.detalle-turno .turno {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}

@@ -12,8 +12,8 @@ src/
   data/         servicios.ts (respaldo del catálogo), galeria.ts, preguntas.ts: el contenido editable
   components/   Logo, íconos SVG y ornamentos de filete
   landing/      secciones de la landing y el formulario de turno
-  admin/        login y panel: turnos, servicios (catálogo) y usuarios
-  lib/          fechas (hora de La Rioja) y utilidades
+  admin/        login y panel: turnos, agenda, servicios (catálogo) y usuarios
+  lib/          fechas (hora de La Rioja, semana de lunes a domingo), reglas de la agenda y utilidades
   styles/       fuentes autoalojadas y estilos base
 ```
 
@@ -40,7 +40,7 @@ Buscá `COMPLETAR` para ver todo lo pendiente.
 | `npm run typecheck` | solo TypeScript |
 | `npm run lint` | ESLint (incluye accesibilidad con jsx-a11y) |
 | `npm run marca` | regenera las imágenes livianas de marca con sharp (los originales no se tocan) |
-| `npm test` | tests de fechas, del esquema del turno, de la sesión del panel, de usuarios y del catálogo (vitest) |
+| `npm test` | tests de fechas, del esquema del turno, de la sesión del panel, de usuarios, del catálogo y de la agenda (vitest) |
 
 ## Probar desde el celular
 
@@ -56,11 +56,11 @@ El ingreso usa Supabase Auth a través del backend (modo BFF): el navegador solo
 - **Sesión:** si un pedido a `/api/admin/*` responde `401 SESSION_EXPIRED`, `src/api/sesion.ts` llama una sola vez a `POST /api/auth/refresh` (aunque fallen varios pedidos a la vez) y reintenta. Si el refresh falla, vuelve al ingreso con el mensaje. Un `403 FORBIDDEN` (rol sin permiso) muestra el mensaje y la sesión sigue; un `403 NO_ACCESS` (usuario desactivado) vuelve al ingreso, sin pedidos extra.
 - **Roles** (la regla real la aplica el backend; el panel solo esconde lo que no se puede hacer):
 
-| Rol | Ver turnos | Cambiar estado | Borrar | Usuarios | Servicios |
-|---|---|---|---|---|---|
-| Superadmin | sí | a cualquier estado | sí | sí | ver y editar |
-| Admin | sí | a cualquier estado | sí | no | ver y editar |
-| Empleado | sí | solo "Marcar completado" | no | no | solo ver |
+| Rol | Ver turnos y agenda | Cambiar estado | Reprogramar | Borrar | Usuarios | Servicios |
+|---|---|---|---|---|---|---|
+| Superadmin | sí | a cualquier estado | sí | sí | sí | ver y editar |
+| Admin | sí | a cualquier estado | sí | sí | no | ver y editar |
+| Empleado | sí | solo "Marcar completado" | no | no | no | solo ver |
 
 - **Usuarios** (solo superadmin, sección "Usuarios" del panel): lista con email, nombre, rol, estado y fecha de alta. Se puede cambiar el rol, activar o desactivar (con confirmación) y editar el nombre. Los inactivos aparecen arriba, en "Pendientes de activación", con el botón "Activar". Sobre tu propio usuario no podés cambiarte el rol ni desactivarte.
 - **Usuarios (solo superadmin):** se crean, editan (rol, nombre, email, contraseña, activo) y eliminan desde *Usuarios*. Si el backend no tiene `SUPABASE_SECRET_KEY` (`gestionCuentas: false`), el alta, la baja y el cambio de email o contraseña se ocultan. La contraseña olvidada la repone el superadmin con *Cambiar contraseña*; el login solo lo explica. Los pasos completos están en `backend/README.md`.
@@ -72,6 +72,16 @@ Contrato: `reportes/2026-10-22_07_catalogo-editable.md`.
 - **Landing:** `landing/CatalogoProvider.tsx` pide `GET /api/servicios` una vez y lo comparte (`useCatalogo()`) con Servicios, el arranque del Hero, el formulario de turno, su resumen, el éxito y las preguntas frecuentes. Mientras carga se muestra `src/data/servicios.ts` con el precio esperando en su lugar; si la API falla queda ese respaldo, siempre sin precios ("Consultá"). Si la API responde una lista **vacía** (el dueño desactivó todo), NO se usa el respaldo (el backend rechazaría esos turnos): Servicios y Reservá muestran `landing/SinTurnosOnline.tsx` ("Por ahora no estamos tomando turnos online"), con WhatsApp/Instagram si están cargados en `src/config/sitio.ts`. El formulario solo acepta servicios del catálogo que se está mostrando; el backend vuelve a controlar que exista y esté activo.
 - **Panel → Servicios:** lista en el orden de la web con precio, duración, destacado y activo/inactivo. Superadmin y admin crean (el identificador se sugiere desde el nombre y queda fijo al crear), editan todos los campos en un diálogo (listas editables para "Incluye" y "En palabras simples"), destacan (a lo sumo uno: el anterior se desmarca; un inactivo no se puede destacar), activan o desactivan (no se borran: hay turnos que los usan; desactivar el destacado lo desmarca) y suben o bajan el orden (`PUT /api/admin/servicios/orden`). El empleado ve la lista sin controles. Las validaciones (`admin/validacionServicio.ts`) son las del contrato y usan las mismas claves de error que el backend (`incluye.2`, `glosario.0.termino`).
 - Turnos muestra el nombre del servicio con el catálogo del panel (o el del respaldo, o el id tal cual si ya no existe).
+
+## Agenda
+
+Contrato: `reportes/2026-10-22_08_agenda.md`.
+
+- **Fecha de agenda** de un turno = la confirmada por el taller (`fechaConfirmada` + `franjaConfirmada`, van juntas) o, si no hay, la que pidió el cliente. Las reglas puras están en `lib/agenda.ts` y los cálculos de semana (lunes a domingo, hora de La Rioja) en `lib/fechas.ts`. La respuesta se valida estricta: un turno sin los dos campos, o con uno solo, se rechaza.
+- **Panel → Agenda** (entre Turnos y Servicios) pide `GET /api/admin/agenda?desde&hasta` por semana. En el celular: tira de días (hoy marcado, punto en los días con turnos; flechas del teclado para recorrerla) y abajo el día elegido en Mañana / Tarde con la cantidad de cada franja. Desde 900 px: grilla de 7 días × 2 franjas (una `<table>` con encabezados de día y franja). Semana anterior / siguiente / Hoy. Los pendientes son tentativos: borde punteado, fondo rayado y sello "Pendiente". Si se confirmó para otro día, la ficha aclara "Pidió: jue 24".
+- **Detalle:** tocar un turno abre la misma tarjeta de Turnos en un `<dialog>`, con sus acciones y **Reprogramar** (solo superadmin y admin; no en cancelados ni completados). Si un cambio lo saca de la semana (cancelado o movido), el detalle lo avisa y la grilla lo deja de mostrar.
+- **Confirmar con otra fecha:** desde Turnos o desde la Agenda, "Confirmar" sobre un pendiente pregunta "Para lo que pidió" u "Otra fecha" (de hoy a hoy + 120 días, y franja) dentro de la misma tarjeta, y manda todo en un solo `PATCH`. El empleado no ve esa opción (no confirma).
+- La tarjeta y su mensaje de WhatsApp usan la fecha de agenda y muestran lo pedido si difiere.
 
 ## Notas
 

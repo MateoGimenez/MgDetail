@@ -32,6 +32,19 @@ export function isValidCalendarDate(text: string): boolean {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
+/**
+ * Días de calendario de `desde` a `hasta` (YYYY-MM-DD válidas): 0 si son el mismo día, negativo si `hasta` es
+ * anterior. Aritmética en UTC: sin problemas de horario.
+ */
+export function daysBetween(desde: string, hasta: string): number {
+  const toUtc = (isoDate: string): number => {
+    const match = ISO_DATE.exec(isoDate);
+    if (!match) throw new RangeError('Fecha inválida');
+    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  };
+  return Math.round((toUtc(hasta) - toUtc(desde)) / 86_400_000);
+}
+
 /** Suma días de calendario a una fecha YYYY-MM-DD válida. Aritmética en UTC: sin problemas de horario. */
 export function addDays(isoDate: string, days: number): string {
   const match = ISO_DATE.exec(isoDate);

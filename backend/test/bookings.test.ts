@@ -346,6 +346,8 @@ describe('POST /api/bookings: logging', () => {
       create: () => Promise.reject(new Error('sin espacio')),
       list: () => Promise.reject(new Error('x')),
       updateEstado: () => Promise.reject(new Error('x')),
+      reprogramar: () => Promise.reject(new Error('x')),
+      agenda: () => Promise.reject(new Error('x')),
       delete: () => Promise.reject(new Error('x')),
     };
     const logger = new MemoryLogger();

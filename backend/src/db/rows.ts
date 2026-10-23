@@ -51,6 +51,11 @@ export function oneOf<T extends string>(allowed: readonly T[], row: Row, key: st
   return match;
 }
 
+/** Uno de los valores permitidos, o null (una columna nullable con CHECK ... IN (...)). */
+export function oneOfOrNull<T extends string>(allowed: readonly T[], row: Row, key: string): T | null {
+  return row[key] === null ? null : oneOf(allowed, row, key);
+}
+
 /**
  * Fecha y hora en ISO 8601 UTC (`2026-10-16T15:00:00.000Z`), el formato del contrato. Postgres devuelve los
  * `timestamptz` como Date (se acepta también texto ISO).
