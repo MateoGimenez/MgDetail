@@ -84,6 +84,8 @@ describe('GET /api/admin/bookings', () => {
       franjaConfirmada: null,
       comentario: 'Tiene rayones en el capot.',
       estado: 'pendiente',
+      notasInternas: null,
+      turnosDelCliente: 1,
       createdAt: '2026-10-16T15:00:00.000Z',
       updatedAt: '2026-10-16T15:00:00.000Z',
     });
@@ -98,17 +100,15 @@ describe('GET /api/admin/bookings', () => {
     expect(response.body.bookings[0]).toMatchObject({ telefono: '1234-5678', telefonoWhatsapp: null });
   });
 
-  it('telefonoWhatsapp no es una columna: se calcula al leer y también sale en PATCH', async () => {
+  it('telefonoWhatsapp se guarda al crear (columna telefono_whatsapp) y también sale en PATCH', async () => {
     const { context, admin } = await adminContext();
     const [id] = await createBookings(context, ['Cliente'], { telefono: '+1 415 555 2671' });
 
     const { rows } = await context.db.sql.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'mgdetailing' AND table_name = 'bookings'",
+      'SELECT telefono_whatsapp FROM mgdetailing.bookings WHERE id = $1::uuid',
+      [id],
     );
-    const columns = rows.map((column) => column.column_name);
-    expect(columns).toContain('telefono');
-    expect(columns).not.toContain('telefono_whatsapp');
-    expect(columns).not.toContain('telefonoWhatsapp');
+    expect(rows[0]?.telefono_whatsapp).toBe('14155552671');
 
     const patched = await admin.patch(`/api/admin/bookings/${id ?? ''}`, { estado: 'confirmado' });
     expect(patched.body.booking).toMatchObject({ telefono: '+1 415 555 2671', telefonoWhatsapp: '14155552671' });

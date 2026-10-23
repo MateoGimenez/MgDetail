@@ -7,6 +7,7 @@ API REST de MgDetailing, taller de detailing de autos en La Rioja, Argentina. Ha
 3. Les permite **gestionar** esas solicitudes desde el panel `/admin` según su **rol** (`superadmin`, `admin`, `empleado`), y al `superadmin` gestionar los usuarios.
 4. Sirve el **catálogo de servicios** (textos, precios, duraciones, destacado, orden) desde la base: la landing lo lee de `GET /api/servicios` y `admin`/`superadmin` lo editan desde el panel sin volver a publicar la web.
 5. Arma la **agenda** del panel: qué turnos hay cada día y franja (`GET /api/admin/agenda`), con la **fecha y franja confirmadas** por el taller cuando difieren de las que pidió el cliente.
+6. Guarda **notas internas** por turno (el cliente nunca las ve), **busca** turnos por nombre, email, vehículo o teléfono y arma el **historial del cliente** (sus turnos, por teléfono normalizado).
 
 Stack: Node 24 + TypeScript (strict, ESM) + Express 5, **Postgres en Supabase** (driver `pg`) como único motor, **Supabase Auth** (API REST de GoTrue, sin `supabase-js`), zod, helmet, cors, express-rate-limit, jose (verificación de los JWT contra el JWKS del proyecto). Los tests usan PGlite (Postgres en memoria).
 
@@ -104,6 +105,8 @@ navegador --/api (cookies httpOnly)--> backend --POST /auth/v1/token, /auth/v1/l
 "Reprogramar" = cambiar la fecha/franja confirmadas de un turno, también al confirmarlo "para otra fecha" o al volver a la que pidió el cliente (`puedeReprogramar` en `src/domain/permisos.ts`).
 
 "Editar catálogo" = crear servicios, editarlos (textos, precio, duración, destacado, activo) y reordenarlos (`puedeEditarCatalogo` en `src/domain/permisos.ts`).
+
+**Notas internas, búsqueda e historial del cliente**: todos los roles, también `empleado` (es quien está con el auto). La nota se puede escribir y editar aunque el turno esté `cancelado` o `completado`.
 
 Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. Reglas de usuarios: nadie puede cambiarse su propio rol, ni desactivarse ni eliminarse a sí mismo (`409 CONFLICT`), y **nunca puede quedar el sistema sin un superadmin activo** (lo garantiza un trigger en la base, también ante dos cambios simultáneos; `409 CONFLICT`).
 
@@ -205,7 +208,7 @@ erDiagram
 | Tabla | Para qué | Restricciones e índices |
 |---|---|---|
 | `servicios` | **Catálogo del taller, fuente de verdad** (editable desde el panel; ver [Catálogo editable](#catálogo-editable)). Sembrado con los 5 servicios y los textos que tenía `frontend/src/data/servicios.ts` (propuesta inicial, sin confirmar). Un servicio que se deja de ofrecer se **desactiva** (`activo = false`), no se borra: lo referencian turnos. | PK `id` (slug validado por CHECK, inmutable: `mgdetailing_app` no tiene `UPDATE` sobre él). CHECK de largos de `nombre`/`resumen`/`descripcion`/`duracion_estimada` (no vacía), `precio_desde` entero de 0 a 99.999.999, `incluye` y `glosario` validados ítem por ítem (funciones `mgdetailing.servicio_incluye_valido` / `servicio_glosario_valido`). Índice único parcial `servicios_un_destacado` (`WHERE destacado`): a lo sumo un destacado. Trigger `updated_at`. |
-| `bookings` | Solicitudes de turno. | PK `seq` (bigint identity: inserciones ordenadas, índice compacto y orden estable aunque dos turnos tengan el mismo `created_at`); `id` UUID **único**, el único que sale por la API (un id secuencial revelaría cuántos turnos hay). FK `servicio_id -> servicios` (`RESTRICT`). CHECK de `vehiculo_tipo`, `franja`, `franja_confirmada`, `estado` y de los largos de zod; CHECK `bookings_confirmada_juntas`: `fecha_confirmada` y `franja_confirmada` las dos null o las dos con valor. Índices: `(estado, seq DESC)` para el listado filtrado y su `COUNT`; la PK sirve al listado sin filtro; `(servicio_id)` para la FK; `bookings_agenda_idx`, de expresión y parcial, `(coalesce(fecha_confirmada, fecha_preferida), coalesce(franja_confirmada, franja), seq) WHERE estado <> 'cancelado'`, para la agenda. |
+| `bookings` | Solicitudes de turno. | PK `seq` (bigint identity: inserciones ordenadas, índice compacto y orden estable aunque dos turnos tengan el mismo `created_at`); `id` UUID **único**, el único que sale por la API (un id secuencial revelaría cuántos turnos hay). FK `servicio_id -> servicios` (`RESTRICT`). CHECK de `vehiculo_tipo`, `franja`, `franja_confirmada`, `estado` y de los largos de zod; CHECK `bookings_confirmada_juntas`: `fecha_confirmada` y `franja_confirmada` las dos null o las dos con valor. Índices: `(estado, seq DESC)` para el listado filtrado y su `COUNT`; la PK sirve al listado sin filtro; `(servicio_id)` para la FK; `bookings_agenda_idx`, de expresión y parcial, `(coalesce(fecha_confirmada, fecha_preferida), coalesce(franja_confirmada, franja), seq) WHERE estado <> 'cancelado'`, para la agenda; `bookings_telefono_whatsapp_idx`, parcial, `(telefono_whatsapp, seq) WHERE telefono_whatsapp IS NOT NULL`, para `turnosDelCliente` y el historial. CHECK `bookings_notas_internas_largo` (≤ 1000) y `bookings_telefono_whatsapp_formato` (`^[0-9]{8,15}$`). |
 | `roles` | Los 3 roles del panel (sembrados por migración). Los permisos de cada rol los aplica el backend (`domain/permisos.ts`). | PK `id` (slug). |
 | `perfiles` | Un perfil por usuario de Supabase Auth: rol y si puede entrar. Lo crea el trigger de `auth.users`; se borra en cascada con el usuario. | PK/FK `id -> auth.users ON DELETE CASCADE`; FK `rol_id -> roles` con índice; CHECK de email en minúsculas y largo de nombre; trigger `updated_at`; trigger `perfiles_al_menos_un_superadmin`. |
 
@@ -219,7 +222,9 @@ Decisiones:
 
 - **`text` + `CHECK` en vez de enums** para `vehiculo_tipo`, `franja` y `estado`: la integridad queda en la base igual que con un enum, se leen como string sin conversiones y cambiar los valores es un `ALTER` de la constraint (quitar un valor de un enum de Postgres obliga a recrear el tipo).
 - **`updated_at` con trigger** (`mgdetailing.set_updated_at`): el backend manda su propio `updated_at` (su reloj, el mismo que usan las respuestas y los tests); si una actualización no lo cambia (por ejemplo, una edición a mano desde el panel de Supabase), el trigger pone `now()`. Es `SECURITY INVOKER` y con `search_path` vacío.
-- `telefonoWhatsapp` **no es columna**: se calcula al leer.
+- **`telefono_whatsapp` se guarda** (migración `notas_telefono_cliente`): el backend lo calcula con `domain/telefono.ts` (libphonenumber) al crear el turno, y es lo que identifica al **mismo cliente** (historial y `turnosDelCliente`). Los turnos anteriores a la migración se completan con `npm run normalizar-telefonos` (la regla vive en JavaScript, no en SQL). Mientras un turno viejo tenga la columna en null, la API calcula `telefonoWhatsapp` al leer (como antes), pero ese turno no cuenta en el historial hasta normalizarlo.
+- **`notas_internas`**: texto libre del taller (hasta 1000 caracteres, CHECK). Nunca sale por la API pública ni en los avisos.
+- **Búsqueda sin extensiones**: `mgdetailing.texto_busqueda(text)` (minúsculas y sin acentos con `translate`, `IMMUTABLE`, `search_path` vacío) se aplica a la columna y al texto buscado, con `LIKE ... ESCAPE '\'`. La tabla es chica: no hace falta `pg_trgm` ni `unaccent`.
 - **El pedido del cliente nunca se pisa**: `fecha_preferida`/`franja` son lo que pidió; lo que confirma el taller va en `fecha_confirmada`/`franja_confirmada` (null = la pedida). "Fecha de agenda" = `coalesce(fecha_confirmada, fecha_preferida)`, lo mismo para la franja. El rango de una fecha confirmada (hoy a hoy + 120 días) lo valida la API: un CHECK no puede depender de "hoy", y un turno viejo conserva la suya.
 - `fecha_preferida` y `fecha_confirmada` son `date`; los repositorios las devuelven como `YYYY-MM-DD` (`to_char`) y los `timestamptz` como ISO 8601 UTC, igual que el contrato.
 - **`perfiles.email` es una copia**: `mgdetailing_app` no puede leer `auth.users` (ni debe); el trigger la mantiene al día.
@@ -227,7 +232,7 @@ Decisiones:
 ### Seguridad en la base (Supabase)
 
 - Todo vive en los esquemas **`mgdetailing`** y **`mgdetailing_private`**, que **no** están entre los expuestos por la Data API (PostgREST/GraphQL publican `public` y `graphql_public`; un pedido con `Accept-Profile: mgdetailing` responde `PGRST106`). La web **nunca** habla con Supabase: ni `supabase-js`, ni claves en el frontend. El único cliente de la base y de Supabase Auth es este backend.
-- **Rol dedicado `mgdetailing_app`** (migración `rol_app_minimo_privilegio`): el backend se conecta con él, **no** con `postgres`. Puede solo lo que el backend hace: `SELECT` en `roles`; `SELECT` en `servicios`, `INSERT` por columna (todas salvo `created_at`) y `UPDATE` por columna (los campos editables, `orden` y `updated_at`; nunca `id` ni `created_at`), sin `DELETE`, y `EXECUTE` de las dos funciones de validación del catálogo; `SELECT/INSERT/DELETE` en `bookings` y `UPDATE` solo de `estado`, `updated_at`, `fecha_confirmada` y `franja_confirmada` (nunca los datos del cliente ni el pedido original); `SELECT` en `perfiles` y `UPDATE` solo de `rol_id`, `activo`, `nombre` y `updated_at` (sin `INSERT` ni `DELETE`: los hace el trigger / la cascada); `EXECUTE` solo de `mgdetailing_private.sesion_vigente`. Sin DDL, sin `TRUNCATE`, sin `BYPASSRLS`, sin acceso a `auth`, `storage` ni `public`. Topes de sesión: `statement_timeout` 10 s, `lock_timeout` 5 s, `idle_in_transaction_session_timeout` 30 s. Se crea **NOLOGIN y sin contraseña** (no hay secretos en el repo): el dueño le pone la contraseña (ver [Conectar Supabase](#conectar-supabase)). Si el backend arranca conectado con un rol privilegiado (`postgres`), lo avisa en el log.
+- **Rol dedicado `mgdetailing_app`** (migración `rol_app_minimo_privilegio`): el backend se conecta con él, **no** con `postgres`. Puede solo lo que el backend hace: `SELECT` en `roles`; `SELECT` en `servicios`, `INSERT` por columna (todas salvo `created_at`) y `UPDATE` por columna (los campos editables, `orden` y `updated_at`; nunca `id` ni `created_at`), sin `DELETE`, y `EXECUTE` de las dos funciones de validación del catálogo; `SELECT/INSERT/DELETE` en `bookings` y `UPDATE` solo de `estado`, `updated_at`, `fecha_confirmada`, `franja_confirmada`, `notas_internas` y `telefono_whatsapp` (nunca los datos del cliente ni el pedido original), y `EXECUTE` de `mgdetailing.texto_busqueda`; `SELECT` en `perfiles` y `UPDATE` solo de `rol_id`, `activo`, `nombre` y `updated_at` (sin `INSERT` ni `DELETE`: los hace el trigger / la cascada); `EXECUTE` solo de `mgdetailing_private.sesion_vigente`. Sin DDL, sin `TRUNCATE`, sin `BYPASSRLS`, sin acceso a `auth`, `storage` ni `public`. Topes de sesión: `statement_timeout` 10 s, `lock_timeout` 5 s, `idle_in_transaction_session_timeout` 30 s. Se crea **NOLOGIN y sin contraseña** (no hay secretos en el repo): el dueño le pone la contraseña (ver [Conectar Supabase](#conectar-supabase)). Si el backend arranca conectado con un rol privilegiado (`postgres`), lo avisa en el log.
 - **RLS habilitado en las 4 tablas**, con policies **solo para `mgdetailing_app`** (`USING (true)`: el backend es un único cliente de confianza que ve todas las filas; la autorización por usuario y por rol la hace la API con la sesión del panel). `anon`, `authenticated` y `service_role` no tienen ni privilegios ni policies: aunque alguien expusiera el esquema por error, no verían una fila. `postgres` (dueño de las tablas, con `BYPASSRLS`) queda para migraciones y backups.
 - **`REVOKE` de todo** (tablas, secuencias, funciones y el `USAGE` del esquema) a `public`, `anon`, `authenticated` y `service_role`, y privilegios por defecto revocados para lo que se cree después en el esquema. Un test lo comprueba en PGlite (incluso haciendo `SET ROLE anon`).
 - Advisors de Supabase (security y performance) después de aplicar: security sin avisos; performance solo con el INFO esperado *unused index* (la base está vacía; se usan en cuanto haya turnos). La migración `endurecer_rls_auto_enable` revocó el `EXECUTE` de `public.rls_auto_enable()` (una función de Supabase que ya venía en el proyecto, del event trigger que activa RLS en tablas nuevas de `public`) a `anon`/`authenticated`, que el linter marcaba como WARN.
@@ -244,6 +249,7 @@ Decisiones:
 - Los tests aplican **las mismas migraciones** a un Postgres en memoria (PGlite). Como PGlite no tiene lo de Supabase, el test crea antes de migrar los roles `anon`, `authenticated` y `service_role` (sin login) y un esquema `auth` mínimo (`auth.users` y `auth.sessions` con las columnas que se usan): así las migraciones se prueban tal cual, sin saltear sentencias.
 - **`20261022200000_catalogo_editable` (2026-10-22): PENDIENTE de aplicar en Supabase, con aprobación del dueño.** Agrega `resumen`, `descripcion`, `incluye`, `glosario` y `destacado` a `servicios`, copia los textos del frontend, pasa `precio_desde` a `integer`, crea el índice de destacado único y da a `mgdetailing_app` `INSERT`/`UPDATE` por columna con sus policies. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan columnas en mgdetailing.servicios"): aplicala antes de desplegar este backend y corré los advisors después.
 - **`20261023120000_agenda_fecha_confirmada` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-22_08_agenda.md`). Agrega `fecha_confirmada` y `franja_confirmada` (nullable) a `bookings` con sus CHECK (franja válida; las dos juntas), el índice parcial `bookings_agenda_idx` y `GRANT UPDATE (fecha_confirmada, franja_confirmada)` a `mgdetailing_app`. Columnas nullable sin default: no reescribe la tabla. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan columnas en mgdetailing.bookings"); aplicala (después de `catalogo_editable`) antes de desplegar y corré los advisors.
+- **`20261023180000_notas_telefono_cliente` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-23_10_notas-busqueda-historial.md`). Agrega `notas_internas` y `telefono_whatsapp` (nullable, con CHECK) a `bookings`, el índice parcial `bookings_telefono_whatsapp_idx`, la función `mgdetailing.texto_busqueda` (con `EXECUTE` solo para `mgdetailing_app`) y `GRANT UPDATE (notas_internas, telefono_whatsapp)` a `mgdetailing_app`. Columnas nullable sin default: no reescribe la tabla. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de notas"). Orden: aplicar la migración (después de `agenda_fecha_confirmada`), desplegar el backend, correr **`npm run normalizar-telefonos`** una vez (completa `telefono_whatsapp` en los turnos existentes; se puede repetir sin riesgo) y los advisors.
 - Los servicios ya **no** se agregan por migración ni en el código: se crean desde el panel.
 
 ### Backups (Supabase)
@@ -270,6 +276,17 @@ Contrato acordado con el frontend: `reportes/2026-10-22_08_agenda.md`.
 - **Reprogramar** (`PATCH /api/admin/bookings/:id` con `fechaConfirmada` + `franjaConfirmada`): solo `admin`/`superadmin`; el turno no puede estar ni quedar `cancelado`/`completado`; la fecha va de hoy a hoy + 120 días, en hora de La Rioja (`fechaConfirmadaRange` en `domain/booking-dates.ts`). `null` en las dos = volver a la pedida. La condición "no cerrado" va en el mismo `UPDATE` (sin carreras con un cancelado simultáneo).
 - **Sin cupos todavía**: la agenda no bloquea; cupos y días bloqueados son un objetivo posterior.
 - Log: `Turno reprogramado id=... por=<uuid> fecha=<YYYY-MM-DD franja | la pedida> [estado=...]`; nunca datos del cliente.
+
+### Notas internas, búsqueda e historial del cliente
+
+Contrato acordado con el frontend: `reportes/2026-10-23_10_notas-busqueda-historial.md`.
+
+- **Mismo cliente** = mismo `telefono_whatsapp` guardado. No se agrupa por nombre. Sin teléfono interpretable (o sin normalizar todavía) no hay historial: `turnosDelCliente: null`.
+- **`turnosDelCliente`**: una subconsulta `count(*)` por fila dentro de la misma consulta (sobre `bookings_telefono_whatsapp_idx`), en el listado, el `PATCH` y la agenda: sin N+1. Cuenta todos los estados, incluido el propio turno.
+- **Búsqueda** (`q`): texto (nombre, email, modelo) sin mayúsculas ni acentos, con los comodines `%`, `_` y `\` escapados (`escapeLike`) y `ESCAPE '\'` explícito; y, si `q` tiene al menos 4 dígitos, esos dígitos dentro de los dígitos del teléfono escrito o del normalizado. Todo va como parámetro. El logger de requests no registra la query string (la búsqueda puede traer nombres o teléfonos).
+- **Historial** (`cliente`): `GET /api/admin/bookings?cliente=<telefonoWhatsapp>`, combinable con `estado` y la paginación.
+- **Notas**: una por turno; la nota viaja en la misma escritura que el estado o la fecha (si una parte se rechaza, no se guarda nada). Nunca se escribe en el log, nunca sale en `POST /api/bookings` (que además la rechaza por ser un campo desconocido) ni en los avisos (`notifications/message.ts` arma el texto campo por campo).
+- **`npm run normalizar-telefonos`** (`src/scripts/normalizar-telefonos.ts`, lógica en `normalizar-telefonos-cli.ts`): con la `DATABASE_URL` del `.env` (el rol `mgdetailing_app` alcanza), completa `telefono_whatsapp` donde es null y el teléfono se puede interpretar, en una transacción y un solo `UPDATE`. Idempotente. Imprime solo cantidades: `N turnos actualizados, M sin teléfono interpretable`. El trigger de `updated_at` marca como actualizados los turnos que completa.
 
 ### Catálogo editable
 
@@ -360,6 +377,16 @@ curl -b cookies.txt -X PATCH http://localhost:4000/api/admin/usuarios/<id> \
 
 # Listar turnos (más nuevos primero), con filtro y paginación
 curl -b cookies.txt "http://localhost:4000/api/admin/bookings?estado=pendiente&limit=20&offset=0"
+
+# Buscar por nombre, email, modelo o dígitos del teléfono (2 a 80 caracteres)
+curl -b cookies.txt "http://localhost:4000/api/admin/bookings?q=gomez&estado=pendiente"
+
+# Historial de un cliente (su telefonoWhatsapp)
+curl -b cookies.txt "http://localhost:4000/api/admin/bookings?cliente=5493804123456"
+
+# Nota interna (todos los roles, también en turnos cerrados; "" o null la borra)
+curl -b cookies.txt -X PATCH http://localhost:4000/api/admin/bookings/<id> \
+  -H "Content-Type: application/json" -d '{"notasInternas":"Rayón en la puerta trasera.\nCobrado."}'
 
 # Cambiar el estado de un turno
 curl -b cookies.txt -X PATCH http://localhost:4000/api/admin/bookings/<id> \
@@ -535,11 +562,13 @@ Sin body (pero con `Content-Type: application/json`). Canjea el refresh token: `
 
 `200 { "usuario": { id, email, nombre, rol } }`, `401 UNAUTHORIZED` o `403 NO_ACCESS`. Si el access token venció, refresca solo (acá sí viaja el refresh token) y reescribe las cookies.
 
-### `GET /api/admin/bookings?estado=&limit=&offset=` (requiere sesión; todos los roles)
+### `GET /api/admin/bookings?estado=&q=&cliente=&limit=&offset=` (requiere sesión; todos los roles)
 
 | Parámetro | Regla |
 |---|---|
 | `estado` | Opcional. Uno de los cuatro estados. Vacío (`estado=`) = sin filtro. |
+| `q` | Opcional. Texto de búsqueda: se recorta y tiene que quedar de **2 a 80 caracteres** (si no, `400` con `fields.q`; vacío o solo espacios = sin filtro). Encuentra el turno si el texto aparece, sin importar mayúsculas ni acentos, en `nombre`, `email` o `vehiculoModelo`; o si los dígitos de `q` (cuando son al menos 4) aparecen en los dígitos del teléfono o en `telefonoWhatsapp`. `%`, `_` y `\` se buscan como texto. |
+| `cliente` | Opcional. Un `telefonoWhatsapp` exacto (`^\d{8,15}$`; si no, `400` con `fields.cliente`): todos los turnos de ese cliente. |
 | `limit` | Opcional. Entero de 1 a 100. Por defecto 50. |
 | `offset` | Opcional. Entero de 0 en adelante. Por defecto 0. |
 
@@ -563,6 +592,8 @@ Los parámetros desconocidos se ignoran; uno inválido da `400` con `fields`. Re
       "franjaConfirmada": null,
       "comentario": "Rayones en el capot",
       "estado": "pendiente",
+      "notasInternas": null,
+      "turnosDelCliente": 1,
       "createdAt": "2026-10-16T15:00:00.000Z",
       "updatedAt": "2026-10-16T15:00:00.000Z"
     }
@@ -571,19 +602,25 @@ Los parámetros desconocidos se ignoran; uno inválido da `400` con `fields`. Re
 }
 ```
 
-`email`, `vehiculoModelo` y `comentario` pueden ser `null`.
+`email`, `vehiculoModelo` y `comentario` pueden ser `null`. Los filtros se combinan entre sí; el orden sigue siendo más nuevos primero y `total` cuenta lo filtrado.
+
+**`notasInternas`** (`string | null`): la nota interna del taller (hasta 1000 caracteres, con saltos de línea). El cliente nunca la ve.
+
+**`turnosDelCliente`** (`integer | null`): cuántos turnos hay con el mismo `telefonoWhatsapp`, contando este y todos los estados (1 = primer turno). `null` si el turno no tiene teléfono normalizado guardado (no interpretable, o turno viejo todavía sin `npm run normalizar-telefonos`).
 
 **`fechaConfirmada`** (`"YYYY-MM-DD" | null`) y **`franjaConfirmada`** (`"manana" | "tarde" | null`): la fecha y franja que confirmó el taller, si difieren de las pedidas. Van siempre juntas: las dos `null` (se confirmó, o se confirmará, para `fechaPreferida`/`franja`) o las dos con valor. **Fecha de agenda** = la confirmada si existe, si no la pedida (también para el mensaje de WhatsApp).
 
-**`telefonoWhatsapp`** (`string | null`): el teléfono listo para `https://wa.me/<telefonoWhatsapp>`, solo dígitos y en formato internacional. Se calcula al leer (no es una columna) con `libphonenumber-js`, país por defecto Argentina: los celulares argentinos salen como `549` + 10 dígitos aunque el cliente no haya escrito el `0`, el `15` ni el `9` (`0380 15-4123456`, `380 4123456` y `+54 9 380 412-3456` dan `5493804123456`); un número válido de otro país va en E.164 sin `+` (`+1 415 555 2671` => `14155552671`). Si no se puede interpretar, es `null`: **nunca se rechaza un turno por eso**, así que el frontend tiene que manejar el `null` (mostrar el teléfono sin botón de WhatsApp).
+**`telefonoWhatsapp`** (`string | null`): el teléfono listo para `https://wa.me/<telefonoWhatsapp>`, solo dígitos y en formato internacional. Se calcula al crear el turno y se guarda (columna `telefono_whatsapp`; en un turno viejo sin normalizar, se calcula al leer) con `libphonenumber-js`, país por defecto Argentina: los celulares argentinos salen como `549` + 10 dígitos aunque el cliente no haya escrito el `0`, el `15` ni el `9` (`0380 15-4123456`, `380 4123456` y `+54 9 380 412-3456` dan `5493804123456`); un número válido de otro país va en E.164 sin `+` (`+1 415 555 2671` => `14155552671`). Si no se puede interpretar, es `null`: **nunca se rechaza un turno por eso**, así que el frontend tiene que manejar el `null` (mostrar el teléfono sin botón de WhatsApp).
 
 ### `PATCH /api/admin/bookings/:id` (requiere sesión)
 
-Body estricto con **al menos uno** de: `estado`, o la pareja `fechaConfirmada` + `franjaConfirmada` (**juntas**; `null` las dos = volver a la fecha pedida).
+Body estricto con **al menos uno** de: `estado`, la pareja `fechaConfirmada` + `franjaConfirmada` (**juntas**; `null` las dos = volver a la fecha pedida), o `notasInternas`.
 
 ```json
-{ "estado": "confirmado", "fechaConfirmada": "2026-10-24", "franjaConfirmada": "tarde" }
+{ "estado": "confirmado", "fechaConfirmada": "2026-10-24", "franjaConfirmada": "tarde", "notasInternas": "Lo trae el hijo." }
 ```
+
+- **`notasInternas`** (`string | null`): **todos los roles**, aunque el turno esté `cancelado` o `completado`. Se recortan los espacios de los extremos; vacío o solo espacios => `null` (borra la nota). Hasta 1000 caracteres (contados como `char_length`). Se permiten salto de línea y tabulación (un `\r\n` cuenta como salto de línea); cualquier otro carácter de control => `400` con `fields.notasInternas`. Se puede mandar sola o junto con `estado` y/o la fecha confirmada: va en la misma escritura, y si el resto del pedido se rechaza (`403`, turno cerrado al reprogramar), la nota tampoco se guarda.
 
 `200 { "booking": { ...mismo objeto que el listado... } }`. `404 NOT_FOUND` si no existe.
 
@@ -820,7 +857,7 @@ backend/
     schemas/            validación de entrada con zod
     db/                 database.ts (abre la base), postgres.ts (pool, TLS, verificación del esquema), rows.ts
     lib/                utilidades: errores, logger, fechas, cookies, cliente de Supabase Auth, verificación de JWT
-    scripts/            clave-db (contraseña del rol mgdetailing_app)
+    scripts/            clave-db (contraseña del rol mgdetailing_app), normalizar-telefonos (telefono_whatsapp de turnos viejos)
   supabase/migrations/  migraciones de Postgres (fuente de verdad del esquema en Supabase)
   test/                 vitest + supertest (Postgres en memoria con PGlite y un Supabase Auth falso)
 ```
@@ -833,6 +870,7 @@ backend/
 | `npm run build` | Compila a `dist/` con `tsc`. |
 | `npm start` | `node dist/index.js`. |
 | `npm run clave-db:dev` / `npm run clave-db` | Genera la contraseña del rol `mgdetailing_app` y el `ALTER ROLE` con hash SCRAM para pegar en Supabase. |
+| `npm run normalizar-telefonos:dev` / `npm run normalizar-telefonos` (después de `npm run build`) | Completa `telefono_whatsapp` en los turnos que no lo tienen (una vez, después de aplicar la migración `notas_telefono_cliente`; idempotente). Imprime solo cantidades. |
 | `npm test` | Tests (vitest + supertest). |
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm run lint` | ESLint (typescript-eslint estricto). |
@@ -844,6 +882,8 @@ Los tests usan un reloj fijo, **PGlite** (Postgres compilado a WebAssembly, en m
 - `postgres.test.ts`: RLS y privilegios de `anon`/`authenticated`/`service_role` y de `mgdetailing_app`, trigger de `auth.users`, CHECK y `updated_at`, CHECK de la agenda (fecha y franja confirmadas juntas) e índice `bookings_agenda_idx`, verificación del esquema y `/api/health` con Postgres caído.
 - `repositories.contract.test.ts`: turnos (incluida la agenda y la reprogramación, con `TurnoCerradoError`), perfiles y servicios (backfill, alta al final, id repetido, destacado único, edición parcial, reordenamiento y CHECK de la base) sobre Postgres como `mgdetailing_app`.
 - `agenda.test.ts`: `GET /api/admin/agenda` (roles, campos exactos, orden fecha/franja/llegada, sin cancelados, rango inclusivo, tope de 42 días, validaciones, fin de mes y de año, bisiesto) y `PATCH` con fecha/franja confirmadas (permisos, "juntas", rango hoy a hoy + 120 en hora de La Rioja, turnos cerrados, volver a la pedida, turno viejo que conserva su fecha).
+- `notas-busqueda.test.ts`: búsqueda (nombre, mayúsculas, acentos, ñ, email, modelo, dígitos del teléfono en distintos formatos, comodines `%` `_` `\` como texto, largo de `q`, combinada con estado y paginación, todos los roles), historial (`cliente` inválido, teléfonos escritos distinto que normalizan igual, `turnosDelCliente` 1/N/null, turnos viejos sin normalizar), notas (vacía => null, saltos de línea, `\r\n`, 1000 caracteres, caracteres de control, empleado, turnos cerrados, junto con estado o fecha, fuera del log), campos exactos del Turno y que la nota no salga por `POST /api/bookings`.
+- `normalizar-telefonos.test.ts`: el script (completa, no pisa, idempotente, resumen sin datos personales, error sin el detalle de Postgres).
 - `servicios.test.ts`: API del catálogo (público y panel con los campos exactos, permisos por rol con `empleado` 403, validaciones 400, id reservado, caracteres de control, `409 SERVICIO_EXISTE`, 404, destacado único, orden, CSRF en `PUT`) y turnos contra la base (servicio inactivo, nuevo o renombrado).
 
 No hace falta internet ni ninguna clave de Supabase para correr los tests: ninguno hace requests reales. Un test adicional falla si algún fuente contiene caracteres invisibles escritos literalmente (ataque "Trojan Source").

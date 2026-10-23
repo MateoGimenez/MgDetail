@@ -3,7 +3,7 @@ import { LIMITES_SERVICIO, type CambiosServicio, type NuevoServicio, type Servic
 import { Icono } from '../components/Icono';
 import { textoPrecio } from '../data/servicios';
 import { bloquearEscape, useMontado } from './dialogo';
-import { ErrorCampo, ErrorGeneral } from './ErroresFormulario';
+import { Contador, ErrorCampo, ErrorGeneral } from './ErroresFormulario';
 import type { Problema } from './useUsuarios';
 import {
   cambiosDe,
@@ -574,15 +574,6 @@ function mover<T>(lista: readonly T[], desde: number, hasta: number): T[] {
   const [elemento] = copia.splice(desde, 1);
   if (elemento !== undefined) copia.splice(hasta, 0, elemento);
   return copia;
-}
-
-function Contador({ valor, max }: { valor: string; max: number }) {
-  const largo = valor.trim().length;
-  return (
-    <span className={largo > max * 0.9 ? 'servicio-form__contador servicio-form__contador--cerca' : 'servicio-form__contador'}>
-      {largo} / {max}
-    </span>
-  );
 }
 
 function ListaEditable({

@@ -13,6 +13,9 @@ import type { Rol } from './perfil.js';
  * "Reprogramar" = cambiar la fecha/franja confirmadas de un turno (también al confirmarlo "para otra fecha", o
  * volver a la que pidió el cliente).
  * "Editar catálogo" = crear servicios, editarlos (textos, precio, duración, destacado, activo) y reordenarlos.
+ *
+ * Notas internas (escribir y editar la nota de un turno, aunque esté cancelado o completado), búsqueda e historial
+ * del cliente: todos los roles. El empleado es quien está con el auto. Por eso no hay función: no hay nada que negar.
  */
 
 export function puedeCambiarEstado(rol: Rol, estado: Estado): boolean {

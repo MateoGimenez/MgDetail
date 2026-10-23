@@ -20,9 +20,38 @@ function integerParam(min: number, max: number, message: string) {
     .refine((value) => value >= min && value <= max, { error: message });
 }
 
-/** GET /api/admin/bookings?estado=&limit=&offset= (los parámetros desconocidos se ignoran). */
+export const MIN_BUSQUEDA = 2;
+export const MAX_BUSQUEDA = 80;
+const BUSQUEDA_MSG = `La búsqueda tiene que tener entre ${String(MIN_BUSQUEDA)} y ${String(MAX_BUSQUEDA)} caracteres.`;
+const CLIENTE_MSG = 'El cliente tiene que ser un teléfono normalizado: solo dígitos, de 8 a 15.';
+
+/** Recorta los espacios de un texto (y, si queda vacío, cuenta como no enviado). Otros tipos pasan tal cual. */
+const trimToUndefined = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+};
+
+/** Largo en caracteres (code points), como char_length de Postgres: un emoji cuenta 1, no 2. */
+const charLength = (text: string): number => Array.from(text).length;
+
+/**
+ * GET /api/admin/bookings?estado=&q=&cliente=&limit=&offset= (los parámetros desconocidos se ignoran).
+ * `q`: trim, 2 a 80 caracteres (vacío o solo espacios = no enviado). `cliente`: un telefonoWhatsapp exacto.
+ */
 export const listBookingsQuerySchema = z.object({
   estado: z.preprocess(blankToUndefined, z.enum(ESTADOS, { error: ESTADO_MSG }).optional()),
+  q: z.preprocess(
+    trimToUndefined,
+    z
+      .string({ error: BUSQUEDA_MSG })
+      .refine((text) => charLength(text) >= MIN_BUSQUEDA && charLength(text) <= MAX_BUSQUEDA, { error: BUSQUEDA_MSG })
+      .optional(),
+  ),
+  cliente: z.preprocess(
+    blankToUndefined,
+    z.string({ error: CLIENTE_MSG }).regex(/^\d{8,15}$/, { error: CLIENTE_MSG }).optional(),
+  ),
   limit: z.preprocess(
     blankToUndefined,
     integerParam(1, MAX_PAGE_SIZE, `El límite tiene que ser un número entre 1 y ${String(MAX_PAGE_SIZE)}.`).default(
@@ -68,22 +97,52 @@ export const agendaQuerySchema = z
 const FECHA_CONFIRMADA_MSG = 'La fecha confirmada tiene que ser una fecha válida AAAA-MM-DD, o null.';
 const FRANJA_CONFIRMADA_MSG = 'La franja confirmada tiene que ser manana, tarde o null.';
 const JUNTAS_MSG = 'Mandá la fecha y la franja confirmadas juntas (las dos con valor o las dos en null).';
-const VACIO_MSG = 'Indicá el estado nuevo, o la fecha y la franja confirmadas.';
+const VACIO_MSG = 'Indicá el estado nuevo, la fecha y la franja confirmadas, o la nota interna.';
 
-/** Lo que pide un PATCH ya validado. `confirmada`: undefined = no se toca; null = volver a la fecha pedida. */
+export const MAX_NOTAS_INTERNAS = 1000;
+const NOTAS_MSG = `La nota interna tiene que ser un texto de hasta ${String(MAX_NOTAS_INTERNAS)} caracteres, o null.`;
+const NOTAS_CONTROL_MSG = 'La nota interna no puede tener caracteres de control (solo se permiten saltos de línea y tabulaciones).';
+/** Caracteres de control C0 y C1 y DEL, salvo tabulación (\t) y salto de línea (\n). */
+// eslint-disable-next-line no-control-regex -- justamente se buscan caracteres de control
+const CONTROL_CHARS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/;
+/**
+ * Controles bidireccionales (LRM, RLO, ...): se QUITAN, como en el comentario del turno y en el catálogo
+ * (schemas/bookings.ts, schemas/servicios.ts). Son invisibles y pueden invertir el orden visual de la nota en el panel.
+ */
+const BIDI_CONTROLS = /\p{Bidi_Control}/gu;
+
+/**
+ * notasInternas: string o null. Los controles bidireccionales se quitan. Un salto de línea de Windows (\r\n) cuenta
+ * como salto de línea (\n); cualquier otro carácter de control se rechaza. Se recortan los espacios de los extremos;
+ * vacío o solo espacios => null.
+ */
+const notasInternasSchema = z
+  .string({ error: NOTAS_MSG })
+  .transform((text) => text.replace(BIDI_CONTROLS, '').replace(/\r\n/g, '\n').trim())
+  .refine((text) => !CONTROL_CHARS.test(text), { error: NOTAS_CONTROL_MSG })
+  .refine((text) => charLength(text) <= MAX_NOTAS_INTERNAS, { error: NOTAS_MSG })
+  .transform((text) => (text === '' ? null : text))
+  .nullable();
+
+/**
+ * Lo que pide un PATCH ya validado. `confirmada`: undefined = no se toca; null = volver a la fecha pedida.
+ * `notasInternas`: undefined = no se toca; null = borrar la nota.
+ */
 export interface CambiosTurno {
   estado?: Estado;
   confirmada?: Confirmada | null;
+  notasInternas?: string | null;
 }
 
 /**
- * PATCH /api/admin/bookings/:id { estado?, fechaConfirmada?, franjaConfirmada? }. Estricto. Al menos uno de
- * `estado` o la pareja fecha + franja (juntas). Acá solo el formato: el rango de fechas (depende de "hoy"), los
- * permisos y el estado del turno los verifica la ruta.
+ * PATCH /api/admin/bookings/:id { estado?, fechaConfirmada?, franjaConfirmada?, notasInternas? }. Estricto. Al
+ * menos uno de `estado`, la pareja fecha + franja (juntas) o `notasInternas`. Acá solo el formato: el rango de
+ * fechas (depende de "hoy"), los permisos y el estado del turno los verifica la ruta.
  */
 export const updateBookingSchema = z
   .strictObject({
     estado: z.enum(ESTADOS, { error: ESTADO_MSG }).optional(),
+    notasInternas: notasInternasSchema.optional(),
     fechaConfirmada: z
       .string({ error: FECHA_CONFIRMADA_MSG })
       .refine(isValidCalendarDate, { error: FECHA_CONFIRMADA_MSG })
@@ -91,8 +150,8 @@ export const updateBookingSchema = z
       .optional(),
     franjaConfirmada: z.enum(FRANJAS, { error: FRANJA_CONFIRMADA_MSG }).nullable().optional(),
   })
-  .superRefine(({ estado, fechaConfirmada: fecha, franjaConfirmada: franja }, ctx) => {
-    if (estado === undefined && fecha === undefined && franja === undefined) {
+  .superRefine(({ estado, fechaConfirmada: fecha, franjaConfirmada: franja, notasInternas }, ctx) => {
+    if (estado === undefined && fecha === undefined && franja === undefined && notasInternas === undefined) {
       // Mismo campo que antes de la agenda: un body vacío sigue informando "estado".
       ctx.addIssue({ code: 'custom', path: ['estado'], message: VACIO_MSG });
       return;
@@ -108,9 +167,10 @@ export const updateBookingSchema = z
       ctx.addIssue({ code: 'custom', path: ['franjaConfirmada'], message: JUNTAS_MSG });
     }
   })
-  .transform(({ estado, fechaConfirmada: fecha, franjaConfirmada: franja }): CambiosTurno => {
+  .transform(({ estado, fechaConfirmada: fecha, franjaConfirmada: franja, notasInternas }): CambiosTurno => {
     const cambios: CambiosTurno = {};
     if (estado !== undefined) cambios.estado = estado;
+    if (notasInternas !== undefined) cambios.notasInternas = notasInternas;
     if (fecha === null || franja === null) cambios.confirmada = null;
     else if (fecha !== undefined && franja !== undefined) cambios.confirmada = { fecha, franja };
     return cambios;

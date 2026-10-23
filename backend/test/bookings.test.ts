@@ -345,6 +345,7 @@ describe('POST /api/bookings: logging', () => {
     const failing: BookingRepository = {
       create: () => Promise.reject(new Error('sin espacio')),
       list: () => Promise.reject(new Error('x')),
+      actualizar: () => Promise.reject(new Error('x')),
       updateEstado: () => Promise.reject(new Error('x')),
       reprogramar: () => Promise.reject(new Error('x')),
       agenda: () => Promise.reject(new Error('x')),

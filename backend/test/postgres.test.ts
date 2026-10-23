@@ -241,6 +241,11 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     expect(filas.rows).toEqual(
       ['P', 'C', 'H', 'X'].map((nombre) => ({ nombre, fecha_confirmada: null, franja_confirmada: null })),
     );
+    // Las migraciones posteriores (el repositorio de hoy lee también sus columnas).
+    for (const file of migrationFiles().filter((name) => name > AGENDA)) {
+      // eslint-disable-next-line no-restricted-syntax -- migraciones versionadas (confiables)
+      await pg.exec(leer(file));
+    }
     const sql: SqlClient = {
       query: async (text, params = []) => {
         // eslint-disable-next-line no-restricted-syntax -- adaptador: el SQL literal lo controla el repositorio
@@ -262,6 +267,74 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     await pg.exec('ALTER TABLE mgdetailing.bookings DROP COLUMN franja_confirmada');
     await expect(verifyPostgresSchema(sql)).rejects.toThrow(
       /Faltan columnas en mgdetailing\.bookings \(franja_confirmada\).*agenda_fecha_confirmada/,
+    );
+  });
+
+  it('notas: CHECK de largo de la nota y de formato del teléfono normalizado; mgdetailing_app puede actualizarlos', async () => {
+    const { pg } = await pglite();
+    const insert = (columns: string, values: string) =>
+      // eslint-disable-next-line no-restricted-syntax -- SQL literal del propio test
+      pg.exec(`INSERT INTO mgdetailing.bookings (nombre, telefono, vehiculo_tipo, servicio_id, fecha_preferida, franja${columns})
+               VALUES ('N', '12345678', 'auto', 'pulido', '2026-10-20', 'manana'${values})`);
+
+    await expect(insert(', notas_internas', `, '${'x'.repeat(1001)}'`)).rejects.toThrow(/bookings_notas_internas_largo/);
+    for (const malo of ['abc', '1234567', '1234567890123456', '+5493804123456', '549 380 412']) {
+      await expect(insert(', telefono_whatsapp', `, '${malo}'`), malo).rejects.toThrow(/bookings_telefono_whatsapp_formato/);
+    }
+    await insert(', notas_internas, telefono_whatsapp', `, '${'x'.repeat(1000)}', '5493804123456'`);
+
+    await pg.exec('SET ROLE mgdetailing_app');
+    await pg.exec("UPDATE mgdetailing.bookings SET notas_internas = 'ok', telefono_whatsapp = '14155552671'");
+    await expect(pg.exec("UPDATE mgdetailing.bookings SET telefono = '1'")).rejects.toThrow(/permission denied/);
+    const busqueda = await pg.query<{ t: string }>("SELECT mgdetailing.texto_busqueda('ÁÉÍÓÚ Ü Ñ Ç àâ peña MARÍA') AS t");
+    expect(busqueda.rows[0]?.t).toBe('aeiou u ñ c aa peña maria');
+    await pg.exec('RESET ROLE');
+  });
+
+  it('notas: índice parcial por telefono_whatsapp (sin null) que el conteo y el historial pueden usar', async () => {
+    const { pg } = await pglite();
+    const index = await pg.query<{ indexdef: string }>(
+      "SELECT indexdef FROM pg_indexes WHERE schemaname = 'mgdetailing' AND indexname = 'bookings_telefono_whatsapp_idx'",
+    );
+    expect(index.rows[0]?.indexdef ?? '').toMatch(/\(telefono_whatsapp, seq\) WHERE \(telefono_whatsapp IS NOT NULL\)/);
+
+    await pg.exec('SET enable_seqscan = off');
+    const plan = await pg.query<{ 'QUERY PLAN': string }>(
+      "EXPLAIN SELECT count(*) FROM mgdetailing.bookings WHERE telefono_whatsapp = '5493804123456'",
+    );
+    expect(plan.rows.map((row) => row['QUERY PLAN']).join('\n')).toContain('bookings_telefono_whatsapp_idx');
+  });
+
+  it('notas: la migración se aplica sobre una base con turnos (quedan sin nota y sin normalizar)', async () => {
+    const NOTAS = '20261023180000_notas_telefono_cliente.sql';
+    const leer = (file: string) => readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
+    expect(migrationFiles()).toContain(NOTAS);
+    const pg = await PGlite.create();
+    cleanups.push(() => pg.close());
+    // eslint-disable-next-line no-restricted-syntax -- constante del propio test
+    await pg.exec(SUPABASE_STUB);
+    for (const file of migrationFiles().filter((name) => name < NOTAS)) {
+      // eslint-disable-next-line no-restricted-syntax -- migraciones versionadas (confiables)
+      await pg.exec(leer(file));
+    }
+    await pg.exec(`INSERT INTO mgdetailing.bookings (nombre, telefono, vehiculo_tipo, servicio_id, fecha_preferida, franja, estado)
+                   VALUES ('P', '3804123456', 'auto', 'pulido', '2026-10-20', 'tarde', 'pendiente'),
+                          ('X', '3804123456', 'auto', 'pulido', '2026-10-21', 'manana', 'cancelado')`);
+    // eslint-disable-next-line no-restricted-syntax -- migración versionada (confiable)
+    await pg.exec(leer(NOTAS));
+    const filas = await pg.query('SELECT nombre, notas_internas, telefono_whatsapp FROM mgdetailing.bookings ORDER BY seq');
+    expect(filas.rows).toEqual([
+      { nombre: 'P', notas_internas: null, telefono_whatsapp: null },
+      { nombre: 'X', notas_internas: null, telefono_whatsapp: null },
+    ]);
+  });
+
+  it('verifyPostgresSchema avisa si falta la migración de notas', async () => {
+    const { pg, sql } = await pglite();
+    await pg.exec('ALTER TABLE mgdetailing.bookings DROP COLUMN notas_internas');
+    await pg.exec('DROP FUNCTION mgdetailing.texto_busqueda(text)');
+    await expect(verifyPostgresSchema(sql)).rejects.toThrow(
+      /\(notas_internas, función texto_busqueda\).*notas_telefono_cliente/,
     );
   });
 });

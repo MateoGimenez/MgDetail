@@ -15,9 +15,17 @@ import { whatsappClienteUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 import { lugarEnAgenda, mensajeParaCliente } from '../lib/agenda';
 import { fechaCorta, momentoEnLaRioja } from '../lib/fechas';
-import { referenciaDeTurno } from '../lib/turnos';
+import { referenciaDeTurno, selloDeCliente } from '../lib/turnos';
 import { ElegirFecha, type ModoFecha } from './ElegirFecha';
-import { accionesDeEstado, admiteNuevaFecha, muestraSelectorDeEstado, puedeBorrarTurnos, puedeReprogramar } from './permisos';
+import { NotaInterna } from './NotaInterna';
+import {
+  accionesDeEstado,
+  admiteNuevaFecha,
+  muestraSelectorDeEstado,
+  puedeBorrarTurnos,
+  puedeEditarNotas,
+  puedeReprogramar,
+} from './permisos';
 import type { Problema } from './useUsuarios';
 
 interface Props {
@@ -32,9 +40,11 @@ interface Props {
   aviso: string | null;
   ocupada: boolean;
   error: string | undefined;
-  /** Manda el cambio (estado, fecha confirmada o los dos). null si salió bien. */
+  /** Manda el cambio (estado, fecha confirmada, nota o varios juntos). null si salió bien. */
   alCambiar: (cambios: CambiosTurno) => Promise<Problema | null>;
   alEliminar: () => void;
+  /** Abre el historial del cliente (solo se ofrece con 2 o más turnos). */
+  alVerHistorial: () => void;
   /** id del nombre, para que un <dialog> que contiene la tarjeta lo use como título. */
   idTitulo?: string;
   /** En la lista es h3 (bajo el h1 de la vista); dentro del detalle de la agenda, h2. */
@@ -52,6 +62,7 @@ export function TarjetaTurno({
   error,
   alCambiar,
   alEliminar,
+  alVerHistorial,
   idTitulo,
   nivelTitulo = 3,
 }: Props) {
@@ -67,6 +78,7 @@ export function TarjetaTurno({
   // El mensaje usa la fecha de agenda: la confirmada si existe, si no la que pidió.
   const whatsapp = whatsappClienteUrl(turno.telefonoWhatsapp, mensajeParaCliente(turno, servicio, negocio.nombre));
   const vehiculo = [ETIQUETA_VEHICULO[turno.vehiculoTipo], turno.vehiculoModelo].filter(Boolean).join(' · ');
+  const cliente = selloDeCliente(turno.turnosDelCliente);
 
   // Si el turno cambió por otro lado (p. ej. se canceló), el formulario que ya no corresponde se cierra solo.
   const abierto =
@@ -149,6 +161,29 @@ export function TarjetaTurno({
             <a href={`tel:${turno.telefono.replace(/[^\d+]/g, '')}`}>{turno.telefono}</a>
           </dd>
         </div>
+        {cliente && (
+          <div>
+            <dt>Cliente</dt>
+            <dd className="turno__cliente">
+              <span className={cliente.conHistorial ? 'sello-cliente sello-cliente--frecuente' : 'sello-cliente'}>
+                {cliente.conHistorial && <Icono nombre="estrella" tamano={14} />}
+                {cliente.texto}
+              </span>
+              {cliente.conHistorial && (
+                <button
+                  type="button"
+                  className="turno__historial"
+                  data-historial={turno.id}
+                  aria-haspopup="dialog"
+                  onClick={alVerHistorial}
+                >
+                  <Icono nombre="historial" tamano={18} />
+                  Ver historial
+                </button>
+              )}
+            </dd>
+          </div>
+        )}
         {turno.email && (
           <div>
             <dt>Email</dt>
@@ -168,6 +203,17 @@ export function TarjetaTurno({
           <p className="turno__comentario-titulo">Comentario</p>
           <p className="turno__comentario-texto">{turno.comentario}</p>
         </div>
+      )}
+
+      {puedeEditarNotas(rol) ? (
+        <NotaInterna nota={turno.notasInternas} ocupada={ocupada} alGuardar={alCambiar} />
+      ) : (
+        turno.notasInternas && (
+          <div className="nota">
+            <p className="nota__titulo">Nota interna</p>
+            <p className="nota__texto">{turno.notasInternas}</p>
+          </div>
+        )
       )}
 
       <p className="turno__aviso" role="status">

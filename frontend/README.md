@@ -40,7 +40,7 @@ Buscá `COMPLETAR` para ver todo lo pendiente.
 | `npm run typecheck` | solo TypeScript |
 | `npm run lint` | ESLint (incluye accesibilidad con jsx-a11y) |
 | `npm run marca` | regenera las imágenes livianas de marca con sharp (los originales no se tocan) |
-| `npm test` | tests de fechas, del esquema del turno, de la sesión del panel, de usuarios, del catálogo y de la agenda (vitest) |
+| `npm test` | tests de fechas, del esquema del turno, de la sesión del panel, de usuarios, del catálogo, de la agenda y de notas, búsqueda e historial (vitest) |
 
 ## Probar desde el celular
 
@@ -56,11 +56,11 @@ El ingreso usa Supabase Auth a través del backend (modo BFF): el navegador solo
 - **Sesión:** si un pedido a `/api/admin/*` responde `401 SESSION_EXPIRED`, `src/api/sesion.ts` llama una sola vez a `POST /api/auth/refresh` (aunque fallen varios pedidos a la vez) y reintenta. Si el refresh falla, vuelve al ingreso con el mensaje. Un `403 FORBIDDEN` (rol sin permiso) muestra el mensaje y la sesión sigue; un `403 NO_ACCESS` (usuario desactivado) vuelve al ingreso, sin pedidos extra.
 - **Roles** (la regla real la aplica el backend; el panel solo esconde lo que no se puede hacer):
 
-| Rol | Ver turnos y agenda | Cambiar estado | Reprogramar | Borrar | Usuarios | Servicios |
-|---|---|---|---|---|---|---|
-| Superadmin | sí | a cualquier estado | sí | sí | sí | ver y editar |
-| Admin | sí | a cualquier estado | sí | sí | no | ver y editar |
-| Empleado | sí | solo "Marcar completado" | no | no | no | solo ver |
+| Rol | Ver, buscar e historial | Cambiar estado | Reprogramar | Notas internas | Borrar | Usuarios | Servicios |
+|---|---|---|---|---|---|---|---|
+| Superadmin | sí | a cualquier estado | sí | sí | sí | sí | ver y editar |
+| Admin | sí | a cualquier estado | sí | sí | sí | no | ver y editar |
+| Empleado | sí | solo "Marcar completado" | no | sí | no | no | solo ver |
 
 - **Usuarios** (solo superadmin, sección "Usuarios" del panel): lista con email, nombre, rol, estado y fecha de alta. Se puede cambiar el rol, activar o desactivar (con confirmación) y editar el nombre. Los inactivos aparecen arriba, en "Pendientes de activación", con el botón "Activar". Sobre tu propio usuario no podés cambiarte el rol ni desactivarte.
 - **Usuarios (solo superadmin):** se crean, editan (rol, nombre, email, contraseña, activo) y eliminan desde *Usuarios*. Si el backend no tiene `SUPABASE_SECRET_KEY` (`gestionCuentas: false`), el alta, la baja y el cambio de email o contraseña se ocultan. La contraseña olvidada la repone el superadmin con *Cambiar contraseña*; el login solo lo explica. Los pasos completos están en `backend/README.md`.
@@ -82,6 +82,15 @@ Contrato: `reportes/2026-10-22_08_agenda.md`.
 - **Detalle:** tocar un turno abre la misma tarjeta de Turnos en un `<dialog>`, con sus acciones y **Reprogramar** (solo superadmin y admin; no en cancelados ni completados). Si un cambio lo saca de la semana (cancelado o movido), el detalle lo avisa y la grilla lo deja de mostrar.
 - **Confirmar con otra fecha:** desde Turnos o desde la Agenda, "Confirmar" sobre un pendiente pregunta "Para lo que pidió" u "Otra fecha" (de hoy a hoy + 120 días, y franja) dentro de la misma tarjeta, y manda todo en un solo `PATCH`. El empleado no ve esa opción (no confirma).
 - La tarjeta y su mensaje de WhatsApp usan la fecha de agenda y muestran lo pedido si difiere.
+
+## Notas internas, búsqueda e historial del cliente
+
+Contrato: `reportes/2026-10-23_10_notas-busqueda-historial.md`. El Turno trae dos campos más, `notasInternas` (texto o null) y `turnosDelCliente` (entero ≥ 1, o null; siempre null si `telefonoWhatsapp` es null), y se valida estricto: sin ellos, o con un conteo sin teléfono, la respuesta se rechaza. Un turno viejo con teléfono pero todavía sin normalizar trae el conteo en null: no muestra sello hasta correr `npm run normalizar-telefonos` en el backend. "El mismo cliente" es el mismo `telefonoWhatsapp`, nunca el nombre.
+
+- **Buscador** (Turnos, arriba de las pestañas): "Buscar por nombre, teléfono o vehículo". Pide `GET /api/admin/bookings?q=` después de una pausa de 350 ms (`lib/busqueda.ts`), o ya con Enter; respeta la pestaña elegida y vuelve a la página 1 en cada búsqueda nueva. Cada combinación de pestaña, búsqueda y página es una clave en `useTurnos`: el pedido anterior se cancela y una respuesta vieja no pisa a la nueva. Con 1 carácter no pide nada y lo avisa; más de 80 no se puede escribir (y `listarTurnos` corta antes de mandar un `q` o un `cliente` fuera de formato). Se limpia con la ✕ del campo, con Escape o desde el estado vacío ("No encontramos turnos para «…»", con "Buscar en todas" si se buscó en una pestaña). El resultado se anuncia en la línea de estado (`aria-live`); un `fields.q` del backend va debajo del campo.
+- **Nota interna** (tarjeta del turno, en Turnos y en el detalle de la Agenda; `admin/NotaInterna.tsx`): se ve si hay; "Agregar nota" / "Editar nota" abre un campo en la misma tarjeta con contador (hasta 1000), Guardar y Cancelar, y la aclaración de que el cliente no la ve. Se manda sola en el `PATCH` (`{ notasInternas }`, recortada; vacía → null) y un `fields.notasInternas` se muestra en el campo. Cualquier rol, en cualquier estado. Va en un recuadro punteado para no confundirla con el comentario del cliente.
+- **Sello de cliente** (dato "Cliente" de la tarjeta): "Primer turno" con 1, "Cliente frecuente · N turnos" con 2 o más y el botón **Ver historial**. Sin teléfono interpretable no se muestra.
+- **Historial** (`admin/DialogoHistorial.tsx`, `useHistorial.ts`): `<dialog>` con `GET /api/admin/bookings?cliente=<telefonoWhatsapp>`, más nuevos primero, de a 20 con "Ver turnos anteriores". Cada turno muestra fecha de agenda, estado, servicio, vehículo, referencia y nota; el de origen queda marcado ("Este turno", `aria-current`). Carga, error con Reintentar y sesión vencida como el resto. Desde la Agenda se abre encima del detalle. Al cerrar, el foco vuelve a "Ver historial" (o al título de la vista si ya no está, `foco.ts`).
 
 ## Notas
 

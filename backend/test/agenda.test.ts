@@ -18,7 +18,7 @@ import {
 
 afterEach(closeAllContexts);
 
-/** Los campos de un Turno según el contrato (reportes/2026-10-22_08_agenda.md): ni uno más, ni uno menos. */
+/** Los campos de un Turno según los contratos (reportes/2026-10-22_08_agenda.md y 2026-10-23_10_notas-busqueda-historial.md): ni uno más, ni uno menos. */
 const CAMPOS_TURNO = [
   'comentario',
   'createdAt',
@@ -30,9 +30,11 @@ const CAMPOS_TURNO = [
   'franjaConfirmada',
   'id',
   'nombre',
+  'notasInternas',
   'servicioId',
   'telefono',
   'telefonoWhatsapp',
+  'turnosDelCliente',
   'updatedAt',
   'vehiculoModelo',
   'vehiculoTipo',

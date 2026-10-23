@@ -21,37 +21,51 @@ function parseBookingId(raw: string): string {
  *  - listar: todos los roles;
  *  - cambiar el estado: empleado solo a "completado"; admin y superadmin, a cualquiera;
  *  - reprogramar (fecha/franja confirmadas): solo admin y superadmin;
+ *  - notas internas, búsqueda e historial del cliente: todos los roles (la nota, también en turnos cerrados);
  *  - borrar: solo admin y superadmin.
  */
 export function adminBookingsRouter(deps: { bookings: BookingRepository; agenda: AgendaService; now: () => Date }): Router {
   const { bookings, agenda, now } = deps;
   const router = Router();
 
-  // GET /api/admin/bookings?estado=&limit=&offset= => { bookings, total }, más nuevas primero
+  // GET /api/admin/bookings?estado=&q=&cliente=&limit=&offset= => { bookings, total }, más nuevas primero
   router.get('/', async (req, res) => {
-    const query = parseOrThrow(listBookingsQuerySchema, req.query);
-    res.json(await bookings.list(query));
+    const { estado, q, cliente, limit, offset } = parseOrThrow(listBookingsQuerySchema, req.query);
+    res.json(
+      await bookings.list({
+        limit,
+        offset,
+        ...(estado !== undefined && { estado }),
+        ...(q !== undefined && { q }),
+        ...(cliente !== undefined && { cliente }),
+      }),
+    );
   });
 
-  // PATCH /api/admin/bookings/:id { estado?, fechaConfirmada?, franjaConfirmada? } => { booking }
+  // PATCH /api/admin/bookings/:id { estado?, fechaConfirmada?, franjaConfirmada?, notasInternas? } => { booking }
   router.patch('/:id', async (req, res) => {
     const id = parseBookingId(req.params.id);
-    const { estado, confirmada } = parseOrThrow(updateBookingSchema, req.body ?? {});
+    const { estado, confirmada, notasInternas } = parseOrThrow(updateBookingSchema, req.body ?? {});
     const usuario = getUsuario(res);
+    // La nota la puede cambiar cualquier rol (domain/permisos.ts), y viaja en la misma escritura que el resto.
+    const nota = notasInternas === undefined ? {} : { notasInternas };
 
-    // Con fecha/franja: reprogramar (y, si viene, el estado en la misma escritura).
+    // Con fecha/franja: reprogramar (y, si vienen, el estado y la nota en la misma escritura).
     if (confirmada !== undefined) {
-      const booking = await agenda.reprogramar(usuario, id, estado === undefined ? { confirmada } : { confirmada, estado });
+      const booking = await agenda.reprogramar(usuario, id, {
+        confirmada,
+        ...(estado !== undefined && { estado }),
+        ...nota,
+      });
       res.json({ booking });
       return;
     }
 
-    // Solo el estado: las mismas reglas de siempre. El schema garantiza que viene estado si no viene la fecha.
-    if (estado === undefined) throw AppError.validation();
-    if (!puedeCambiarEstado(usuario.rol, estado)) {
+    // Estado y/o nota. El estado, con las mismas reglas de siempre; la nota, aunque el turno esté cerrado.
+    if (estado !== undefined && !puedeCambiarEstado(usuario.rol, estado)) {
       throw AppError.forbidden(SOLO_COMPLETAR_MESSAGE);
     }
-    const booking = await bookings.updateEstado(id, estado, now());
+    const booking = await bookings.actualizar(id, { ...(estado !== undefined && { estado }), ...nota }, now());
     if (!booking) {
       throw AppError.notFound(NOT_FOUND_MESSAGE);
     }

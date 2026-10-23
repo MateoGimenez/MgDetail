@@ -5,12 +5,22 @@ import type { Rol } from '../api/contract-panel';
  * Qué muestra el panel según el rol. Espejo de backend/src/domain/permisos.ts:
  * la regla real la aplica el backend (403); acá solo se esconden botones.
  *
- * | Rol        | Cambiar estado      | Borrar turnos | Usuarios | Editar catálogo | Reprogramar |
- * |------------|---------------------|---------------|----------|-----------------|-------------|
- * | superadmin | a cualquier estado  | sí            | sí       | sí              | sí          |
- * | admin      | a cualquier estado  | sí            | no       | sí              | sí          |
- * | empleado   | solo a "completado" | no            | no       | no (solo ver)   | no          |
+ * | Rol        | Cambiar estado      | Borrar turnos | Usuarios | Editar catálogo | Reprogramar | Notas internas |
+ * |------------|---------------------|---------------|----------|-----------------|-------------|----------------|
+ * | superadmin | a cualquier estado  | sí            | sí       | sí              | sí          | sí             |
+ * | admin      | a cualquier estado  | sí            | no       | sí              | sí          | sí             |
+ * | empleado   | solo a "completado" | no            | no       | no (solo ver)   | no          | sí             |
+ *
+ * Buscar y ver el historial de un cliente lo pueden todos los roles (son lecturas).
  */
+
+/**
+ * Escribir o editar la nota interna: cualquier rol (el empleado es quien está con el auto) y en cualquier estado,
+ * también cancelado o completado.
+ */
+export function puedeEditarNotas(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin' || rol === 'empleado';
+}
 
 export function puedeCambiarEstado(rol: Rol, estado: Estado): boolean {
   return rol === 'empleado' ? estado === 'completado' : true;

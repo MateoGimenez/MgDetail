@@ -15,6 +15,7 @@ import {
   sumarDias,
 } from '../lib/fechas';
 import { DialogoEliminar } from './DialogoEliminar';
+import { DialogoHistorial } from './DialogoHistorial';
 import { FichaAgenda } from './FichaAgenda';
 import { devolverFoco, selectorDeFicha } from './foco';
 import { TarjetaTurno } from './TarjetaTurno';
@@ -43,6 +44,8 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
   const [aEliminar, setAEliminar] = useState<Turno | null>(null);
   const detalleRef = useRef<HTMLDialogElement>(null);
   const eliminarRef = useRef<HTMLDialogElement>(null);
+  const historialRef = useRef<HTMLDialogElement>(null);
+  const [historialDe, setHistorialDe] = useState<Turno | null>(null);
   const tiraRef = useRef<HTMLUListElement>(null);
   const tituloRef = useRef<HTMLHeadingElement>(null);
   const a = useAgenda(lunes, alVencerSesion);
@@ -396,6 +399,10 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
               setAEliminar(abierto);
               eliminarRef.current?.showModal();
             }}
+            alVerHistorial={() => {
+              setHistorialDe(abierto);
+              historialRef.current?.showModal();
+            }}
             idTitulo="detalle-turno-titulo"
             nivelTitulo={2}
           />
@@ -412,6 +419,17 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
         }}
         alCerrar={() => {
           setAEliminar(null);
+        }}
+      />
+
+      <DialogoHistorial
+        dialogoRef={historialRef}
+        origen={historialDe}
+        nombreServicio={nombreServicio}
+        alVencerSesion={alVencerSesion}
+        respaldoFoco={tituloRef}
+        alCerrar={() => {
+          setHistorialDe(null);
         }}
       />
     </>

@@ -16,7 +16,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "clave-db": "node dist/scripts/clave-db.js",
-    "clave-db:dev": "tsx src/scripts/clave-db.ts"
+    "clave-db:dev": "tsx src/scripts/clave-db.ts",
+    "normalizar-telefonos": "node dist/scripts/normalizar-telefonos.js",
+    "normalizar-telefonos:dev": "tsx src/scripts/normalizar-telefonos.ts"
   },
   "dependencies": {
     "compression": "^1.8.2",

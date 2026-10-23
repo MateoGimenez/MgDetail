@@ -35,3 +35,6 @@ export function devolverFoco<E extends Enfocable>(
   respaldo.focus();
   return true;
 }
+
+/** Selector del botón "Ver historial" de un turno (el diálogo del historial le devuelve el foco al cerrarse). */
+export const selectorDeHistorial = (idTurno: string) => `[data-historial="${idTurno.replace(/["\\]/g, '\\$&')}"]`;

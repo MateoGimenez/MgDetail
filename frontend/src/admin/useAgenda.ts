@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { actualizarTurno, eliminarTurno, listarAgenda } from '../api/admin';
 import { ApiError, esAbortado } from '../api/client';
 import type { CambiosTurno, Turno } from '../api/contract';
 import { esSesionPerdida } from '../api/sesion';
 import { sumarDias } from '../lib/fechas';
+import { conLoMasNuevo } from '../lib/turnos';
 import type { Problema } from './useUsuarios';
 
 type Resultado = { clave: string; turnos: Turno[] } | { clave: string; error: string };
@@ -29,6 +30,8 @@ export function useAgenda(lunes: string, alVencerSesion: (mensaje: string) => vo
   const [ocupadas, setOcupadas] = useState<ReadonlySet<string>>(new Set());
   const [cambiadas, setCambiadas] = useState<ReadonlySet<string>>(new Set());
   const [erroresPorTurno, setErroresPorTurno] = useState<Readonly<Record<string, string>>>({});
+  /** Lo último que guardó este panel de cada turno: una recarga más vieja no lo pisa (conLoMasNuevo). */
+  const guardados = useRef(new Map<string, Turno>());
 
   const clave = `${lunes}|${String(recarga)}`;
 
@@ -36,7 +39,7 @@ export function useAgenda(lunes: string, alVencerSesion: (mensaje: string) => vo
     const control = new AbortController();
     listarAgenda(lunes, sumarDias(lunes, 6), control.signal)
       .then((turnos) => {
-        setResultado({ clave, turnos });
+        setResultado({ clave, turnos: conLoMasNuevo(turnos, guardados.current) });
         setCambiadas(new Set());
         setErroresPorTurno({});
       })
@@ -54,6 +57,7 @@ export function useAgenda(lunes: string, alVencerSesion: (mensaje: string) => vo
   }, [clave, lunes, alVencerSesion]);
 
   const reemplazar = (actualizado: Turno) => {
+    guardados.current.set(actualizado.id, actualizado);
     setResultado((previo) =>
       previo && 'turnos' in previo
         ? { ...previo, turnos: previo.turnos.map((t) => (t.id === actualizado.id ? actualizado : t)) }

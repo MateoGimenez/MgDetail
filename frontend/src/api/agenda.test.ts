@@ -23,6 +23,8 @@ const turno = {
   estado: 'confirmado',
   createdAt: '2026-10-16T15:00:00.000Z',
   updatedAt: '2026-10-22T15:00:00.000Z',
+  notasInternas: null,
+  turnosDelCliente: 1,
 };
 
 function simular(respuesta: () => Response) {

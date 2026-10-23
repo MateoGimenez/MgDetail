@@ -96,7 +96,7 @@ export const LIMITES = {
 
 /* El backend rechaza caracteres de control y de dirección de texto (no se escriben con el teclado). */
 const PROHIBIDO_UNA_LINEA = /[\p{Cc}\p{Bidi_Control}]/u;
-const PROHIBIDO_VARIAS_LINEAS = /[^\P{Cc}\t\n\r]|\p{Bidi_Control}/u;
+export const PROHIBIDO_VARIAS_LINEAS = /[^\P{Cc}\t\n\r]|\p{Bidi_Control}/u;
 const CARACTERES_TELEFONO = /^[0-9 +\-()]+$/;
 const contarDigitos = (valor: string) => (valor.match(/\d/g) ?? []).length;
 const esEmail = z.email();
@@ -217,22 +217,55 @@ export const turnoSchema = z.object({
   estado: z.enum(ESTADOS),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Nota del taller (reportes/2026-10-23_10_notas-busqueda-historial.md). El cliente nunca la ve. */
+  notasInternas: z.nullable(z.string()),
+  /**
+   * Cuántos turnos hay con el mismo telefonoWhatsapp, contando este y todos los estados (1 = primer turno).
+   * Sin telefonoWhatsapp es null. Con teléfono también puede venir null: un turno viejo todavía sin normalizar
+   * (backend/src/domain/booking.ts) no se cuenta hasta correr `npm run normalizar-telefonos`; ahí no hay sello.
+   */
+  turnosDelCliente: z.nullable(z.int().check(z.gte(1))),
 }).check(
   z.refine(
     (t) => (t.fechaConfirmada === null) === (t.franjaConfirmada === null),
     'La fecha y la franja confirmadas van juntas.',
   ),
+  z.refine(
+    (t) => t.telefonoWhatsapp !== null || t.turnosDelCliente === null,
+    'Sin teléfono de WhatsApp no hay historial.',
+  ),
 );
 export type Turno = z.output<typeof turnoSchema>;
 
 /**
- * Cuerpo de PATCH /api/admin/bookings/:id: al menos uno de `estado` o la fecha/franja confirmadas, que viajan
- * juntas (null las dos = volver a lo que pidió el cliente). Cambiar la fecha es solo de superadmin y admin.
+ * Cuerpo de PATCH /api/admin/bookings/:id: al menos uno de `estado`, la fecha/franja confirmadas (viajan juntas;
+ * null las dos = volver a lo que pidió el cliente) o `notasInternas`, en cualquier combinación. Cambiar la fecha
+ * es solo de superadmin y admin; la nota la cambia cualquier rol, en cualquier estado.
  */
 export type FechaConfirmada =
   | { fechaConfirmada: string; franjaConfirmada: Franja }
   | { fechaConfirmada: null; franjaConfirmada: null };
-export type CambiosTurno = { estado: Estado } | FechaConfirmada | ({ estado: Estado } & FechaConfirmada);
+type CambioEstado = { estado: Estado };
+/** Texto ya recortado, de hasta NOTA_MAXIMO caracteres, o null para borrarla. */
+type CambioNota = { notasInternas: string | null };
+export type CambiosTurno =
+  | CambioEstado
+  | FechaConfirmada
+  | CambioNota
+  | (CambioEstado & FechaConfirmada)
+  | (CambioEstado & CambioNota)
+  | (FechaConfirmada & CambioNota)
+  | (CambioEstado & FechaConfirmada & CambioNota);
+
+/** Nota interna: hasta 1000 caracteres, con saltos de línea y tabulaciones. */
+export const NOTA_MAXIMO = 1000;
+
+/** `q` del listado: se recorta y tiene que quedar de 2 a 80 caracteres. */
+export const BUSQUEDA = { min: 2, max: 80 } as const;
+export const MENSAJE_BUSQUEDA = 'Escribí entre 2 y 80 caracteres para buscar.';
+
+/** `cliente` del listado: un telefonoWhatsapp exacto. */
+export const TELEFONO_WHATSAPP = /^\d{8,15}$/;
 
 export const listaDeTurnosSchema = z.object({
   bookings: z.array(turnoSchema),

@@ -27,7 +27,8 @@ export interface Booking extends NewBooking {
   id: string;
   /**
    * Teléfono listo para https://wa.me/<n>: solo dígitos, formato internacional, sin "+".
-   * null si el teléfono no se puede interpretar. Se calcula al leer (no se guarda): ver domain/telefono.ts.
+   * null si el teléfono no se puede interpretar. Se guarda al crear el turno (columna telefono_whatsapp, la que
+   * identifica al cliente); en un turno viejo todavía sin normalizar se calcula al leer: ver domain/telefono.ts.
    */
   telefonoWhatsapp: string | null;
   /**
@@ -37,6 +38,13 @@ export interface Booking extends NewBooking {
   fechaConfirmada: string | null;
   franjaConfirmada: Franja | null;
   estado: Estado;
+  /** Nota interna del taller (hasta 1000 caracteres). Nunca sale por la API pública ni en los avisos. */
+  notasInternas: string | null;
+  /**
+   * Cuántos turnos tienen el mismo teléfono normalizado guardado (columna telefono_whatsapp), contando este y
+   * todos los estados (1 = primer turno). null si el turno no tiene teléfono normalizado guardado.
+   */
+  turnosDelCliente: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,8 +60,25 @@ export interface PublicBooking {
 
 export interface ListBookingsOptions {
   estado?: Estado;
+  /**
+   * Texto de búsqueda (ya validado: trim, 2 a 80 caracteres). Coincide, sin mayúsculas ni acentos, con nombre,
+   * email o modelo; o, si tiene al menos MIN_DIGITOS_BUSQUEDA dígitos, con los dígitos del teléfono o con
+   * telefonoWhatsapp. Los comodines de LIKE (porcentaje, guion bajo, barra invertida) se buscan como texto.
+   */
+  q?: string;
+  /** Un telefonoWhatsapp exacto: todos los turnos de ese cliente. */
+  cliente?: string;
   limit: number;
   offset: number;
+}
+
+/** Mínimo de dígitos en `q` para buscar también por teléfono. */
+export const MIN_DIGITOS_BUSQUEDA = 4;
+
+/** Cambios de un turno que no tocan la fecha de agenda. undefined = no se toca; notasInternas null = borrar la nota. */
+export interface ActualizacionTurno {
+  estado?: Estado;
+  notasInternas?: string | null;
 }
 
 /** Estados en los que un turno ya no se puede reprogramar. */
@@ -72,6 +97,8 @@ export interface Reprogramacion {
   confirmada: Confirmada | null;
   /** Si viene, se cambia el estado en la misma escritura (p. ej. "confirmar para otra fecha"). */
   estado?: Estado;
+  /** Si viene, se cambia la nota interna en la misma escritura (null = borrarla). */
+  notasInternas?: string | null;
 }
 
 /** El turno está cancelado o completado: no se le puede cambiar la fecha. */
@@ -91,6 +118,11 @@ export interface BookingRepository {
   create(input: NewBooking, now: Date): Promise<Booking>;
   /** Más nuevas primero. `total` es la cantidad que cumple el filtro, sin paginar. */
   list(options: ListBookingsOptions): Promise<{ bookings: Booking[]; total: number }>;
+  /**
+   * Cambia el estado y/o la nota interna en una sola escritura (también en un turno cancelado o completado).
+   * undefined si el turno no existe.
+   */
+  actualizar(id: string, cambios: ActualizacionTurno, now: Date): Promise<Booking | undefined>;
   /** undefined si el turno no existe. */
   updateEstado(id: string, estado: Estado, now: Date): Promise<Booking | undefined>;
   /**

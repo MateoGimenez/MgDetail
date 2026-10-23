@@ -27,6 +27,8 @@ const REQUIRED_TABLES = ['servicios', 'bookings', 'roles', 'perfiles'] as const;
 const CATALOGO_COLUMNS = ['resumen', 'descripcion', 'incluye', 'glosario', 'destacado'] as const;
 /** Columnas que agrega la migración agenda_fecha_confirmada (las que lee el repositorio de turnos). */
 const AGENDA_COLUMNS = ['fecha_confirmada', 'franja_confirmada'] as const;
+/** Columnas que agrega la migración notas_telefono_cliente (las que lee el repositorio de turnos). */
+const NOTAS_COLUMNS = ['notas_internas', 'telefono_whatsapp'] as const;
 
 /**
  * Pool chico y con timeouts: un taller con un servidor Node de larga vida no necesita más, y el pooler de
@@ -193,6 +195,23 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     throw new Error(
       `Faltan columnas en mgdetailing.bookings (${missingAgenda.join(', ')}). ` +
         'Aplicá la migración agenda_fecha_confirmada de backend/supabase/migrations/ (ver README, "Migraciones").',
+    );
+  }
+
+  // Notas, búsqueda e historial (migración notas_telefono_cliente): columnas y la función de búsqueda.
+  const notasColumns = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = 'bookings' AND column_name = ANY($2::text[])`,
+    [PG_SCHEMA, NOTAS_COLUMNS],
+  );
+  const presentNotas = new Set(notasColumns.rows.map((row) => row.column_name));
+  const missingNotas: string[] = NOTAS_COLUMNS.filter((column) => !presentNotas.has(column));
+  const busqueda = await client.query("SELECT to_regprocedure('mgdetailing.texto_busqueda(text)') IS NOT NULL AS ok");
+  if (busqueda.rows[0]?.ok !== true) missingNotas.push('función texto_busqueda');
+  if (missingNotas.length > 0) {
+    throw new Error(
+      `Faltan objetos de la migración de notas en mgdetailing (${missingNotas.join(', ')}). ` +
+        'Aplicá la migración notas_telefono_cliente de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
   }
 

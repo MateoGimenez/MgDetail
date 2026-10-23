@@ -66,10 +66,12 @@ describe('turnos', () => {
       franjaConfirmada: null,
       comentario: 'Rayones en el capot',
       estado: 'pendiente',
+      notasInternas: null,
+      turnosDelCliente: 1,
       createdAt: '2026-10-16T15:00:00.000Z',
       updatedAt: '2026-10-16T15:00:00.000Z',
     });
-    expect(minimal).toMatchObject({ email: null, vehiculoModelo: null, comentario: null, telefonoWhatsapp: null });
+    expect(minimal).toMatchObject({ email: null, vehiculoModelo: null, comentario: null, telefonoWhatsapp: null, turnosDelCliente: null });
   });
 
   it('lista más nuevos primero (estable con el mismo created_at), filtra por estado y pagina con total', async () => {

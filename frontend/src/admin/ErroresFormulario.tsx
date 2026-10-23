@@ -11,6 +11,16 @@ export function ErrorCampo({ id, mensaje }: { id: string; mensaje: string | unde
   );
 }
 
+/** "12 / 1000" al lado de la ayuda de un campo de texto largo; se marca cuando pasa el 90 %. */
+export function Contador({ valor, max }: { valor: string; max: number }) {
+  const largo = valor.trim().length;
+  return (
+    <span className={largo > max * 0.9 ? 'servicio-form__contador servicio-form__contador--cerca' : 'servicio-form__contador'}>
+      {largo} / {max}
+    </span>
+  );
+}
+
 /** Error general de un formulario o diálogo (se anuncia al aparecer). */
 export function ErrorGeneral({ mensaje }: { mensaje: string | null }) {
   if (!mensaje) return null;

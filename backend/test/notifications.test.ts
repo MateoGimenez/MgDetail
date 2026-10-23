@@ -22,6 +22,8 @@ const BOOKING: Booking = {
   comentario: 'x'.repeat(300),
   telefonoWhatsapp: '5493804123456',
   estado: 'pendiente',
+  notasInternas: null,
+  turnosDelCliente: 1,
   createdAt: '2026-10-16T15:00:00.000Z',
   updatedAt: '2026-10-16T15:00:00.000Z',
 };
@@ -81,6 +83,26 @@ describe('mensaje', () => {
 
     const bare = formatBookingMessage({ ...BOOKING, telefonoWhatsapp: null, comentario: null }, 'Lavado Premium');
     expect(bare).not.toMatch(/wa\.me|Comentario|Panel/);
+  });
+
+  it('la nota interna y el historial nunca salen en el aviso (mensaje ni ningún proveedor)', async () => {
+    const conNota: Booking = { ...BOOKING, notasInternas: 'NOTA-SECRETA rayón\ncobrado', turnosDelCliente: 7 };
+    const message = formatBookingMessage(conNota, 'Lavado Premium', 'https://mgdetailing.com.ar');
+    expect(message).not.toContain('NOTA-SECRETA');
+    expect(message).not.toMatch(/cobrado|rayón|\b7 turnos\b/);
+
+    for (const settings of [
+      { provider: 'callmebot', ownerPhone: '5493804781737', apikey: 'k' },
+      { provider: 'telegram', botToken: '1:TOKEN', chatId: '42' },
+      { provider: 'cloud', ownerPhone: '5493804781737', token: 'T', phoneNumberId: '555', template: 'nt', language: 'es_AR' },
+    ] as const) {
+      const fetchFake = vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', { status: 200 }));
+      await createNotifier(settings, undefined, fetchFake)?.notifyNewBooking(conNota, 'Lavado Premium');
+      const [target, init] = fetchFake.mock.calls[0] ?? [];
+      const enviado = decodeURIComponent(typeof target === 'string' ? target : '') + (typeof init?.body === 'string' ? init.body : '');
+      expect(enviado, settings.provider).not.toContain('NOTA-SECRETA');
+      expect(enviado, settings.provider).not.toContain('cobrado');
+    }
   });
 });
 

@@ -39,6 +39,8 @@ const base: Turno = {
   estado: 'pendiente',
   createdAt: '2026-10-16T15:00:00.000Z',
   updatedAt: '2026-10-16T15:00:00.000Z',
+  notasInternas: null,
+  turnosDelCliente: 1,
 };
 const turno = (cambios: Partial<Turno>): Turno => ({ ...base, ...cambios });
 

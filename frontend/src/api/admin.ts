@@ -1,6 +1,9 @@
 import { ApiError, request } from './client';
 import { requestAdmin } from './sesion';
 import {
+  BUSQUEDA,
+  MENSAJE_BUSQUEDA,
+  TELEFONO_WHATSAPP,
   agendaSchema,
   listaDeTurnosSchema,
   respuestaTurnoSchema,
@@ -63,17 +66,42 @@ export async function cerrarSesion(): Promise<void> {
 
 export interface FiltroTurnos {
   estado?: Estado;
+  /** Búsqueda por nombre, email, modelo o dígitos del teléfono: ya recortada, de 2 a 80 caracteres. */
+  q?: string;
+  /** Un telefonoWhatsapp exacto: todos los turnos de ese cliente (historial). */
+  cliente?: string;
   limit: number;
   offset: number;
 }
 
-/** GET /api/admin/bookings → más nuevas primero, paginadas. */
+/**
+ * GET /api/admin/bookings → más nuevas primero, paginadas; `total` cuenta lo filtrado. `estado`, `q` y `cliente`
+ * se combinan. Un `q` o un `cliente` fuera de formato no se mandan: el backend respondería 400 (`fields.q`,
+ * `fields.cliente`), así que se corta antes con el mismo mensaje.
+ */
 export async function listarTurnos(
-  { estado, limit, offset }: FiltroTurnos,
+  { estado, q, cliente, limit, offset }: FiltroTurnos,
   signal?: AbortSignal,
 ): Promise<{ turnos: Turno[]; total: number }> {
   const parametros = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (estado) parametros.set('estado', estado);
+  if (q !== undefined) {
+    const texto = q.trim();
+    // En code points, como el backend: un emoji cuenta 1.
+    const largo = Array.from(texto).length;
+    if (largo < BUSQUEDA.min || largo > BUSQUEDA.max) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Revisá la búsqueda.', { q: MENSAJE_BUSQUEDA });
+    }
+    parametros.set('q', texto);
+  }
+  if (cliente !== undefined) {
+    if (!TELEFONO_WHATSAPP.test(cliente)) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Ese cliente no tiene un teléfono válido.', {
+        cliente: 'El teléfono del cliente no es válido.',
+      });
+    }
+    parametros.set('cliente', cliente);
+  }
   const { bookings, total } = await requestAdmin(`/admin/bookings?${parametros.toString()}`, {
     signal,
     schema: listaDeTurnosSchema,

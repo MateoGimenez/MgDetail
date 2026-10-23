@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { actualizarTurno, contarTurnos, eliminarTurno, listarTurnos } from '../api/admin';
 import { ApiError, esAbortado } from '../api/client';
 import { esSesionPerdida } from '../api/sesion';
 import type { CambiosTurno, Estado, Turno } from '../api/contract';
+import { conLoMasNuevo } from '../lib/turnos';
 import type { Problema } from './useUsuarios';
 
 export const POR_PAGINA = 20;
 
 export type Filtro = Estado | 'todas';
 
-type Resultado = { clave: string; turnos: Turno[]; total: number } | { clave: string; error: string };
+type Resultado =
+  | { clave: string; turnos: Turno[]; total: number }
+  /** errorBusqueda: el mensaje de fields.q, que va debajo del buscador en lugar del error general. */
+  | { clave: string; error: string; errorBusqueda?: string };
 
 /* Solicitudes nuevas desde la última visita (preferencia local de este navegador). */
 const CLAVE_VISITA = 'mg-panel-ultima-visita';
@@ -48,10 +52,17 @@ const conCambio = (conjunto: ReadonlySet<string>, id: string, activo: boolean) =
 };
 
 /**
- * Lista paginada de solicitudes de un filtro, con cambio de estado y borrado.
+ * Lista paginada de solicitudes de un filtro y, si hay, de una búsqueda `q` (ya validada), con cambio de estado,
+ * de nota y borrado. Cada combinación de filtro, búsqueda y página tiene su clave: al cambiar, el pedido anterior
+ * se cancela y una respuesta vieja nunca pisa a la nueva.
  * Si la sesión se pierde (401 sin refresco posible o usuario sin acceso) avisa con `alVencerSesion`.
  */
-export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: (mensaje: string) => void) {
+export function useTurnos(
+  filtro: Filtro,
+  pagina: number,
+  q: string | undefined,
+  alVencerSesion: (mensaje: string) => void,
+) {
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [pendientes, setPendientes] = useState<number | null>(null);
@@ -59,17 +70,19 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: (mensa
   const [ocupadas, setOcupadas] = useState<ReadonlySet<string>>(new Set());
   const [cambiadas, setCambiadas] = useState<ReadonlySet<string>>(new Set());
   const [erroresPorTurno, setErroresPorTurno] = useState<Readonly<Record<string, string>>>({});
+  /** Lo último que guardó este panel de cada turno: una recarga más vieja no lo pisa (conLoMasNuevo). */
+  const guardados = useRef(new Map<string, Turno>());
 
-  const clave = `${filtro}|${String(pagina)}|${String(recarga)}`;
+  const clave = `${filtro}|${String(pagina)}|${String(recarga)}|${q ?? ''}`;
 
   useEffect(() => {
     const control = new AbortController();
     listarTurnos(
-      { estado: filtro === 'todas' ? undefined : filtro, limit: POR_PAGINA, offset: pagina * POR_PAGINA },
+      { estado: filtro === 'todas' ? undefined : filtro, q, limit: POR_PAGINA, offset: pagina * POR_PAGINA },
       control.signal,
     )
       .then(({ turnos, total }) => {
-        setResultado({ clave, turnos, total });
+        setResultado({ clave, turnos: conLoMasNuevo(turnos, guardados.current), total });
         setCambiadas(new Set());
         setErroresPorTurno({});
         registrarVisita();
@@ -80,12 +93,16 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: (mensa
           alVencerSesion(error.message);
           return;
         }
-        setResultado({ clave, error: error instanceof Error ? error.message : 'No pudimos cargar las solicitudes.' });
+        setResultado({
+          clave,
+          error: error instanceof Error ? error.message : 'No pudimos cargar las solicitudes.',
+          errorBusqueda: error instanceof ApiError ? error.fields?.q : undefined,
+        });
       });
     return () => {
       control.abort();
     };
-  }, [clave, filtro, pagina, alVencerSesion]);
+  }, [clave, filtro, pagina, q, alVencerSesion]);
 
   useEffect(() => {
     const control = new AbortController();
@@ -99,12 +116,13 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: (mensa
     };
   }, [conteo]);
 
-  /** Cambia estado y/o fecha confirmada. Devuelve null si salió bien o el problema (con los campos, si los hay). */
+  /** Cambia estado, fecha confirmada y/o nota interna. Devuelve null si salió bien o el problema (con los campos, si los hay). */
   const cambiar = async (turno: Turno, cambios: CambiosTurno): Promise<Problema | null> => {
     setOcupadas((o) => conCambio(o, turno.id, true));
     setErroresPorTurno((previos) => Object.fromEntries(Object.entries(previos).filter(([id]) => id !== turno.id)));
     try {
       const actualizado = await actualizarTurno(turno.id, cambios);
+      guardados.current.set(actualizado.id, actualizado);
       setResultado((previo) => {
         if (!previo || !('turnos' in previo)) return previo;
         // El total del filtro se ajusta en memoria: la tarjeta queda a la vista hasta actualizar.
@@ -166,7 +184,8 @@ export function useTurnos(filtro: Filtro, pagina: number, alVencerSesion: (mensa
   return {
     cargando: vigente === null,
     datos: vigente && 'turnos' in vigente ? vigente : null,
-    error: vigente && 'error' in vigente ? vigente.error : null,
+    error: vigente && 'error' in vigente && !vigente.errorBusqueda ? vigente.error : null,
+    errorBusqueda: vigente && 'error' in vigente ? (vigente.errorBusqueda ?? null) : null,
     pendientes,
     ocupadas,
     cambiadas,
