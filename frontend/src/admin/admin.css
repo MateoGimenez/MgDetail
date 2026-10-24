@@ -680,11 +680,21 @@
 .panel__secciones {
   width: min(100% - 2 * var(--margen), 1100px);
   margin-inline: auto;
+  /* Con cuatro secciones en un celular angosto, la barra se desplaza sola y no la página entera. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .panel__secciones-lista {
   display: flex;
   gap: var(--e-1);
+  min-width: max-content;
+}
+
+@media (max-width: 420px) {
+  .panel__seccion {
+    padding-inline: 10px;
+  }
 }
 
 .panel__seccion {

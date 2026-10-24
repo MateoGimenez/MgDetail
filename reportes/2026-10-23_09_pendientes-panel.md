@@ -15,7 +15,7 @@ Detalles menores que encontraron los agentes de pruebas y que quedaron sin cambi
 - [ ] **Escape con un guardado en curso:** el detalle de la agenda se puede cerrar con Escape mientras guarda (no hace daño: la respuesta se aplica por id). Los otros diálogos usan `bloquearEscape`.
 - [ ] **Franja como texto en la ficha:** la ficha de la agenda no muestra "Mañana/Tarde" como texto (se deduce del grupo o la fila; para lector de pantalla sí se anuncia).
 - [ ] **Orden dentro de una celda:** el front ordena por `createdAt` y el back por `seq`; solo difieren si hay empates exactos.
-- [ ] **Revisión visual:** la agenda no se probó todavía en un navegador real (celular y pantalla ancha).
+- [x] **Revisión visual de la agenda:** probada en Edge a 390 px y 1280 px (2026-10-23, capturas en `reportes/capturas/2026-10-23_panel/`).
 
 ## Notas, búsqueda e historial (objetivo 3)
 
@@ -24,7 +24,8 @@ Detalles menores que encontraron los agentes de pruebas y que quedaron sin cambi
 - [ ] **Búsqueda mixta:** con 4 o más dígitos también busca por teléfono, así que "Juan 2024" puede traer turnos de otra persona cuyo teléfono contiene 2024.
 - [ ] **Sello desactualizado:** cuando entra un turno nuevo del mismo cliente, el "Cliente frecuente · N turnos" de las tarjetas ya visibles no cambia hasta recargar.
 - [ ] **`normalizar-telefonos` cambia `updated_at`** de los turnos que completa (por el trigger). Documentado en el script.
-- [ ] **Revisión visual:** el buscador, las notas y el historial no se probaron todavía en un navegador real.
+- [x] **Revisión visual de búsqueda, notas e historial:** probada en Edge a 390 px y 1280 px (2026-10-23). En el celular, la barra de secciones del panel hacía desplazar toda la página de costado: corregido en `admin.css`.
+- [ ] **Tarjetas de turno muy largas en el celular:** con todos los datos, la nota y los botones, cada tarjeta ocupa casi dos pantallas. Conviene una vista compacta (nombre, servicio, fecha y estado) que se expanda al tocarla.
 
 ## Supabase
 
