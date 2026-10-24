@@ -17,6 +17,15 @@ Detalles menores que encontraron los agentes de pruebas y que quedaron sin cambi
 - [ ] **Orden dentro de una celda:** el front ordena por `createdAt` y el back por `seq`; solo difieren si hay empates exactos.
 - [ ] **Revisión visual:** la agenda no se probó todavía en un navegador real (celular y pantalla ancha).
 
+## Notas, búsqueda e historial (objetivo 3)
+
+- [ ] **Tildes en NFD:** nada normaliza a NFC (ni al guardar ni al buscar), así que una "á" escrita como letra + tilde suelta no coincide con "a". Se arregla con `normalize('NFC')` sobre `q` y sobre los textos del turno.
+- [ ] **Nota a medio escribir que se pierde:** si vence la sesión, con Escape en el detalle de la agenda, o al escribir en el buscador o cambiar de pestaña (la lista se vuelve a pedir y las tarjetas se rehacen).
+- [ ] **Búsqueda mixta:** con 4 o más dígitos también busca por teléfono, así que "Juan 2024" puede traer turnos de otra persona cuyo teléfono contiene 2024.
+- [ ] **Sello desactualizado:** cuando entra un turno nuevo del mismo cliente, el "Cliente frecuente · N turnos" de las tarjetas ya visibles no cambia hasta recargar.
+- [ ] **`normalizar-telefonos` cambia `updated_at`** de los turnos que completa (por el trigger). Documentado en el script.
+- [ ] **Revisión visual:** el buscador, las notas y el historial no se probaron todavía en un navegador real.
+
 ## Supabase
 
 - [ ] **Protección de contraseñas filtradas** desactivada en Supabase Auth (*Authentication > Sign In / Providers > Passwords*). Única alerta de seguridad de los advisors.

@@ -70,4 +70,4 @@ Se suma `notasInternas` (string ≤ 1000 o `null`; vacío o solo espacios → `n
 - [x] Backend: migración, script `normalizar-telefonos`, búsqueda, historial, notas, `turnosDelCliente`, tests, README.
 - [x] Frontend: buscador, notas en la tarjeta, sello de cliente, diálogo de historial, tests.
 - [x] Verificación: todo en verde, revisión cruzada del contrato, casos borde (búsqueda con comodines `%` y `_`, teléfonos mal escritos, cliente sin teléfono válido, nota con saltos de línea). Backend 370 tests, frontend 88; typecheck, lint y build en verde. Prueba de punta a punta en `backend/test/integracion-objetivo3.test.ts`. Arreglado en la verificación: la nota quita los controles bidireccionales como el resto de los textos libres; el panel cuenta el largo de `q` en caracteres como el backend (un emoji = 1); una recarga que llega tarde ya no pisa la nota o el estado recién guardados (Turnos y Agenda).
-- [ ] Aplicar la migración en Supabase y correr el script sobre los turnos existentes.
+- [x] Aplicar la migración en Supabase y correr el script sobre los turnos existentes (2026-10-23: 1 turno actualizado, 0 sin teléfono interpretable; advisors sin hallazgos nuevos).
