@@ -27,6 +27,23 @@ Detalles menores que encontraron los agentes de pruebas y que quedaron sin cambi
 - [x] **Revisión visual de búsqueda, notas e historial:** probada en Edge a 390 px y 1280 px (2026-10-23). En el celular, la barra de secciones del panel hacía desplazar toda la página de costado: corregido en `admin.css`.
 - [ ] **Tarjetas de turno muy largas en el celular:** con todos los datos, la nota y los botones, cada tarjeta ocupa casi dos pantallas. Conviene una vista compacta (nombre, servicio, fecha y estado) que se expanda al tocarla.
 
+## Disponibilidad, seguimiento y recordatorios (objetivo 4)
+
+- [ ] **Carrera real del último lugar:** el bloqueo por fecha está probado en PGlite (una sola conexión); conviene una prueba contra un Postgres real antes de publicar.
+- [ ] **Recordatorio por WhatsApp duplicado:** si el envío sale bien pero falla la marca en la base, la próxima corrida lo vuelve a mandar (el email lo evita con la Idempotency-Key de Resend; WhatsApp no tiene algo igual).
+- [ ] **Ocupados de la agenda:** el front los cuenta con los turnos que muestra, no con `ocupadosManana`/`ocupadosTarde` del backend; se desalinearía si la agenda algún día filtra turnos.
+- [ ] **Agenda con días pasados:** muestra "0/2" también en los días que ya pasaron; podría ocultarse el cupo ahí.
+- [ ] **Días especiales largos en el celular:** con los 15 feriados precargados, la lista ocupa varias pantallas; podría agruparse por mes o plegar los lejanos.
+- [ ] **Tests de componentes del frontend:** son de lógica pura (no hay testing-library); el selector de días, el 409 y la página de seguimiento se verificaron con capturas, no con tests renderizados.
+- [ ] **Tests del backend bajo carga:** con muchos workers, los primeros tests pueden pasar el timeout de 20 s al arrancar PGlite; `npx vitest run --maxWorkers=4` lo evita.
+- [ ] **Activar los recordatorios:** cuenta de Resend (dominio verificado), plantilla de WhatsApp en Meta ({{1}} servicio, {{2}} día, {{3}} franja), `CRON_SECRET` y el cron diario a las 18:00 de La Rioja cuando la web esté publicada.
+
+## Modo claro (objetivo 5)
+
+- [ ] **Borde de los campos en el modo oscuro** (`#3a4047` sobre `#0f1214`) da 1,79:1, por debajo del 3:1 de WCAG. Es de antes del modo claro; no se tocó porque el oscuro tenía que quedar igual.
+- [ ] **`DESIGN.md`** no documenta la paleta clara.
+- [ ] **Botón de tema en el celular:** está solo dentro del menú (en la barra no entra a 360 px). Confirmar que alcanza.
+
 ## Supabase
 
 - [ ] **Protección de contraseñas filtradas** desactivada en Supabase Auth (*Authentication > Sign In / Providers > Passwords*). Única alerta de seguridad de los advisors.
