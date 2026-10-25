@@ -4,17 +4,21 @@ import {
   type ActualizacionTurno,
   type Booking,
   type BookingRepository,
+  type CandidatoRecordatorio,
   type Estado,
   type ListBookingsOptions,
   type NewBooking,
   type Reprogramacion,
+  type SeguimientoTurno,
   ESTADOS,
   FRANJAS,
   MIN_DIGITOS_BUSQUEDA,
   TurnoCerradoError,
   VEHICULO_TIPOS,
 } from '../../domain/booking.js';
+import { verificarLugar } from '../../domain/disponibilidad.js';
 import { telefonoWhatsapp } from '../../domain/telefono.js';
+import { cuposEntre } from './disponibilidad.js';
 import { isUuid } from './uuid.js';
 
 function toBooking(row: Row): Booking {
@@ -68,6 +72,43 @@ function patronesBusqueda(q: string | undefined): { texto: string | null; digito
  * no ve la fila que se está insertando (misma instantánea del comando): por eso ahí se suma 1.
  */
 
+/** INSERT de un turno nuevo ("pendiente"). Recibe el cliente: sirve dentro de la transacción del alta pública. */
+async function insertBooking(sql: SqlClient, input: NewBooking, now: Date): Promise<Booking> {
+  const timestamp = now.toISOString();
+  const { rows } = await sql.query(
+    `INSERT INTO mgdetailing.bookings AS b (
+       nombre, telefono, telefono_whatsapp, email, vehiculo_tipo, vehiculo_modelo,
+       servicio_id, fecha_preferida, franja, comentario, estado, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, 'pendiente', $11::timestamptz, $11::timestamptz)
+     RETURNING id::text AS id, nombre, telefono, telefono_whatsapp, email, vehiculo_tipo, vehiculo_modelo, servicio_id,
+               to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja,
+               to_char(fecha_confirmada, 'YYYY-MM-DD') AS fecha_confirmada, franja_confirmada,
+               comentario, estado, notas_internas, created_at, updated_at,
+               CASE WHEN b.telefono_whatsapp IS NULL THEN NULL
+                    ELSE (SELECT count(*)::int FROM mgdetailing.bookings c
+                          WHERE c.telefono_whatsapp = b.telefono_whatsapp) + 1
+               END AS turnos_del_cliente`,
+    [
+      input.nombre,
+      input.telefono,
+      telefonoWhatsapp(input.telefono),
+      input.email,
+      input.vehiculoTipo,
+      input.vehiculoModelo,
+      input.servicioId,
+      input.fechaPreferida,
+      input.franja,
+      input.comentario,
+      timestamp,
+    ],
+  );
+  const row = rows[0];
+  if (!row) {
+    throw new Error('INSERT de turno no devolvió la fila creada');
+  }
+  return toBooking(row);
+}
+
 /**
  * Turnos sobre Postgres (esquema mgdetailing). El orden "más nuevos primero" es por `seq` (identity), estable
  * aunque dos turnos tengan el mismo created_at; en la agenda, `seq` es el orden de llegada.
@@ -75,40 +116,89 @@ function patronesBusqueda(q: string | undefined): { texto: string | null; digito
 export class PostgresBookingRepository implements BookingRepository {
   constructor(private readonly sql: SqlClient) {}
 
-  async create(input: NewBooking, now: Date): Promise<Booking> {
-    const timestamp = now.toISOString();
-    const { rows } = await this.sql.query(
-      `INSERT INTO mgdetailing.bookings AS b (
-         nombre, telefono, telefono_whatsapp, email, vehiculo_tipo, vehiculo_modelo,
-         servicio_id, fecha_preferida, franja, comentario, estado, created_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, 'pendiente', $11::timestamptz, $11::timestamptz)
-       RETURNING id::text AS id, nombre, telefono, telefono_whatsapp, email, vehiculo_tipo, vehiculo_modelo, servicio_id,
-                 to_char(fecha_preferida, 'YYYY-MM-DD') AS fecha_preferida, franja,
-                 to_char(fecha_confirmada, 'YYYY-MM-DD') AS fecha_confirmada, franja_confirmada,
-                 comentario, estado, notas_internas, created_at, updated_at,
-                 CASE WHEN b.telefono_whatsapp IS NULL THEN NULL
-                      ELSE (SELECT count(*)::int FROM mgdetailing.bookings c
-                            WHERE c.telefono_whatsapp = b.telefono_whatsapp) + 1
-                 END AS turnos_del_cliente`,
-      [
-        input.nombre,
-        input.telefono,
-        telefonoWhatsapp(input.telefono),
-        input.email,
-        input.vehiculoTipo,
-        input.vehiculoModelo,
-        input.servicioId,
+  create(input: NewBooking, now: Date): Promise<Booking> {
+    return insertBooking(this.sql, input, now);
+  }
+
+  reservar(input: NewBooking, now: Date): Promise<Booking> {
+    return this.sql.transaction(async (sql) => {
+      // Bloqueo por fecha hasta el COMMIT: dos altas del mismo día se hacen de a una, y la segunda ya ve el turno de
+      // la primera al contar los ocupados (READ COMMITTED: cada sentencia ve lo confirmado antes de empezar).
+      // Clave de dos enteros: 7340003 (alta pública) y los días desde 2000-01-01.
+      await sql.query("SELECT pg_catalog.pg_advisory_xact_lock(7340003, $1::date - DATE '2000-01-01')", [
         input.fechaPreferida,
-        input.franja,
-        input.comentario,
-        timestamp,
-      ],
+      ]);
+      const [cupo] = await cuposEntre(sql, input.fechaPreferida, input.fechaPreferida);
+      if (cupo === undefined) throw new Error('No se pudieron calcular los cupos del día');
+      verificarLugar(cupo, input.franja); // lanzar acá revierte la transacción: no se guarda nada
+      return insertBooking(sql, input, now);
+    });
+  }
+
+  async seguimiento(id: string): Promise<SeguimientoTurno | undefined> {
+    if (!isUuid(id)) return undefined;
+    // SOLO los campos públicos: nada de datos del cliente ni notas.
+    const { rows } = await this.sql.query(
+      `SELECT b.id::text AS id, s.nombre AS servicio_nombre,
+              to_char(coalesce(b.fecha_confirmada, b.fecha_preferida), 'YYYY-MM-DD') AS fecha,
+              coalesce(b.franja_confirmada, b.franja) AS franja, b.estado, b.updated_at
+       FROM mgdetailing.bookings b
+       JOIN mgdetailing.servicios s ON s.id = b.servicio_id
+       WHERE b.id = $1::uuid`,
+      [id],
     );
     const row = rows[0];
-    if (!row) {
-      throw new Error('INSERT de turno no devolvió la fila creada');
-    }
-    return toBooking(row);
+    if (!row) return undefined;
+    return {
+      id: str(row, 'id'),
+      servicioNombre: str(row, 'servicio_nombre'),
+      fecha: str(row, 'fecha'),
+      franja: oneOf(FRANJAS, row, 'franja'),
+      estado: oneOf(ESTADOS, row, 'estado'),
+      actualizadoEl: isoTimestamp(row, 'updated_at'),
+    };
+  }
+
+  async recordatoriosPendientes(fecha: string): Promise<CandidatoRecordatorio[]> {
+    // `estado <> 'cancelado'` es redundante a propósito: es el predicado del índice parcial bookings_agenda_idx.
+    const { rows } = await this.sql.query(
+      `SELECT b.id::text AS id, b.email, b.telefono_whatsapp, s.nombre AS servicio_nombre,
+              to_char(coalesce(b.fecha_confirmada, b.fecha_preferida), 'YYYY-MM-DD') AS fecha,
+              coalesce(b.franja_confirmada, b.franja) AS franja
+       FROM mgdetailing.bookings b
+       JOIN mgdetailing.servicios s ON s.id = b.servicio_id
+       WHERE b.estado = 'confirmado'
+         AND b.estado <> 'cancelado'
+         AND b.recordatorio_enviado_at IS NULL
+         AND coalesce(b.fecha_confirmada, b.fecha_preferida) = $1::date
+       ORDER BY b.seq`,
+      [fecha],
+    );
+    return rows.map((row) => ({
+      id: str(row, 'id'),
+      email: strOrNull(row, 'email'),
+      telefonoWhatsapp: strOrNull(row, 'telefono_whatsapp'),
+      servicioNombre: str(row, 'servicio_nombre'),
+      fecha: str(row, 'fecha'),
+      franja: oneOf(FRANJAS, row, 'franja'),
+    }));
+  }
+
+  async marcarRecordatorio(id: string, fecha: string, now: Date): Promise<boolean> {
+    if (!isUuid(id)) return false;
+    // Las condiciones van en el mismo UPDATE: si en el medio se canceló o se reprogramó, no se marca.
+    // updated_at queda igual a propósito: no es un cambio del turno (el trigger de updated_at no corre cuando cambia
+    // recordatorio_enviado_at; migración disponibilidad_seguimiento).
+    const { rowCount } = await this.sql.query(
+      `UPDATE mgdetailing.bookings AS b
+       SET recordatorio_enviado_at = $3::timestamptz
+       WHERE b.id = $1::uuid
+         AND b.estado = 'confirmado'
+         AND b.recordatorio_enviado_at IS NULL
+         AND coalesce(b.fecha_confirmada, b.fecha_preferida) = $2::date`,
+      [id, fecha, now.toISOString()],
+    );
+    return rowCount > 0;
   }
 
   async list({ estado, q, cliente, limit, offset }: ListBookingsOptions): Promise<{ bookings: Booking[]; total: number }> {
@@ -196,6 +286,12 @@ export class PostgresBookingRepository implements BookingRepository {
     const { rows } = await this.sql.query(
       `UPDATE mgdetailing.bookings AS b
        SET fecha_confirmada = $1::date, franja_confirmada = $2::text,
+           -- Si cambia la fecha o la franja de agenda, el recordatorio ya enviado no sirve: se limpia la marca.
+           -- (En el SET, b.* son los valores de ANTES del UPDATE.)
+           recordatorio_enviado_at = CASE
+             WHEN coalesce($1::date, b.fecha_preferida) IS DISTINCT FROM coalesce(b.fecha_confirmada, b.fecha_preferida)
+               OR coalesce($2::text, b.franja) IS DISTINCT FROM coalesce(b.franja_confirmada, b.franja)
+             THEN NULL ELSE b.recordatorio_enviado_at END,
            estado = coalesce($3::text, b.estado),
            notas_internas = CASE WHEN $4::boolean THEN $5::text ELSE b.notas_internas END,
            updated_at = $6::timestamptz

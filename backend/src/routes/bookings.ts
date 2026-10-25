@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type RequestHandler, Router } from 'express';
 import { bookingDateRange } from '../domain/booking-dates.js';
-import type { PublicBooking } from '../domain/booking.js';
+import { type PublicBooking, seguimientoPath } from '../domain/booking.js';
 import type { Logger } from '../lib/logger.js';
 import { createBookingSchema } from '../schemas/bookings.js';
 import { parseOrThrow } from '../schemas/common.js';
@@ -27,15 +27,19 @@ export function publicBookingsRouter({ bookings, logger, now, limiter }: PublicB
 
     // Honeypot: un bot completó el campo oculto. Se responde igual que un éxito (para no darle señales) pero NO se guarda nada.
     if (website !== undefined && website.trim() !== '') {
-      // Mismas respuestas que un pedido real: un servicio inexistente o inactivo también da 400 acá.
+      // Mismas respuestas que un pedido real: un servicio inexistente o inactivo da 400, y un día cerrado o una
+      // franja llena, 400 / 409, también acá.
       await bookings.servicioReservable(data.servicioId);
+      await bookings.verificarDisponible(data.fechaPreferida, data.franja);
       logger.info('Solicitud de turno descartada por honeypot');
+      const id = randomUUID();
       const decoy: PublicBooking = {
-        id: randomUUID(),
+        id,
         servicioId: data.servicioId,
         fechaPreferida: data.fechaPreferida,
         franja: data.franja,
         estado: 'pendiente',
+        seguimientoUrl: seguimientoPath(id),
       };
       res.status(201).json({ booking: decoy });
       return;

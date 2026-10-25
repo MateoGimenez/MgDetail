@@ -19,6 +19,7 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'SERVICIO_EXISTE'
+  | 'FRANJA_LLENA'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR'
   | 'SERVICE_UNAVAILABLE';
@@ -78,6 +79,12 @@ export class AppError extends Error {
   static servicioExiste(): AppError {
     const message = 'Ya existe un servicio con ese identificador. Elegí otro.';
     return new AppError(409, 'SERVICIO_EXISTE', message, { id: message });
+  }
+
+  /** POST /api/bookings: la franja se llenó (o tiene cupo 0) mientras el cliente completaba el formulario. */
+  static franjaLlena(): AppError {
+    const message = 'Esa franja se llenó. Elegí otra.';
+    return new AppError(409, 'FRANJA_LLENA', message, { franja: message });
   }
 
   static invalidCredentials(): AppError {

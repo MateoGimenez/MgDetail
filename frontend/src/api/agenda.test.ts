@@ -54,7 +54,7 @@ afterEach(() => {
 describe('GET /api/admin/agenda', () => {
   it('pide el rango inclusivo y devuelve los turnos', async () => {
     const llamadas = simular(() => json(200, { turnos: [turno] }));
-    expect(await listarAgenda('2026-10-19', '2026-10-25')).toEqual([turno]);
+    expect(await listarAgenda('2026-10-19', '2026-10-25')).toEqual({ turnos: [turno], cupos: null });
     expect(llamadas).toEqual([
       { metodo: 'GET', ruta: '/api/admin/agenda?desde=2026-10-19&hasta=2026-10-25', tipo: null, body: undefined },
     ]);
@@ -72,7 +72,7 @@ describe('GET /api/admin/agenda', () => {
     expect(await codigo(listarAgenda('2026-10-19', '2026-10-25'))).toBe('INVALID_RESPONSE');
 
     simular(() => json(200, { turnos: [{ ...turno, fechaConfirmada: null, franjaConfirmada: null }] }));
-    expect(await listarAgenda('2026-10-19', '2026-10-25')).toHaveLength(1);
+    expect((await listarAgenda('2026-10-19', '2026-10-25')).turnos).toHaveLength(1);
   });
 
   it('un 400 trae los campos del rango', async () => {

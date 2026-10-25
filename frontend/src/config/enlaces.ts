@@ -28,6 +28,21 @@ export function whatsappClienteUrl(telefonoWhatsapp: string | null, mensaje: str
   return numero ? armarWhatsapp(numero, mensaje) : null;
 }
 
+/** Dirección pública de la web (`sitio.url`) sin barra final, o null si no está cargada o no es una URL http(s). */
+function urlPublica(base: string): string | null {
+  const limpia = base.trim().replace(/\/+$/, '');
+  return /^https?:\/\/[^\s/]+/i.test(limpia) ? limpia : null;
+}
+
+/**
+ * Enlace público de seguimiento de un turno (`<sitio.url>/turno/<id>`), para mandárselo al cliente desde el panel.
+ * null si la web todavía no tiene URL pública: un enlace a localhost no le sirve al cliente.
+ */
+export function seguimientoPublicoUrl(id: string, base: string = sitio.url): string | null {
+  const raiz = urlPublica(base);
+  return raiz ? `${raiz}/turno/${encodeURIComponent(id)}` : null;
+}
+
 function usuarioInstagram(): string | null {
   const usuario = sitio.instagram.trim().replace(/^@/, '');
   return usuario === '' ? null : usuario;

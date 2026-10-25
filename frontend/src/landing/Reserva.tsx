@@ -3,11 +3,13 @@ import { ETIQUETA_FRANJA, ETIQUETA_VEHICULO, FRANJAS, LIMITES, VEHICULO_TIPOS } 
 import { MarcoFilete, SubrayadoFilete } from '../components/Filete';
 import { useCatalogo } from './catalogo-contexto';
 import { CampoTexto, ErrorDeCampo } from './CampoTexto';
+import { CalendarioCargando, ElegirDia, ElegirFranja } from './ElegirDia';
 import { ExitoTurno } from './ExitoTurno';
 import { ID_SECCION_RESERVA } from './reserva-contexto';
 import { ResumenPedido } from './ResumenPedido';
 import { SinTurnosOnline } from './SinTurnosOnline';
 import { useFormularioTurno } from './useFormularioTurno';
+import './disponibilidad.css';
 
 function Grupo({ titulo, children, describedBy }: { titulo: string; children: ReactNode; describedBy?: string }) {
   return (
@@ -20,6 +22,7 @@ function Grupo({ titulo, children, describedBy }: { titulo: string; children: Re
 
 export function Reserva() {
   const {
+    disponibilidad,
     valores,
     setValores,
     errores,
@@ -57,7 +60,13 @@ export function Reserva() {
           <MarcoFilete tamano="mediano" trazar={envio.fase === 'exito'} key={envio.fase === 'exito' ? 'sello' : 'marco'} />
 
           {envio.fase === 'exito' ? (
-            <ExitoTurno refTitulo={exitoRef} id={envio.id} datos={envio.datos} alPedirOtro={nuevoPedido} />
+            <ExitoTurno
+              refTitulo={exitoRef}
+              id={envio.id}
+              seguimiento={envio.seguimiento}
+              datos={envio.datos}
+              alPedirOtro={nuevoPedido}
+            />
           ) : estado === 'vacio' ? (
             // Catálogo vacío: no hay servicios que reservar (el backend rechazaría cualquiera).
             <SinTurnosOnline />
@@ -141,6 +150,37 @@ export function Reserva() {
                 </Grupo>
 
                 <Grupo titulo="¿Cuándo te queda bien?">
+                  {disponibilidad.fase === 'cargando' ? (
+                    <CalendarioCargando />
+                  ) : disponibilidad.fase === 'lista' ? (
+                    <div className="reserva__cuando reserva__cuando--calendario">
+                      <ElegirDia
+                        dias={disponibilidad.dias}
+                        hoy={rango.min}
+                        valor={valores.fechaPreferida}
+                        idCampo={ids.campo('fechaPreferida')}
+                        idError={ids.error('fechaPreferida')}
+                        error={errores.fechaPreferida}
+                        aria={radio('fechaPreferida')}
+                        alElegir={(fecha) => {
+                          actualizar('fechaPreferida', fecha);
+                        }}
+                      />
+                      <ElegirFranja
+                        dias={disponibilidad.dias}
+                        fecha={valores.fechaPreferida}
+                        valor={valores.franja}
+                        idCampo={ids.campo('franja')}
+                        idError={ids.error('franja')}
+                        error={errores.franja}
+                        aria={radio('franja')}
+                        alElegir={(franja) => {
+                          actualizar('franja', franja);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                  // Sin disponibilidad (la API falló): el campo de fecha de siempre. El backend valida igual.
                   <div className="reserva__cuando">
                     <CampoTexto
                       id={ids.campo('fechaPreferida')}
@@ -185,6 +225,7 @@ export function Reserva() {
                       <ErrorDeCampo id={ids.error('franja')} mensaje={errores.franja} />
                     </fieldset>
                   </div>
+                  )}
                 </Grupo>
 
                 <Grupo titulo="Tus datos">

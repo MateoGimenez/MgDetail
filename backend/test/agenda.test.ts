@@ -102,16 +102,16 @@ describe('GET /api/admin/agenda', () => {
       const { client } = await loginAs(context, rol);
       const response = await client.get('/api/admin/agenda?desde=2026-10-12&hasta=2026-10-18');
       expect(response.status, rol).toBe(200);
-      expect(response.body).toEqual({ turnos: [] });
+      expect((response.body as { turnos: unknown[] }).turnos).toEqual([]);
     }
   });
 
-  it('responde { turnos } con exactamente los campos del contrato', async () => {
+  it('responde { turnos, cupos } con exactamente los campos del contrato', async () => {
     const { admin, turno } = await setup();
     const id = await turno('Cliente', '2026-10-20');
     const response = await admin.get('/api/admin/agenda?desde=2026-10-19&hasta=2026-10-25');
 
-    expect(Object.keys(response.body as object)).toEqual(['turnos']);
+    expect(Object.keys(response.body as object)).toEqual(['turnos', 'cupos']);
     const [unico] = (response.body as { turnos: Record<string, unknown>[] }).turnos;
     expect(Object.keys(unico ?? {}).sort()).toEqual(CAMPOS_TURNO);
     expect(unico).toMatchObject({

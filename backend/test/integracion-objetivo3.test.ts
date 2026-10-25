@@ -87,7 +87,7 @@ describe('objetivo 3 de punta a punta (app de test + PGlite)', () => {
     // El mismo cliente vuelve a pedir turno: la respuesta pública es la mínima y el aviso no lleva la nota.
     avisos.length = 0;
     const tercero = await crear({ nombre: 'María José Peña', telefono: '380 4123456', email: null });
-    expect(Object.keys(tercero.booking).sort()).toEqual(['estado', 'fechaPreferida', 'franja', 'id', 'servicioId']);
+    expect(Object.keys(tercero.booking).sort()).toEqual(['estado', 'fechaPreferida', 'franja', 'id', 'seguimientoUrl', 'servicioId']);
     expect(JSON.stringify(tercero)).not.toMatch(/NOTA-INTEGRACION|notasInternas|turnosDelCliente|Cobrado/);
     await vi.waitFor(() => {
       expect(avisos).toHaveLength(1);

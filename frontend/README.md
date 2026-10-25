@@ -12,7 +12,8 @@ src/
   data/         servicios.ts (respaldo del catálogo), galeria.ts, preguntas.ts: el contenido editable
   components/   Logo, íconos SVG y ornamentos de filete
   landing/      secciones de la landing y el formulario de turno
-  admin/        login y panel: turnos, agenda, servicios (catálogo) y usuarios
+  admin/        login y panel: turnos, agenda, disponibilidad, servicios (catálogo) y usuarios
+  seguimiento/  página /turno/:id (se descarga aparte, como el panel)
   lib/          fechas (hora de La Rioja, semana de lunes a domingo), reglas de la agenda y utilidades
   styles/       fuentes autoalojadas y estilos base
 ```
@@ -39,8 +40,8 @@ Buscá `COMPLETAR` para ver todo lo pendiente.
 | `npm run preview` | sirve el build en http://localhost:4173 |
 | `npm run typecheck` | solo TypeScript |
 | `npm run lint` | ESLint (incluye accesibilidad con jsx-a11y) |
-| `npm run marca` | regenera las imágenes livianas de marca con sharp (los originales no se tocan) |
-| `npm test` | tests de fechas, del esquema del turno, de la sesión del panel, de usuarios, del catálogo, de la agenda y de notas, búsqueda e historial (vitest) |
+| `npm run marca` | regenera las imágenes livianas de marca con sharp, incluidos los logos para fondo oscuro y claro (los originales no se tocan) |
+| `npm test` | tests de fechas, del esquema del turno, de la sesión del panel, de usuarios, del catálogo, de la agenda, de notas, búsqueda e historial y de disponibilidad y seguimiento (vitest) |
 
 ## Probar desde el celular
 
@@ -91,6 +92,45 @@ Contrato: `reportes/2026-10-23_10_notas-busqueda-historial.md`. El Turno trae do
 - **Nota interna** (tarjeta del turno, en Turnos y en el detalle de la Agenda; `admin/NotaInterna.tsx`): se ve si hay; "Agregar nota" / "Editar nota" abre un campo en la misma tarjeta con contador (hasta 1000), Guardar y Cancelar, y la aclaración de que el cliente no la ve. Se manda sola en el `PATCH` (`{ notasInternas }`, recortada; vacía → null) y un `fields.notasInternas` se muestra en el campo. Cualquier rol, en cualquier estado. Va en un recuadro punteado para no confundirla con el comentario del cliente.
 - **Sello de cliente** (dato "Cliente" de la tarjeta): "Primer turno" con 1, "Cliente frecuente · N turnos" con 2 o más y el botón **Ver historial**. Sin teléfono interpretable no se muestra.
 - **Historial** (`admin/DialogoHistorial.tsx`, `useHistorial.ts`): `<dialog>` con `GET /api/admin/bookings?cliente=<telefonoWhatsapp>`, más nuevos primero, de a 20 con "Ver turnos anteriores". Cada turno muestra fecha de agenda, estado, servicio, vehículo, referencia y nota; el de origen queda marcado ("Este turno", `aria-current`). Carga, error con Reintentar y sesión vencida como el resto. Desde la Agenda se abre encima del detalle. Al cerrar, el foco vuelve a "Ver historial" (o al título de la vista si ya no está, `foco.ts`).
+
+## Disponibilidad, seguimiento del turno y recordatorios
+
+Contrato: `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md` (los recordatorios son solo del backend).
+
+- **Formulario de turno** (`landing/useDisponibilidad.ts`, `landing/ElegirDia.tsx`, `lib/disponibilidad.ts`): pide `GET /api/disponibilidad` al abrir y muestra un calendario de los próximos 60 días, de a un mes (lunes primero). Cada día es un radio nativo: las flechas recorren solo los días con lugar; los cerrados (tachados) y los llenos (borde punteado, "lleno") están deshabilitados y el lector de pantalla dice por qué ("no atendemos", "sin lugar"). Elegido el día, Mañana / Tarde muestran solo las franjas con lugar (la otra dice "sin lugar"); cambiar de día borra una franja que ahí no tenga lugar. Si la API falla (o manda una forma que no cierra, o ningún día), vuelve el campo de fecha de antes con las dos franjas: el backend valida igual.
+- **Rechazos del alta:** un `409 FRANJA_LLENA` borra la franja y un `400` con `fields.fechaPreferida` (día cerrado) borra día y franja; en los dos casos el mensaje del backend queda en el campo, se recarga la disponibilidad (`conciliarEleccion` en `useFormularioTurno.ts`: si el día entero quedó sin lugar, se pide otro día) y el foco va al campo para elegir de nuevo.
+- **Éxito** (`landing/EnlaceSeguimiento.tsx`): la dirección completa de `/turno/<id>` (la `seguimientoUrl` del backend, solo si es una ruta propia `/turno/…`; si falta, se arma con el id), botón **Copiar enlace** (si el navegador no deja, lo selecciona para copiarlo a mano), el aviso de guardarlo y "Ver cómo va mi turno".
+- **Página `/turno/:id`** (`seguimiento/`, cargada aparte con `React.lazy` como el panel, con `noindex`): `GET /api/turnos/:id`. Línea de tiempo Recibido → Confirmado → Listo (o Recibido → Cancelado; el paso actual con `aria-current="step"`), servicio, fecha y franja de agenda, cuándo se actualizó, "Consultar de nuevo" y WhatsApp / Instagram del taller si están cargados. Estados de carga, error con Reintentar y "No encontramos ese turno" (un id que no es UUID ni se consulta). Solo muestra lo que el contrato permite: el esquema descarta cualquier otro campo.
+- **Panel → Disponibilidad** (`admin/VistaDisponibilidad.tsx`, `useDisponibilidadPanel.ts`, `lib/cupos.ts`): horario de la semana (lunes a domingo; `dia` va de 0 = domingo a 6 = sábado como en el backend; abierto sí/no y cupos de 0 a 20 por franja, se guarda todo junto) y días especiales de hoy en adelante (agregar, editar y quitar en la misma lista: cerrado, o abierto con sus cupos, y un motivo de hasta 80). Los feriados precargados se marcan "Feriado" (se reconocen por el motivo que manda el backend, que empieza con "Feriado: "; `feriadoPrecargado` en `lib/cupos.ts`; si el motivo dice "trasladable", como el 23/11/2026, lleva su aviso) y la sección aclara que los trasladables y los puentes hay que revisarlos cada año. Editar: superadmin y admin (`puedeEditarDisponibilidad`); el empleado lo ve sin controles.
+- **Agenda:** con los `cupos` de `GET /api/admin/agenda` cada franja muestra "ocupados/cupo" ("2/3", en rojo cuando está completa; "Cerrada" con fondo rayado si el día está cerrado o el cupo es 0) y los días cerrados llevan el sello "Cerrado". Los ocupados se cuentan con los turnos que muestra la agenda, así que siguen al día después de confirmar, reprogramar o cancelar. Con cupos, la grilla se ve aunque la semana no tenga turnos. Si el backend no manda cupos, la agenda se ve como antes.
+- **Aviso al confirmar o reprogramar** (`admin/useCupoDelDia.ts`): al elegir el día y la franja (o "Para lo que pidió"), el panel pide la agenda de ese día y, si la franja está llena o cerrada, avisa ("Esa franja ya tiene 2 de 2. Podés agendarlo igual.") sin bloquear. El turno que ya ocupa ese lugar no se cuenta dos veces.
+- **WhatsApp al cliente** desde la tarjeta: con `sitio.url` cargada, el mensaje suma "Podés ver cómo va acá: <sitio.url>/turno/<id>" (`seguimientoPublicoUrl` en `config/enlaces.ts`). Sin URL pública no se manda el enlace.
+
+## Tema claro y oscuro
+
+Contrato: `reportes/2026-10-23_12_modo-claro.md`. La web pública (landing, éxito del turno, 404 y la página de seguimiento) tiene dos temas; el panel `/admin` no cambia.
+
+- **Oscuro por defecto** (la cara de la marca), sin atributo en `<html>`. El **claro** pone `data-tema="claro"` en `<html>` y `src/styles/base.css` redefine las mismas variables semánticas bajo `:root[data-tema='claro']` (`--fondo`, `--superficie`, `--texto*`, `--borde*`, `--acento*`, `--campo-*`, `--error*`, `--exito`, filete, cromo, sombras, y las superficies de la landing: `--cartel-fondo`, `--panel-fondo`, `--pie-fondo`…). **Los estilos nuevos usan solo estas variables**: así andan en los dos temas sin tocar nada más. `color-scheme` acompaña cada tema (fecha, scroll).
+- **Botón:** `src/tema/BotonTema.tsx`, "Modo claro" con `aria-pressed` (presionado = claro). En la barra desde 520 px; en el celular, último renglón del menú.
+- **Lógica:** `src/tema/tema.ts` (lectura y escritura de `localStorage` con try/catch, clave `mg-tema`; si no se puede guardar, el tema igual cambia en esa visita) y `useTema()` para los componentes. Tests en `src/tema/tema.test.ts`.
+- **Sin parpadeo:** `public/tema-inicial.js` se carga sincrónico en el `<head>` y aplica el tema guardado antes de pintar, más el color de `<meta name="theme-color">` (`#14171a` / `#f7f8f9`). Es un archivo aparte y no un script inline porque la CSP del backend solo permite scripts del mismo origen. En `/admin` no hace nada.
+- **Logo:** `Logo` usa `/marca/logo-fondo-claro.png` (`marca.logoClaro` en `sitio.ts`, generado con `npm run marca`) con el tema claro. El cuadro del monograma y la manija del comparador quedan oscuros a propósito en los dos temas (van sobre video y fotos).
+
+Contrastes del tema claro (WCAG 2.1 AA, calculados):
+
+| Par | Colores | Contraste |
+|---|---|---|
+| Texto / fondo · superficie | `#15181b` / `#f7f8f9` · `#ffffff` | 16,8 · 17,8 |
+| Texto 2 / fondo · hundido | `#3f454c` / `#f7f8f9` · `#edf0f2` | 9,1 · 8,5 |
+| Texto 3 / fondo · hundido · pie | `#5b636c` / `#f7f8f9` · `#edf0f2` · `#e9ecef` | 5,7 · 5,3 · 5,1 |
+| Acento texto (enlaces, sello) / fondo · blanco | `#a50c26` | 7,4 · 7,8 |
+| Acento y filete (gráfico) / fondo · blanco | `#c8102e` | 5,5 · 5,9 |
+| Error / blanco · fondo | `#b3261e` | 6,5 · 6,2 |
+| Éxito / blanco · fondo | `#1d7a46` | 5,4 · 5,0 |
+| Borde de campo / blanco · hundido | `#7b838c` | 3,8 · 3,4 |
+| Foco / fondo · blanco | `#14171a` | 16,9 · 18,0 |
+| Texto blanco / botón rojo (degradé) | `#ffffff` / `#d61c35`–`#c8102e` | 5,2–5,9 |
+| Elegido: texto · acento / fondo elegido | `#15181b` · `#c8102e` / `#fbeef0` | 15,8 · 5,2 |
 
 ## Notas
 

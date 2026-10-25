@@ -52,7 +52,8 @@ export function mountFrontend(app: Express, distPath: string): void {
     res.setHeader('Cache-Control', 'no-cache');
     // El panel no se indexa. robots.txt impide rastrearlo, pero entonces el buscador no ve el <meta robots> de
     // la SPA y puede listar la URL igual si alguien la enlaza: la cabecera lo resuelve sin depender del JS.
-    if (/^\/admin(?:\/|$)/i.test(req.path)) {
+    // Tampoco la página de seguimiento de un turno (/turno/<id>): es de un cliente puntual.
+    if (/^\/(?:admin|turno)(?:\/|$)/i.test(req.path)) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     }
     res.sendFile(indexFile, (error) => {

@@ -24,6 +24,10 @@ const guardar = async (imagen, archivo) => {
 const logoOscuro = sharp(origen('MgDetailing-plano-para-fondo-oscuro.png')).trim().resize({ height: 120 });
 await guardar(logoOscuro.png({ compressionLevel: 9, palette: true }), 'logo-fondo-oscuro.png');
 
+// Logo plano para fondo claro (tema claro de la web): mismo recorte y alto que el oscuro.
+const logoClaro = sharp(origen('MgDetailing-plano-para-fondo-claro.png')).trim().resize({ height: 120 });
+await guardar(logoClaro.png({ compressionLevel: 9, palette: true }), 'logo-fondo-claro.png');
+
 // Póster del monograma animado: el avatar 3D a 720 px (el video se muestra a ≤ 400 px).
 const avatar = sharp(origen('MgDetailing-avatar-3D-1080.png')).flatten({ background: '#0b0d10' }).resize(720, 720);
 await guardar(avatar.webp({ quality: 82 }), 'monograma-poster.webp');

@@ -444,6 +444,7 @@ describe('API pública', () => {
       'fechaPreferida',
       'franja',
       'id',
+      'seguimientoUrl',
       'servicioId',
     ]);
     expect(JSON.stringify(segundo.body)).not.toMatch(/NOTA-PRIVADA|notasInternas|turnosDelCliente/);

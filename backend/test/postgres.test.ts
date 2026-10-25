@@ -28,7 +28,7 @@ async function pglite(): Promise<PgliteDatabase> {
   return database;
 }
 
-const TABLES = ['bookings', 'perfiles', 'roles', 'servicios'];
+const TABLES = ['bookings', 'dias_especiales', 'horario_semanal', 'perfiles', 'roles', 'servicios'];
 
 describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGlite)', () => {
   it('RLS activo en todas las tablas, sin admins/sessions, y anon/authenticated/service_role sin ningún privilegio', async () => {
@@ -42,7 +42,7 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
 
     const grants = await pg.query<{ grants: number }>(
       `SELECT count(*)::int AS grants FROM unnest(ARRAY['anon', 'authenticated', 'service_role']) AS r(role)
-       CROSS JOIN unnest(ARRAY['servicios', 'bookings', 'roles', 'perfiles']) AS t(name)
+       CROSS JOIN unnest(ARRAY['servicios', 'bookings', 'roles', 'perfiles', 'horario_semanal', 'dias_especiales']) AS t(name)
        WHERE has_table_privilege(r.role, 'mgdetailing.' || t.name, 'SELECT, INSERT, UPDATE, DELETE')
           OR has_schema_privilege(r.role, 'mgdetailing', 'USAGE')
           OR has_schema_privilege(r.role, 'mgdetailing_private', 'USAGE')

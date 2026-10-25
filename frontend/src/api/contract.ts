@@ -274,11 +274,84 @@ export const listaDeTurnosSchema = z.object({
 
 export const respuestaTurnoSchema = z.object({ booking: turnoSchema });
 
-/** GET /api/admin/agenda: turnos no cancelados del rango, ya ordenados por fecha de agenda, franja y llegada. */
-export const agendaSchema = z.object({ turnos: z.array(turnoSchema) });
+/* ---------- Disponibilidad y seguimiento (reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md) ---------- */
 
-/** POST /api/bookings: con un 2xx el turno ya quedó creado, así que se lee con tolerancia. */
+const fechaIso = z.string().check(z.refine(esFechaValida, 'Fecha inválida.'));
+const cantidad = z.int().check(z.gte(0));
+
+/**
+ * Cupos de un día del rango de la agenda (GET /api/admin/agenda). `abierto` ya resuelve el día especial sobre el
+ * horario semanal; un cupo en 0 cierra esa franja. Los ocupados cuentan pendientes, confirmados y completados.
+ */
+export const cupoDiaSchema = z.object({
+  fecha: fechaIso,
+  abierto: z.boolean(),
+  cupoManana: cantidad,
+  cupoTarde: cantidad,
+  ocupadosManana: cantidad,
+  ocupadosTarde: cantidad,
+});
+export type CupoDia = z.output<typeof cupoDiaSchema>;
+
+/**
+ * GET /api/admin/agenda: turnos no cancelados del rango, ya ordenados por fecha de agenda, franja y llegada, y los
+ * cupos de cada día. Los cupos se leen con tolerancia: si faltan o no cierran, la agenda sigue funcionando sin ellos.
+ */
+export const agendaSchema = z.object({
+  turnos: z.array(turnoSchema),
+  cupos: z.catch(z.optional(z.array(cupoDiaSchema)), undefined),
+});
+
+/**
+ * Un día de GET /api/disponibilidad (público). `manana` y `tarde` dicen si queda lugar; nunca vienen cantidades.
+ * Un día cerrado trae las dos franjas en false.
+ */
+export const diaDisponibleSchema = z.object({
+  fecha: fechaIso,
+  abierto: z.boolean(),
+  manana: z.boolean(),
+  tarde: z.boolean(),
+});
+export type DiaDisponible = z.output<typeof diaDisponibleSchema>;
+
+export const disponibilidadSchema = z.object({ dias: z.array(diaDisponibleSchema) });
+
+/** 409 de POST /api/bookings cuando la franja se llenó (o tiene cupo 0) mientras el cliente completaba el formulario. */
+export const CODIGO_FRANJA_LLENA = 'FRANJA_LLENA';
+
+/** Ruta relativa /turno/<id>: nunca se arma un enlace a otro sitio con lo que diga una respuesta. */
+const RUTA_SEGUIMIENTO = /^\/turno\/[0-9A-Za-z-]{1,64}$/;
+export const esRutaDeSeguimiento = (valor: string) => RUTA_SEGUIMIENTO.test(valor);
+
+/** Formato del id de un turno (UUID). Lo demás da el mismo "No encontramos ese turno" sin preguntarle al backend. */
+export const ID_TURNO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const textoOpcional = z.catch(z.optional(z.string()), undefined);
+
+/**
+ * POST /api/bookings: con un 2xx el turno ya quedó creado, así que se lee con tolerancia. `seguimientoUrl` es la
+ * ruta relativa /turno/<id>; se acepta arriba o dentro de `booking`.
+ */
 export const turnoCreadoSchema = z.catch(
-  z.object({ booking: z.looseObject({ id: z.optional(z.string()) }) }),
+  z.object({
+    booking: z.looseObject({ id: textoOpcional, seguimientoUrl: textoOpcional }),
+    seguimientoUrl: textoOpcional,
+  }),
   { booking: {} },
 );
+
+/**
+ * GET /api/turnos/:id (público). Solo lo que el cliente puede ver: servicio, fecha y franja de agenda, estado y
+ * cuándo se actualizó. z.object descarta cualquier otro campo: aunque el backend mandara de más, no llega a la página.
+ */
+export const seguimientoSchema = z.object({
+  turno: z.object({
+    id: z.string(),
+    servicioNombre: z.string(),
+    fecha: fechaIso,
+    franja: z.enum(FRANJAS),
+    estado: z.enum(ESTADOS),
+    actualizadoEl: z.string(),
+  }),
+});
+export type TurnoSeguido = z.output<typeof seguimientoSchema>['turno'];

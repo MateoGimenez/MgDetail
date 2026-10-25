@@ -11,7 +11,7 @@ import {
 } from '../api/contract';
 import { type Rol } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
-import { whatsappClienteUrl } from '../config/enlaces';
+import { seguimientoPublicoUrl, whatsappClienteUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 import { lugarEnAgenda, mensajeParaCliente } from '../lib/agenda';
 import { fechaCorta, momentoEnLaRioja } from '../lib/fechas';
@@ -75,8 +75,12 @@ export function TarjetaTurno({
   const servicio = nombreServicio;
   const lugar = lugarEnAgenda(turno);
   const reprograma = puedeReprogramar(rol);
-  // El mensaje usa la fecha de agenda: la confirmada si existe, si no la que pidió.
-  const whatsapp = whatsappClienteUrl(turno.telefonoWhatsapp, mensajeParaCliente(turno, servicio, negocio.nombre));
+  // El mensaje usa la fecha de agenda (la confirmada si existe, si no la que pidió) y, si la web tiene URL
+  // pública, el enlace de seguimiento.
+  const whatsapp = whatsappClienteUrl(
+    turno.telefonoWhatsapp,
+    mensajeParaCliente(turno, servicio, negocio.nombre, seguimientoPublicoUrl(turno.id)),
+  );
   const vehiculo = [ETIQUETA_VEHICULO[turno.vehiculoTipo], turno.vehiculoModelo].filter(Boolean).join(' · ');
   const cliente = selloDeCliente(turno.turnosDelCliente);
 

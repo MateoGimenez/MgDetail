@@ -8,6 +8,7 @@ API REST de MgDetailing, taller de detailing de autos en La Rioja, Argentina. Ha
 4. Sirve el **catálogo de servicios** (textos, precios, duraciones, destacado, orden) desde la base: la landing lo lee de `GET /api/servicios` y `admin`/`superadmin` lo editan desde el panel sin volver a publicar la web.
 5. Arma la **agenda** del panel: qué turnos hay cada día y franja (`GET /api/admin/agenda`), con la **fecha y franja confirmadas** por el taller cuando difieren de las que pidió el cliente.
 6. Guarda **notas internas** por turno (el cliente nunca las ve), **busca** turnos por nombre, email, vehículo o teléfono y arma el **historial del cliente** (sus turnos, por teléfono normalizado).
+7. Maneja la **disponibilidad real** (horario semanal, días especiales y cupos por franja: el formulario solo acepta días y franjas con lugar), el **seguimiento** público del turno (`/turno/<id>`) y los **recordatorios** del día anterior por email (Resend) y/o WhatsApp Cloud, que dispara un cron. Contrato: `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md`.
 
 Stack: Node 24 + TypeScript (strict, ESM) + Express 5, **Postgres en Supabase** (driver `pg`) como único motor, **Supabase Auth** (API REST de GoTrue, sin `supabase-js`), zod, helmet, cors, express-rate-limit, jose (verificación de los JWT contra el JWKS del proyecto). Los tests usan PGlite (Postgres en memoria).
 
@@ -21,6 +22,7 @@ Stack: Node 24 + TypeScript (strict, ESM) + Express 5, **Postgres en Supabase** 
 - [Endpoints con ejemplos curl](#endpoints-con-ejemplos-curl)
 - [Contrato de la API](#contrato-de-la-api)
 - [Avisos por WhatsApp](#avisos-por-whatsapp)
+- [Recordatorios](#recordatorios)
 - [Operación](#operación)
 - [Seguridad](#seguridad)
 - [Estructura del proyecto](#estructura-del-proyecto)
@@ -72,6 +74,11 @@ Copiá `.env.example` a `.env` (está ignorado por git; nunca subas uno con secr
 | `CALLMEBOT_APIKEY` | | Solo con `callmebot`. Con la apikey vacía los avisos quedan desactivados (advertencia en desarrollo; en producción no arranca). |
 | `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID`, `WHATSAPP_CLOUD_TEMPLATE`, `WHATSAPP_CLOUD_LANGUAGE` | idioma `es_AR` | Solo con `cloud` (el idioma puede ser `es_AR` o `es`). |
 | `SERVE_FRONTEND` | `false` | `true`: la API también sirve `../frontend/dist` con fallback SPA a `index.html` para rutas que no empiezan con `/api`. |
+| `CRON_SECRET` | (vacía) | **Secreto** del cron de recordatorios: `Authorization: Bearer <CRON_SECRET>` en `POST /api/internal/recordatorios`. Mínimo 32 caracteres imprimibles sin espacios. Sin ella el endpoint responde `404`. Ver [Recordatorios](#recordatorios). |
+| `RESEND_API_KEY`, `RECORDATORIO_EMAIL_DESDE` | (vacías) | Recordatorio por **email con Resend**. Van juntas: la API key (`re_...`, **secreto**) y el remitente del dominio verificado (`turnos@dominio` o `Nombre <turnos@dominio>`). |
+| `WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO` | (vacía) | Recordatorio por **WhatsApp Cloud**: nombre de la plantilla aprobada (tres variables). Usa `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID` y `WHATSAPP_CLOUD_LANGUAGE` aunque `WHATSAPP_PROVIDER` no sea `cloud`. |
+
+Un canal de recordatorios a medio configurar (falta una de sus variables) es un aviso en desarrollo y un error en producción, como los proveedores de avisos. También se avisa si hay `CRON_SECRET` sin ningún canal, o un canal sin `CRON_SECRET`.
 
 ## Supabase Auth: usuarios y roles
 
@@ -96,11 +103,13 @@ navegador --/api (cookies httpOnly)--> backend --POST /auth/v1/token, /auth/v1/l
 
 ### Roles y permisos (la regla vive en el backend; la UI solo esconde botones)
 
-| Rol | Ver turnos y agenda | Cambiar estado | Reprogramar | Borrar turnos | Gestionar usuarios | Ver catálogo | Editar catálogo |
-|---|---|---|---|---|---|---|---|
-| `superadmin` | sí | a cualquier estado | sí | sí | sí (crear, listar, cambiar rol, activar/desactivar, nombre, email y contraseña, eliminar) | sí | sí |
-| `admin` | sí | a cualquier estado | sí | sí | no | sí | sí |
-| `empleado` | sí | **solo a `completado`** | **no** | no | no | sí | **no** (solo lectura) |
+| Rol | Ver turnos y agenda | Cambiar estado | Reprogramar | Borrar turnos | Gestionar usuarios | Ver catálogo | Editar catálogo | Ver disponibilidad | Editar disponibilidad |
+|---|---|---|---|---|---|---|---|---|---|
+| `superadmin` | sí | a cualquier estado | sí | sí | sí (crear, listar, cambiar rol, activar/desactivar, nombre, email y contraseña, eliminar) | sí | sí | sí | sí |
+| `admin` | sí | a cualquier estado | sí | sí | no | sí | sí | sí | sí |
+| `empleado` | sí | **solo a `completado`** | **no** | no | no | sí | **no** (solo lectura) | sí | **no** (solo lectura) |
+
+"Editar disponibilidad" = cambiar el horario semanal y crear, cambiar o quitar días especiales (`puedeEditarDisponibilidad` en `src/domain/permisos.ts`). Reprogramar un turno a una franja llena o a un día cerrado **sí** se permite (el panel manda; la UI avisa).
 
 "Reprogramar" = cambiar la fecha/franja confirmadas de un turno, también al confirmarlo "para otra fecha" o al volver a la que pidió el cliente (`puedeReprogramar` en `src/domain/permisos.ts`).
 
@@ -176,6 +185,23 @@ erDiagram
         text franja_confirmada "nullable; CHECK manana, tarde"
         text comentario "nullable"
         text estado "CHECK pendiente, confirmado, completado, cancelado"
+        timestamptz recordatorio_enviado_at "nullable; recordatorio del día anterior"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    horario_semanal {
+        smallint dia PK "0 = domingo ... 6 = sábado"
+        boolean abierto
+        smallint cupo_manana "0 a 20"
+        smallint cupo_tarde "0 a 20"
+        timestamptz updated_at
+    }
+    dias_especiales {
+        date fecha PK
+        boolean abierto
+        smallint cupo_manana "0 a 20; null si cerrado"
+        smallint cupo_tarde "0 a 20; null si cerrado"
+        text motivo "nullable, hasta 80"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -209,6 +235,8 @@ erDiagram
 |---|---|---|
 | `servicios` | **Catálogo del taller, fuente de verdad** (editable desde el panel; ver [Catálogo editable](#catálogo-editable)). Sembrado con los 5 servicios y los textos que tenía `frontend/src/data/servicios.ts` (propuesta inicial, sin confirmar). Un servicio que se deja de ofrecer se **desactiva** (`activo = false`), no se borra: lo referencian turnos. | PK `id` (slug validado por CHECK, inmutable: `mgdetailing_app` no tiene `UPDATE` sobre él). CHECK de largos de `nombre`/`resumen`/`descripcion`/`duracion_estimada` (no vacía), `precio_desde` entero de 0 a 99.999.999, `incluye` y `glosario` validados ítem por ítem (funciones `mgdetailing.servicio_incluye_valido` / `servicio_glosario_valido`). Índice único parcial `servicios_un_destacado` (`WHERE destacado`): a lo sumo un destacado. Trigger `updated_at`. |
 | `bookings` | Solicitudes de turno. | PK `seq` (bigint identity: inserciones ordenadas, índice compacto y orden estable aunque dos turnos tengan el mismo `created_at`); `id` UUID **único**, el único que sale por la API (un id secuencial revelaría cuántos turnos hay). FK `servicio_id -> servicios` (`RESTRICT`). CHECK de `vehiculo_tipo`, `franja`, `franja_confirmada`, `estado` y de los largos de zod; CHECK `bookings_confirmada_juntas`: `fecha_confirmada` y `franja_confirmada` las dos null o las dos con valor. Índices: `(estado, seq DESC)` para el listado filtrado y su `COUNT`; la PK sirve al listado sin filtro; `(servicio_id)` para la FK; `bookings_agenda_idx`, de expresión y parcial, `(coalesce(fecha_confirmada, fecha_preferida), coalesce(franja_confirmada, franja), seq) WHERE estado <> 'cancelado'`, para la agenda; `bookings_telefono_whatsapp_idx`, parcial, `(telefono_whatsapp, seq) WHERE telefono_whatsapp IS NOT NULL`, para `turnosDelCliente` y el historial. CHECK `bookings_notas_internas_largo` (≤ 1000) y `bookings_telefono_whatsapp_formato` (`^[0-9]{8,15}$`). |
+| `horario_semanal` | La regla de siempre: una fila por día de la semana (`dia` con la convención de Postgres y JavaScript: **0 = domingo**, 1 = lunes ... 6 = sábado), si se atiende y cuántos turnos entran a la mañana y a la tarde. Sembrada: lunes a sábado abierto con 2 por franja, domingo cerrado. Las 7 filas son fijas. | PK `dia` (CHECK 0 a 6); CHECK de cupos 0 a 20; trigger `updated_at`. |
+| `dias_especiales` | La excepción, gana sobre el horario semanal: una fecha cerrada (feriado, vacaciones) o abierta con sus cupos. Sembrada con los feriados inamovibles de lo que queda de 2026 y de 2027 más el 23/11/2026 (Soberanía, trasladable, "a confirmar"), todos cerrados y con motivo que empieza con `Feriado: `. | PK `fecha`; CHECK `dias_especiales_cupos` (abierto con los dos cupos, cerrado con los dos en null), cupos 0 a 20, `motivo` 1 a 80; trigger `updated_at`. |
 | `roles` | Los 3 roles del panel (sembrados por migración). Los permisos de cada rol los aplica el backend (`domain/permisos.ts`). | PK `id` (slug). |
 | `perfiles` | Un perfil por usuario de Supabase Auth: rol y si puede entrar. Lo crea el trigger de `auth.users`; se borra en cascada con el usuario. | PK/FK `id -> auth.users ON DELETE CASCADE`; FK `rol_id -> roles` con índice; CHECK de email en minúsculas y largo de nombre; trigger `updated_at`; trigger `perfiles_al_menos_un_superadmin`. |
 
@@ -233,7 +261,8 @@ Decisiones:
 
 - Todo vive en los esquemas **`mgdetailing`** y **`mgdetailing_private`**, que **no** están entre los expuestos por la Data API (PostgREST/GraphQL publican `public` y `graphql_public`; un pedido con `Accept-Profile: mgdetailing` responde `PGRST106`). La web **nunca** habla con Supabase: ni `supabase-js`, ni claves en el frontend. El único cliente de la base y de Supabase Auth es este backend.
 - **Rol dedicado `mgdetailing_app`** (migración `rol_app_minimo_privilegio`): el backend se conecta con él, **no** con `postgres`. Puede solo lo que el backend hace: `SELECT` en `roles`; `SELECT` en `servicios`, `INSERT` por columna (todas salvo `created_at`) y `UPDATE` por columna (los campos editables, `orden` y `updated_at`; nunca `id` ni `created_at`), sin `DELETE`, y `EXECUTE` de las dos funciones de validación del catálogo; `SELECT/INSERT/DELETE` en `bookings` y `UPDATE` solo de `estado`, `updated_at`, `fecha_confirmada`, `franja_confirmada`, `notas_internas` y `telefono_whatsapp` (nunca los datos del cliente ni el pedido original), y `EXECUTE` de `mgdetailing.texto_busqueda`; `SELECT` en `perfiles` y `UPDATE` solo de `rol_id`, `activo`, `nombre` y `updated_at` (sin `INSERT` ni `DELETE`: los hace el trigger / la cascada); `EXECUTE` solo de `mgdetailing_private.sesion_vigente`. Sin DDL, sin `TRUNCATE`, sin `BYPASSRLS`, sin acceso a `auth`, `storage` ni `public`. Topes de sesión: `statement_timeout` 10 s, `lock_timeout` 5 s, `idle_in_transaction_session_timeout` 30 s. Se crea **NOLOGIN y sin contraseña** (no hay secretos en el repo): el dueño le pone la contraseña (ver [Conectar Supabase](#conectar-supabase)). Si el backend arranca conectado con un rol privilegiado (`postgres`), lo avisa en el log.
-- **RLS habilitado en las 4 tablas**, con policies **solo para `mgdetailing_app`** (`USING (true)`: el backend es un único cliente de confianza que ve todas las filas; la autorización por usuario y por rol la hace la API con la sesión del panel). `anon`, `authenticated` y `service_role` no tienen ni privilegios ni policies: aunque alguien expusiera el esquema por error, no verían una fila. `postgres` (dueño de las tablas, con `BYPASSRLS`) queda para migraciones y backups.
+- Desde la migración `disponibilidad_seguimiento`, además: `SELECT` en `horario_semanal` y `dias_especiales`, `UPDATE (abierto, cupo_manana, cupo_tarde)` del horario (sin `INSERT` ni `DELETE`: las 7 filas son fijas), `INSERT`/`UPDATE (abierto, cupos, motivo)`/`DELETE` de días especiales y `UPDATE (recordatorio_enviado_at)` en `bookings`.
+- **RLS habilitado en las 6 tablas** (`horario_semanal` y `dias_especiales` incluidas), con policies **solo para `mgdetailing_app`** (`USING (true)`: el backend es un único cliente de confianza que ve todas las filas; la autorización por usuario y por rol la hace la API con la sesión del panel). `anon`, `authenticated` y `service_role` no tienen ni privilegios ni policies: aunque alguien expusiera el esquema por error, no verían una fila. `postgres` (dueño de las tablas, con `BYPASSRLS`) queda para migraciones y backups.
 - **`REVOKE` de todo** (tablas, secuencias, funciones y el `USAGE` del esquema) a `public`, `anon`, `authenticated` y `service_role`, y privilegios por defecto revocados para lo que se cree después en el esquema. Un test lo comprueba en PGlite (incluso haciendo `SET ROLE anon`).
 - Advisors de Supabase (security y performance) después de aplicar: security sin avisos; performance solo con el INFO esperado *unused index* (la base está vacía; se usan en cuanto haya turnos). La migración `endurecer_rls_auto_enable` revocó el `EXECUTE` de `public.rls_auto_enable()` (una función de Supabase que ya venía en el proyecto, del event trigger que activa RLS en tablas nuevas de `public`) a `anon`/`authenticated`, que el linter marcaba como WARN.
 - Al borrar un turno en Postgres, la fila deja de verse al instante pero sus bytes quedan en disco hasta que `autovacuum` reutiliza el espacio, y los backups la conservan durante su retención. Para la Ley 25.326 alcanza con que el dato no sea accesible y que la retención de backups esté acotada y documentada.
@@ -250,6 +279,7 @@ Decisiones:
 - **`20261022200000_catalogo_editable` (2026-10-22): PENDIENTE de aplicar en Supabase, con aprobación del dueño.** Agrega `resumen`, `descripcion`, `incluye`, `glosario` y `destacado` a `servicios`, copia los textos del frontend, pasa `precio_desde` a `integer`, crea el índice de destacado único y da a `mgdetailing_app` `INSERT`/`UPDATE` por columna con sus policies. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan columnas en mgdetailing.servicios"): aplicala antes de desplegar este backend y corré los advisors después.
 - **`20261023120000_agenda_fecha_confirmada` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-22_08_agenda.md`). Agrega `fecha_confirmada` y `franja_confirmada` (nullable) a `bookings` con sus CHECK (franja válida; las dos juntas), el índice parcial `bookings_agenda_idx` y `GRANT UPDATE (fecha_confirmada, franja_confirmada)` a `mgdetailing_app`. Columnas nullable sin default: no reescribe la tabla. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan columnas en mgdetailing.bookings"); aplicala (después de `catalogo_editable`) antes de desplegar y corré los advisors.
 - **`20261023180000_notas_telefono_cliente` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-23_10_notas-busqueda-historial.md`). Agrega `notas_internas` y `telefono_whatsapp` (nullable, con CHECK) a `bookings`, el índice parcial `bookings_telefono_whatsapp_idx`, la función `mgdetailing.texto_busqueda` (con `EXECUTE` solo para `mgdetailing_app`) y `GRANT UPDATE (notas_internas, telefono_whatsapp)` a `mgdetailing_app`. Columnas nullable sin default: no reescribe la tabla. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de notas"). Orden: aplicar la migración (después de `agenda_fecha_confirmada`), desplegar el backend, correr **`npm run normalizar-telefonos`** una vez (completa `telefono_whatsapp` en los turnos existentes; se puede repetir sin riesgo) y los advisors.
+- **`20261023200000_disponibilidad_seguimiento` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md`). Crea `horario_semanal` (7 filas) y `dias_especiales` (15 feriados) con RLS y policies solo para `mgdetailing_app`, agrega `bookings.recordatorio_enviado_at` (nullable, sin reescribir la tabla), hace que el trigger de `updated_at` de `bookings` no corra cuando cambia la marca del recordatorio (marcarlo no es un cambio del turno: el cliente ve "actualizado el") y da a `mgdetailing_app` `SELECT` en las dos tablas, `UPDATE (abierto, cupo_manana, cupo_tarde)` en el horario, `INSERT`/`UPDATE (abierto, cupos, motivo)`/`DELETE` en los días especiales y `UPDATE (recordatorio_enviado_at)` en `bookings`. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de disponibilidad"). Orden: después de `notas_telefono_cliente`, antes de desplegar; después, los advisors. **Al aplicarla, el formulario empieza a rechazar domingos, feriados y franjas con 2 turnos**: revisá antes el horario y los cupos con el dueño.
 - Los servicios ya **no** se agregan por migración ni en el código: se crean desde el panel.
 
 ### Backups (Supabase)
@@ -274,8 +304,25 @@ Contrato acordado con el frontend: `reportes/2026-10-22_08_agenda.md`.
 - **Qué aparece**: `pendiente`, `confirmado` y `completado`; los `cancelado`, no. Orden: fecha de agenda, franja (`manana` antes que `tarde`) y orden de llegada (`seq`).
 - **Rango de consulta**: `desde`..`hasta` inclusive, hasta 42 días (seis semanas).
 - **Reprogramar** (`PATCH /api/admin/bookings/:id` con `fechaConfirmada` + `franjaConfirmada`): solo `admin`/`superadmin`; el turno no puede estar ni quedar `cancelado`/`completado`; la fecha va de hoy a hoy + 120 días, en hora de La Rioja (`fechaConfirmadaRange` en `domain/booking-dates.ts`). `null` en las dos = volver a la pedida. La condición "no cerrado" va en el mismo `UPDATE` (sin carreras con un cancelado simultáneo).
-- **Sin cupos todavía**: la agenda no bloquea; cupos y días bloqueados son un objetivo posterior.
+- **Cupos**: la agenda trae `cupos` de cada día del rango (ver [Disponibilidad](#disponibilidad)). Reprogramar **no** se bloquea por cupo ni por día cerrado (el panel manda); si cambia la fecha o la franja de agenda, se limpia la marca del recordatorio en el mismo `UPDATE`.
 - Log: `Turno reprogramado id=... por=<uuid> fecha=<YYYY-MM-DD franja | la pedida> [estado=...]`; nunca datos del cliente.
+
+### Disponibilidad
+
+Contrato acordado con el frontend: `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md`. Regla en `src/domain/disponibilidad.ts` (`calcularCupos`, `verificarLugar`).
+
+- **Cupo de un día** = el día especial si hay, si no el horario semanal de ese día de la semana. Un día cerrado tiene los dos cupos en 0; un cupo en 0 cierra esa franja.
+- **Ocupan cupo** los turnos no cancelados (`pendiente`, `confirmado`, `completado`) por **fecha y franja de agenda** (la confirmada si existe, si no la pedida). Se cuentan con un `GROUP BY` sobre el índice `bookings_agenda_idx`.
+- **Alta pública sin carreras** (`BookingRepository.reservar`): en una transacción, `pg_advisory_xact_lock(7340003, <días desde 2000-01-01 de la fecha pedida>)`, después el cálculo de cupos de ese día y recién ahí el `INSERT`. Dos altas del mismo día se hacen de a una y la segunda ve a la primera (READ COMMITTED). Día cerrado => `400` en `fechaPreferida`; franja llena o con cupo 0 => `409 FRANJA_LLENA` en `franja`; en los dos casos no se guarda nada. El honeypot responde lo mismo (consulta sin bloquear y sin guardar).
+- **El panel manda**: reprogramar o confirmar a una franja llena o a un día cerrado no se bloquea.
+- **Feriados**: los trasladables y los puentes los decide el gobierno cada año; el dueño los revisa en el panel (los sembrados tienen motivo `Feriado: ...`).
+- Logs: `Horario semanal actualizado por=<uuid>`, `Día especial guardado fecha=... abierto|cerrado por=...`, `Día especial quitado fecha=... por=...`; nunca el motivo.
+
+### Seguimiento del turno
+
+- `GET /api/turnos/:id` (público): el `id` es el UUID aleatorio del alta (no se puede adivinar). Devuelve **solo** `id`, `servicioNombre`, `fecha` y `franja` de agenda, `estado` y `actualizadoEl`. Nunca nombre, teléfono, email, vehículo, comentario ni notas. Inexistente o con formato inválido => el mismo `404`.
+- Rate limit propio: **60 consultas por IP cada 15 minutos** (cuentan también los `404`), además del general. Responde con `X-Robots-Tag: noindex, nofollow`; con `SERVE_FRONTEND`, la página `/turno/*` también.
+- `POST /api/bookings` devuelve `booking.seguimientoUrl` = `/turno/<id>` (ruta relativa).
 
 ### Notas internas, búsqueda e historial del cliente
 
@@ -479,6 +526,7 @@ Esta sección es la referencia para el frontend. Todo viaja como JSON; las fecha
 | `NOT_FOUND` | 404 | Ruta inexistente, o turno / usuario / servicio inexistente (un id con formato inválido también da 404). |
 | `CONFLICT` | 409 | Gestión de usuarios: cambiarte tu propio rol, desactivarte, o dejar el sistema sin ningún superadmin activo. |
 | `SERVICIO_EXISTE` | 409 | `POST /api/admin/servicios` con un `id` que ya existe (activo o no). Trae `fields.id`. |
+| `FRANJA_LLENA` | 409 | `POST /api/bookings` a una franja sin lugar (llena o con cupo 0). Trae `fields.franja`: *"Esa franja se llenó. Elegí otra."* |
 | `PAYLOAD_TOO_LARGE` | 413 | Body de más de 10 kb. |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Falta `Content-Type: application/json` o el body viene comprimido. |
 | `RATE_LIMITED` | 429 | Demasiados pedidos (los del backend traen `Retry-After` en segundos). También si Supabase Auth limita los logins. |
@@ -508,13 +556,30 @@ Límite: **5 turnos creados por IP cada 15 minutos** (`429`). Los pedidos rechaz
 
 Higiene de texto: los controles bidireccionales invisibles (los que agrega WhatsApp al copiar un contacto) se quitan solos; los caracteres de control (como el nulo o la campana) se rechazan.
 
+Disponibilidad (después de validar el formato y el servicio): si el día está cerrado (horario semanal o día especial) => `400 VALIDATION_ERROR` con `fields.fechaPreferida` = *"Ese día no tomamos turnos. Elegí otro."*; si la franja está llena o tiene cupo 0 => `409 FRANJA_LLENA` con `fields.franja` = *"Esa franja se llenó. Elegí otra."*. Ninguno guarda nada ni gasta cupo del rate limit. El frontend debería recargar `GET /api/disponibilidad` y pedir otra elección.
+
 Respuesta `201`:
 
 ```json
-{ "booking": { "id": "5f0c2a3e-9b1d-4c7e-8a55-2d3f1e6b7a90", "servicioId": "pulido", "fechaPreferida": "2026-10-20", "franja": "manana", "estado": "pendiente" } }
+{ "booking": { "id": "5f0c2a3e-9b1d-4c7e-8a55-2d3f1e6b7a90", "servicioId": "pulido", "fechaPreferida": "2026-10-20", "franja": "manana", "estado": "pendiente", "seguimientoUrl": "/turno/5f0c2a3e-9b1d-4c7e-8a55-2d3f1e6b7a90" } }
 ```
 
-`id` es un **UUID (string)**, no un número. La respuesta pública no incluye datos personales.
+`id` es un **UUID (string)**, no un número. `seguimientoUrl` es la ruta **relativa** de la página de seguimiento (va dentro de `booking`). La respuesta pública no incluye datos personales.
+
+### `GET /api/disponibilidad?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` (público)
+
+Los dos opcionales: sin `desde`, hoy; sin `hasta`, hoy + 60 (hora de La Rioja). Las dos dentro de hoy..hoy+60, `hasta >= desde` y a lo sumo 62 días; si no, `400` con `fields.desde` o `fields.hasta` (repetidos o mal formados también). Los parámetros desconocidos se ignoran. `200`:
+
+```json
+{ "dias": [ { "fecha": "2026-10-18", "abierto": false, "manana": false, "tarde": false },
+            { "fecha": "2026-10-20", "abierto": true, "manana": true, "tarde": false } ] }
+```
+
+Un elemento por día del rango, en orden. `manana` / `tarde` = **hay lugar** en esa franja (nunca se exponen cantidades). `abierto: true` con las dos en `false` = abierto pero sin lugar (lleno o cupos en 0).
+
+### `GET /api/turnos/:id` (público, seguimiento)
+
+`200 { "turno": { "id", "servicioNombre", "fecha", "franja", "estado", "actualizadoEl" } }` (`fecha` y `franja` de agenda; `actualizadoEl` ISO 8601 UTC) o `404 NOT_FOUND` (*"No encontramos ese turno."*), igual para un id inexistente o con formato inválido. Límite propio: 60 por IP cada 15 min (`429`). Lleva `X-Robots-Tag: noindex, nofollow`.
 
 Error de validación `400` (ejemplo):
 
@@ -635,7 +700,34 @@ Body estricto con **al menos uno** de: `estado`, la pareja `fechaConfirmada` + `
 | `desde` | Obligatorio. Fecha `YYYY-MM-DD` existente. |
 | `hasta` | Obligatorio. Fecha `YYYY-MM-DD` existente, `>= desde`, y el rango inclusivo abarca **a lo sumo 42 días** (`desde` + 41). |
 
-`200 { "turnos": Turno[] }` (el mismo objeto que `/api/admin/bookings`): los **no cancelados** cuya fecha de agenda (`fechaConfirmada ?? fechaPreferida`) cae en el rango, ordenados por fecha de agenda, franja de agenda (`manana` antes que `tarde`) y orden de llegada. Sin paginación. `400 VALIDATION_ERROR` con `fields.desde` / `fields.hasta` si faltan, tienen mal formato (también repetidos) o el rango es inválido (el error de rango va en `hasta`). Los parámetros desconocidos se ignoran, como en el listado.
+`200 { "turnos": Turno[], "cupos": CupoDia[] }`. `cupos` tiene un elemento por día del rango, en orden: `{ "fecha", "abierto", "cupoManana", "cupoTarde", "ocupadosManana", "ocupadosTarde" }` (un día cerrado trae los cupos en 0; los ocupados se informan igual, porque el panel puede haber puesto turnos ahí). `turnos` (el mismo objeto que `/api/admin/bookings`): los **no cancelados** cuya fecha de agenda (`fechaConfirmada ?? fechaPreferida`) cae en el rango, ordenados por fecha de agenda, franja de agenda (`manana` antes que `tarde`) y orden de llegada. Sin paginación. `400 VALIDATION_ERROR` con `fields.desde` / `fields.hasta` si faltan, tienen mal formato (también repetidos) o el rango es inválido (el error de rango va en `hasta`). Los parámetros desconocidos se ignoran, como en el listado.
+
+### `GET /api/admin/disponibilidad` (requiere sesión; todos los roles)
+
+```json
+{ "horarioSemanal": [ { "dia": 1, "abierto": true, "cupoManana": 2, "cupoTarde": 2 }, "... lunes a sábado ...",
+                      { "dia": 0, "abierto": false, "cupoManana": 2, "cupoTarde": 2 } ],
+  "diasEspeciales": [ { "fecha": "2026-11-23", "abierto": false, "cupoManana": null, "cupoTarde": null,
+                        "motivo": "Feriado: Día de la Soberanía Nacional (trasladable, a confirmar)" } ] }
+```
+
+`horarioSemanal`: las 7 filas **de lunes a domingo** (`dia`: 0 = domingo ... 6 = sábado). Con el día cerrado, los cupos guardados se conservan (para cuando se vuelva a abrir) pero no cuentan. `diasEspeciales`: de hoy en adelante (hora de La Rioja), por fecha; `cupoManana`/`cupoTarde` `null` si está cerrado. Los feriados precargados tienen `motivo` que empieza con `Feriado: `.
+
+### `PUT /api/admin/disponibilidad/horario-semanal` (solo `admin` y `superadmin`)
+
+Body estricto `{ "dias": [ { "dia", "abierto", "cupoManana", "cupoTarde" } × 7 ] }`: los 7 días, cada uno una vez (`dia` entero 0 a 6), cupos enteros de 0 a 20. `200 { "horarioSemanal": [...] }` (el horario completo, lunes a domingo). `400` con `fields` (`dias`, o `dias.<posición>.<campo>`); `403 FORBIDDEN` para `empleado` (*"Con tu rol solo podés ver la disponibilidad."*).
+
+### `PUT /api/admin/disponibilidad/dias-especiales/:fecha` (solo `admin` y `superadmin`)
+
+Crea o reemplaza el día. Body estricto `{ "abierto": boolean, "cupoManana"?, "cupoTarde"?, "motivo"? }`. Abierto: los dos cupos obligatorios (0 a 20). Cerrado: los cupos se ignoran y se guardan en `null`. `motivo`: una línea, hasta 80 caracteres; vacío o `null` => `null`. La fecha de la ruta: `YYYY-MM-DD` existente, de hoy a hoy + 730 días (si no, `400` en `fields.fecha`). `200 { "dia": { "fecha", "abierto", "cupoManana", "cupoTarde", "motivo" } }`.
+
+### `DELETE /api/admin/disponibilidad/dias-especiales/:fecha` (solo `admin` y `superadmin`)
+
+Quita el día especial (vuelve al horario semanal). `204`; `404 NOT_FOUND` si no había (o la fecha no tiene formato válido).
+
+### `POST /api/internal/recordatorios` (interno, para el cron)
+
+`Authorization: Bearer <CRON_SECRET>` y `Content-Type: application/json` (sin body). `200 { "enviados", "fallidos", "sinCanal" }`. Sin `CRON_SECRET` configurada => `404` (como una ruta inexistente); con la variable y sin cabecera, otro esquema u otro secreto => `401 UNAUTHORIZED` (*"No autorizado."*, con `WWW-Authenticate: Bearer`). Ver [Recordatorios](#recordatorios).
 
 ### `DELETE /api/admin/bookings/:id` (requiere sesión; solo `admin` y `superadmin`)
 
@@ -769,6 +861,65 @@ El token va en la URL de la API de Telegram, por eso nunca se loguea. Los datos 
 | Telegram (bot) | Gratis | Fácil (5 pasos) | Oficial, sin baneo; el aviso llega a Telegram y no a WhatsApp |
 | Email | Gratis con SMTP | Pide dependencia o cuenta SMTP | Puede caer en spam |
 
+## Recordatorios
+
+El día anterior a un turno **confirmado**, el cliente recibe un recordatorio automático (`src/services/recordatorios.ts`, canales en `src/notifications/recordatorio.ts`).
+
+- **Qué turnos**: `estado = 'confirmado'`, fecha de agenda = **mañana** (hora de La Rioja) y `recordatorio_enviado_at` en null. Una sola vez por turno.
+- **Canales** (independientes de `WHATSAPP_PROVIDER`, que es el aviso al dueño):
+  - **Email con Resend**, si el turno tiene email y están `RESEND_API_KEY` + `RECORDATORIO_EMAIL_DESDE`. `POST https://api.resend.com/emails` con `fetch` (sin SDK), texto y HTML (escapado), y `Idempotency-Key: recordatorio-<id>-<fecha>` (Resend no repite el envío con la misma clave durante 24 h). Si hay `PUBLIC_URL`, incluye el enlace de seguimiento.
+  - **WhatsApp Cloud API**, si el turno tiene `telefono_whatsapp` y están `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID` y `WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO`. Plantilla **aprobada por Meta** (categoría utilidad, `es_AR` o `es`) con **tres** variables en el cuerpo: `{{1}}` servicio, `{{2}}` día (`sábado 24/10`), `{{3}}` franja (`mañana` / `tarde`). Ejemplo: *"Hola, te recordamos tu turno de {{1}} en MgDetailing mañana {{2}} por la {{3}}. Si no podés venir, avisanos."*
+  - Sin ningún canal configurado no se manda nada y no es un error: el log dice `Recordatorios desactivados` y la respuesta cuenta los turnos en `sinCanal`.
+- **Marca**: un turno se marca solo si al menos un canal lo entregó (si el email llegó y el WhatsApp falló, se marca igual: reintentar duplicaría el email). Si todos sus envíos fallan, queda sin marcar y se reintenta en la próxima corrida. Reprogramar a otra fecha o franja limpia la marca. Marcar no cambia `updated_at`.
+- **Idempotente**: correr el cron dos veces no manda dos veces. Dos llamadas simultáneas en el mismo proceso comparten la corrida.
+- **Privacidad**: el log y la respuesta solo tienen cantidades (`Recordatorios: enviados=N fallidos=M sinCanal=K`; un fallo: `Recordatorio falló (email, status 422)`), nunca ids, emails ni teléfonos. El email o el teléfono del cliente y los datos del turno viajan a Resend o a Meta.
+
+### Programar el cron (después de publicar la web)
+
+El backend no tiene un reloj propio: algo tiene que llamar una vez por día (por ejemplo a las **18:00 de La Rioja = 21:00 UTC**) a:
+
+```bash
+curl -X POST https://mgdetailing.com.ar/api/internal/recordatorios \
+  -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json"
+# -> {"enviados":3,"fallidos":0,"sinCanal":1}
+```
+
+Generá el secreto con `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"` y ponelo como `CRON_SECRET` en el entorno del servidor.
+
+**Opción A: Supabase (pg_cron + pg_net).** En el panel: *Database > Extensions*, activá `pg_cron` y `pg_net`. Guardá el secreto en Vault y programá el job desde el **SQL Editor** (pg_cron usa **UTC**):
+
+```sql
+select vault.create_secret('<el CRON_SECRET>', 'mgdetailing_cron_secret');
+
+select cron.schedule(
+  'mgdetailing-recordatorios',
+  '0 21 * * *', -- todos los días a las 21:00 UTC = 18:00 en La Rioja
+  $$
+  select net.http_post(
+    url := 'https://mgdetailing.com.ar/api/internal/recordatorios',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'mgdetailing_cron_secret')
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 30000
+  );
+  $$
+);
+```
+
+Para ver las corridas: `select * from cron.job_run_details order by start_time desc limit 10;` y las respuestas en `net._http_response`. Para quitarlo: `select cron.unschedule('mgdetailing-recordatorios');`. Ojo: `pg_net` guarda el pedido (con la cabecera) en `net.http_request_queue` mientras espera, así que cualquier rol con login que pueda leer esa tabla ve el secreto unos segundos: `mgdetailing_app` no tiene acceso a `net`. No pongas el secreto literal en el `cron.schedule` (quedaría en `cron.job`).
+
+**Opción B: el cron del hosting.** Un cron del sistema (`crontab`: `0 21 * * * curl -fsS -X POST ...` con el secreto en un archivo legible solo por ese usuario), o el "cron job" / "scheduled task" del PaaS (Render, Railway, Fly...) con el mismo `curl` y el secreto como variable de entorno de la plataforma. Mirá en qué zona horaria corre (casi siempre UTC).
+
+Si el backend tiene varias instancias, el cron se programa **una sola vez** (no por instancia).
+
+### Lo que necesita el dueño para activarlos
+
+- **Email**: cuenta de Resend con el dominio verificado (registros DNS SPF/DKIM), `RESEND_API_KEY` y `RECORDATORIO_EMAIL_DESDE`.
+- **WhatsApp**: cuenta de WhatsApp Business en Meta (la misma de la Opción 2 de avisos), número registrado, token permanente de System User y la plantilla de recordatorio aprobada (`WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO`). Meta cobra cada plantilla enviada.
+- **Cron**: `CRON_SECRET` en el servidor y el job (opción A o B), cuando la web esté publicada.
+
 ## Operación
 
 ### Despliegue objetivo
@@ -831,7 +982,10 @@ Igual que en desarrollo: los usuarios se crean en el panel de Supabase y se acti
 - **Contraseñas y sesiones**: las maneja **Supabase Auth** (el backend no guarda contraseñas). El backend verifica cada access token con `jose` contra el JWKS del proyecto con el algoritmo (**ES256**), emisor, audiencia y vencimiento **fijados**; exige `sub`/`session_id` UUID, `role = authenticated` y no anónimo. Los tokens viajan solo en cookies `HttpOnly; SameSite=Strict` (`Secure` en producción); el refresh token solo a `/api/auth`. Cada request comprueba en la base que la sesión siga en `auth.sessions` y que el perfil esté activo: **logout, desactivación y cambio de rol son inmediatos**.
 - **Autorización**: por rol en el backend (`domain/permisos.ts`), no en la UI. Usuarios nuevos nacen inactivos.
 - **CSRF**: `SameSite=Strict` + chequeo de `Origin` + `Content-Type: application/json` obligatorio en métodos que modifican.
-- **Rate limits**: general por IP, 5 turnos / 15 min, 5 logins fallidos / 15 min (más los límites propios de Supabase Auth).
+- **Rate limits**: general por IP, 5 turnos / 15 min, 5 logins fallidos / 15 min, 60 consultas de seguimiento / 15 min (más los límites propios de Supabase Auth).
+- **Endpoint interno de recordatorios**: `Bearer <CRON_SECRET>` comparado en tiempo constante (`timingSafeEqual` sobre los sha256, así tampoco depende del largo), secreto de al menos 32 caracteres; sin la variable, `404`. Pasa por el mismo control de `Origin` y `Content-Type` que el resto.
+- **Seguimiento público**: solo campos sin datos personales, `404` igual para inexistente e inválido, UUID aleatorio (122 bits), rate limit propio y `noindex`.
+- **Último lugar**: el alta pública bloquea la fecha con `pg_advisory_xact_lock` dentro de la transacción del `INSERT` (sin carreras). Con mucha contención, el `lock_timeout` de 5 s de `mgdetailing_app` puede cortar una espera (`500`); para un taller no pasa.
 - **Entrada**: zod estricto (rechaza campos desconocidos), body máximo de 10 kb, sin cuerpos comprimidos. SQL siempre parametrizado (`$1, $2...`), y una regla de ESLint prohíbe construir SQL con interpolación o concatenación en `query()` y `exec()`.
 - **Cabeceras**: helmet (CSP, HSTS en producción, `nosniff`, `X-Frame-Options: DENY`...), `Permissions-Policy`, `Cache-Control: no-store` en la API. El panel (`/admin`) lleva `X-Robots-Tag: noindex, nofollow`. Con `SERVE_FRONTEND`, lo que cuelga de `/assets`, `/fotos` y `/marca` y no existe da 404 (nunca el HTML de la SPA), igual que los dotfiles.
 - **Datos personales**: nunca se escriben en los logs (una línea por request: método, ruta sin query, status y milisegundos; al crear un turno solo `id + servicio + fecha`; el aviso de WhatsApp solo `id` y status; login y gestión de usuarios solo ids de usuario, nunca emails ni tokens). Al borrar un turno, la fila queda en disco hasta que `autovacuum` reutiliza el espacio.
@@ -850,9 +1004,9 @@ backend/
     domain/             tipos del negocio, reglas (permisos por rol) e interfaces async de los repositorios
     repositories/       fábrica de repositorios
       postgres/         implementación Postgres (turnos, perfiles, servicios; SQL con $1...)
-    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno, agenda y reprogramación, catálogo)
-    routes/             rutas HTTP (health, bookings, servicios, auth, admin/bookings, admin/agenda, admin/usuarios, admin/servicios)
-    notifications/      avisos de WhatsApp al dueño (CallMeBot, Cloud API) y formato del mensaje
+    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno, agenda y reprogramación, catálogo, disponibilidad, recordatorios)
+    routes/             rutas HTTP (health, bookings, servicios, auth, admin/bookings, admin/agenda, admin/usuarios, admin/servicios, disponibilidad, turnos (seguimiento), admin/disponibilidad, internal (recordatorios))
+    notifications/      avisos de WhatsApp al dueño (CallMeBot, Cloud API) y formato del mensaje; recordatorios a clientes (Resend, Cloud API)
     middleware/         seguridad, CSRF, rate limit, errores, logger, estáticos
     schemas/            validación de entrada con zod
     db/                 database.ts (abre la base), postgres.ts (pool, TLS, verificación del esquema), rows.ts
@@ -885,5 +1039,9 @@ Los tests usan un reloj fijo, **PGlite** (Postgres compilado a WebAssembly, en m
 - `notas-busqueda.test.ts`: búsqueda (nombre, mayúsculas, acentos, ñ, email, modelo, dígitos del teléfono en distintos formatos, comodines `%` `_` `\` como texto, largo de `q`, combinada con estado y paginación, todos los roles), historial (`cliente` inválido, teléfonos escritos distinto que normalizan igual, `turnosDelCliente` 1/N/null, turnos viejos sin normalizar), notas (vacía => null, saltos de línea, `\r\n`, 1000 caracteres, caracteres de control, empleado, turnos cerrados, junto con estado o fecha, fuera del log), campos exactos del Turno y que la nota no salga por `POST /api/bookings`.
 - `normalizar-telefonos.test.ts`: el script (completa, no pisa, idempotente, resumen sin datos personales, error sin el detalle de Postgres).
 - `servicios.test.ts`: API del catálogo (público y panel con los campos exactos, permisos por rol con `empleado` 403, validaciones 400, id reservado, caracteres de control, `409 SERVICIO_EXISTE`, 404, destacado único, orden, CSRF en `PUT`) y turnos contra la base (servicio inactivo, nuevo o renombrado).
+- `disponibilidad.test.ts`: cálculo de cupos; `GET /api/disponibilidad` (campos exactos, domingo cerrado por defecto, feriado sembrado cerrado, rango y formato); alta con día cerrado (400), franja llena y cupo 0 (409 `FRANJA_LLENA`), día especial abierto que pisa al domingo, feriado quitado, último lugar con dos altas simultáneas (entra una), lock de la fecha antes de contar, cancelado que no ocupa, reprogramado que libera y ocupa (y el panel que sí puede llenar o usar un día cerrado), honeypot; panel (lista exacta de feriados, lunes a domingo, roles, validaciones); seguimiento (campos exactos, sin datos personales, 404 uniforme, rate limit propio); GRANT y CHECK de la migración.
+- `recordatorios.test.ts`: 404 sin `CRON_SECRET`, 401 con secreto incorrecto, CSRF, envío por Resend y Cloud (cabeceras, body, plantilla), idempotencia, solo confirmados de mañana por fecha de agenda, fallo que no marca y se reintenta, un canal que falla y otro que anda, sin canal, reprogramar limpia la marca, marcar no cambia `updated_at`, dos corridas a la vez, log sin datos personales.
+
+`createTestContext` abre por defecto los 7 días con 20 cupos y quita los días especiales (`disponibilidad: 'libre'`), para que los tests anteriores al objetivo 4 sigan probando lo suyo; los de disponibilidad usan `disponibilidad: 'fabrica'` (la base tal como la deja la migración).
 
 No hace falta internet ni ninguna clave de Supabase para correr los tests: ninguno hace requests reales. Un test adicional falla si algún fuente contiene caracteres invisibles escritos literalmente (ataque "Trojan Source").

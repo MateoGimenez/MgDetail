@@ -2,9 +2,11 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { ETIQUETA_FRANJA, FRANJAS, type CambiosTurno, type Franja, type Turno } from '../api/contract';
 import { Icono } from '../components/Icono';
 import { lugarEnAgenda, validarFechaConfirmada, type ErroresFecha } from '../lib/agenda';
-import { fechaCorta, rangoDeConfirmacion } from '../lib/fechas';
+import { avisoDeLugar } from '../lib/cupos';
+import { esFechaValida, fechaCorta, rangoDeConfirmacion } from '../lib/fechas';
 import { useMontado } from './dialogo';
 import { ErrorCampo } from './ErroresFormulario';
+import { useCupoDelDia } from './useCupoDelDia';
 import type { Problema } from './useUsuarios';
 
 /** Primer control con error (los radios no admiten aria-invalid: llevan data-invalido). */
@@ -58,6 +60,17 @@ export function ElegirFecha({ turno, modo, alEnviar, alTerminar }: Props) {
   }, []);
 
   const pedido = `${fechaCorta(turno.fechaPreferida)} · ${ETIQUETA_FRANJA[turno.franja]}`;
+
+  /*
+   * El panel manda: puede agendar en una franja llena o cerrada, pero se le avisa. Si el turno ya ocupa ese mismo
+   * lugar (p. ej. se confirma para lo que pidió), no se cuenta dos veces.
+   */
+  const destino = eleccion === 'pedido' ? { fecha: turno.fechaPreferida, franja: turno.franja } : { fecha: fecha.trim(), franja };
+  const cupo = useCupoDelDia(esFechaValida(destino.fecha) ? destino.fecha : null);
+  const avisoCupo =
+    destino.franja === null
+      ? null
+      : avisoDeLugar(cupo, destino.franja, lugar.fecha === destino.fecha && lugar.franja === destino.franja);
 
   const enviar = async (evento: FormEvent<HTMLFormElement>) => {
     evento.preventDefault();
@@ -193,6 +206,16 @@ export function ElegirFecha({ turno, modo, alEnviar, alTerminar }: Props) {
           </div>
         )}
       </fieldset>
+
+      {/* Siempre en el DOM para que el lector de pantalla anuncie el aviso cuando aparece. */}
+      <p className="fecha-turno__aviso" role="status">
+        {avisoCupo && (
+          <>
+            <Icono nombre="alerta" tamano={18} />
+            {avisoCupo}
+          </>
+        )}
+      </p>
 
       <div className="fecha-turno__acciones">
         <button type="submit" className="boton boton--primario boton--chico" disabled={enviando}>

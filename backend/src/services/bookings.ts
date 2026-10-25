@@ -1,4 +1,10 @@
-import type { Booking, BookingRepository, NewBooking, PublicBooking } from '../domain/booking.js';
+import { type Booking, type BookingRepository, type NewBooking, type PublicBooking, seguimientoPath } from '../domain/booking.js';
+import {
+  DiaCerradoError,
+  type DisponibilidadRepository,
+  FranjaLlenaError,
+  verificarLugar,
+} from '../domain/disponibilidad.js';
 import { type BookingNotifier, NotifyError } from '../domain/notifier.js';
 import type { Servicio, ServicioRepository } from '../domain/servicios.js';
 import { AppError } from '../lib/errors.js';
@@ -9,9 +15,21 @@ export interface BookingServiceDeps {
   bookings: BookingRepository;
   /** El catálogo (mgdetailing.servicios): decide qué servicios se pueden reservar. */
   servicios: ServicioRepository;
+  /** Horario semanal, días especiales y cupos: decide qué días y franjas se pueden pedir. */
+  disponibilidad: DisponibilidadRepository;
   logger: Logger;
   /** Aviso al dueño por cada turno nuevo. Sin notificador, no se avisa. */
   notifier?: BookingNotifier;
+}
+
+/** 400 en fechaPreferida: el día está cerrado (horario semanal o día especial). */
+export const DIA_CERRADO_MESSAGE = 'Ese día no tomamos turnos. Elegí otro.';
+
+/** Errores de disponibilidad del dominio => respuestas del contrato. Cualquier otro error pasa tal cual. */
+function errorDeDisponibilidad(error: unknown): unknown {
+  if (error instanceof DiaCerradoError) return AppError.validation({ fechaPreferida: DIA_CERRADO_MESSAGE }, DIA_CERRADO_MESSAGE);
+  if (error instanceof FranjaLlenaError) return AppError.franjaLlena();
+  return error;
 }
 
 /**
@@ -34,12 +52,32 @@ export class BookingService {
   }
 
   /**
-   * Verifica el servicio contra el catálogo, guarda el turno nuevo (siempre "pendiente"), registra el alta en el
-   * log y arma la respuesta pública.
+   * Verifica (sin guardar ni bloquear) que el día esté abierto y la franja tenga lugar: 400 en fechaPreferida o
+   * 409 FRANJA_LLENA. Lo usa el honeypot para responder lo mismo que un pedido real.
+   */
+  async verificarDisponible(fecha: string, franja: NewBooking['franja']): Promise<void> {
+    const [cupo] = await this.deps.disponibilidad.cupos(fecha, fecha);
+    if (cupo === undefined) return;
+    try {
+      verificarLugar(cupo, franja);
+    } catch (error) {
+      throw errorDeDisponibilidad(error);
+    }
+  }
+
+  /**
+   * Verifica el servicio contra el catálogo, guarda el turno nuevo (siempre "pendiente") solo si el día está abierto
+   * y la franja tiene lugar (con la fecha bloqueada: sin carreras por el último lugar), registra el alta en el log y
+   * arma la respuesta pública.
    */
   async createBooking(data: NewBooking, now: Date): Promise<PublicBooking> {
     const servicio = await this.servicioReservable(data.servicioId);
-    const saved = await this.deps.bookings.create(data, now);
+    let saved: Booking;
+    try {
+      saved = await this.deps.bookings.reservar(data, now);
+    } catch (error) {
+      throw errorDeDisponibilidad(error);
+    }
 
     // Solo id + servicio + fecha: sin nombre, teléfono, email ni comentario.
     this.deps.logger.info(`Turno creado id=${saved.id} servicio="${servicio.nombre}" fecha=${saved.fechaPreferida}`);
@@ -54,6 +92,7 @@ export class BookingService {
       fechaPreferida: saved.fechaPreferida,
       franja: saved.franja,
       estado: 'pendiente',
+      seguimientoUrl: seguimientoPath(saved.id),
     };
   }
 

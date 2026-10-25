@@ -8,16 +8,23 @@ import {
   listaDeTurnosSchema,
   respuestaTurnoSchema,
   type CambiosTurno,
+  type CupoDia,
   type Estado,
   type Turno,
 } from './contract';
 import {
+  disponibilidadPanelSchema,
   listaDeServiciosSchema,
+  respuestaDiaEspecialSchema,
+  respuestaHorarioSchema,
   listaDeUsuariosSchema,
   respuestaServicioSchema,
   respuestaSesionSchema,
   respuestaUsuarioSchema,
+  type CambioDiaEspecial,
   type CambiosServicio,
+  type DiaEspecial,
+  type HorarioDia,
   type CambiosUsuario,
   type NuevoServicio,
   type NuevoUsuario,
@@ -136,12 +143,17 @@ export async function cambiarEstado(id: string, estado: Estado): Promise<Turno> 
 
 /**
  * GET /api/admin/agenda?desde&hasta (todos los roles) → turnos no cancelados cuya fecha de agenda
- * (la confirmada o, si no hay, la pedida) cae en el rango inclusivo, de hasta 42 días.
+ * (la confirmada o, si no hay, la pedida) cae en el rango inclusivo, de hasta 42 días, y los cupos de cada día
+ * (null si el backend no los mandó: la agenda se ve igual, sin "2/3").
  */
-export async function listarAgenda(desde: string, hasta: string, signal?: AbortSignal): Promise<Turno[]> {
+export async function listarAgenda(
+  desde: string,
+  hasta: string,
+  signal?: AbortSignal,
+): Promise<{ turnos: Turno[]; cupos: CupoDia[] | null }> {
   const parametros = new URLSearchParams({ desde, hasta });
-  const { turnos } = await requestAdmin(`/admin/agenda?${parametros.toString()}`, { signal, schema: agendaSchema });
-  return turnos;
+  const { turnos, cupos } = await requestAdmin(`/admin/agenda?${parametros.toString()}`, { signal, schema: agendaSchema });
+  return { turnos, cupos: cupos ?? null };
 }
 
 /** DELETE /api/admin/bookings/:id → 204. */
@@ -220,4 +232,38 @@ export async function ordenarServicios(ids: readonly string[]): Promise<Servicio
     schema: listaDeServiciosSchema,
   });
   return servicios;
+}
+
+/* ---------- Disponibilidad ---------- */
+
+/** GET /api/admin/disponibilidad (todos los roles) → horario semanal y días especiales de hoy en adelante. */
+export async function verDisponibilidad(
+  signal?: AbortSignal,
+): Promise<{ horarioSemanal: HorarioDia[]; diasEspeciales: DiaEspecial[] }> {
+  return requestAdmin('/admin/disponibilidad', { signal, schema: disponibilidadPanelSchema });
+}
+
+/** PUT /api/admin/disponibilidad/horario-semanal con los siete días (superadmin y admin) → el horario guardado. */
+export async function guardarHorarioSemanal(dias: readonly HorarioDia[]): Promise<HorarioDia[]> {
+  const respuesta = await requestAdmin('/admin/disponibilidad/horario-semanal', {
+    method: 'PUT',
+    body: { dias: dias.map(({ dia, abierto, cupoManana, cupoTarde }) => ({ dia, abierto, cupoManana, cupoTarde })) },
+    schema: respuestaHorarioSchema,
+  });
+  return 'horarioSemanal' in respuesta ? respuesta.horarioSemanal : respuesta.dias;
+}
+
+/** PUT /api/admin/disponibilidad/dias-especiales/:fecha: crea o reemplaza el día especial (superadmin y admin). */
+export async function guardarDiaEspecial(fecha: string, cambio: CambioDiaEspecial): Promise<DiaEspecial> {
+  const { dia } = await requestAdmin(`/admin/disponibilidad/dias-especiales/${encodeURIComponent(fecha)}`, {
+    method: 'PUT',
+    body: cambio,
+    schema: respuestaDiaEspecialSchema,
+  });
+  return dia;
+}
+
+/** DELETE /api/admin/disponibilidad/dias-especiales/:fecha → 204: ese día vuelve al horario semanal. */
+export async function quitarDiaEspecial(fecha: string): Promise<void> {
+  await requestAdmin(`/admin/disponibilidad/dias-especiales/${encodeURIComponent(fecha)}`, { method: 'DELETE' });
 }

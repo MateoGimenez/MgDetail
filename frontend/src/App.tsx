@@ -5,6 +5,8 @@ import { NoEncontrada } from './NoEncontrada';
 
 // El panel se descarga solo al entrar a /admin, con su propio CSS.
 const PanelAdmin = lazy(() => import('./admin/AdminApp'));
+// El seguimiento de un turno llega por un enlace suelto: tampoco carga la landing.
+const Seguimiento = lazy(() => import('./seguimiento/PaginaSeguimiento'));
 
 function CargandoPanel() {
   return (
@@ -23,6 +25,14 @@ export function App() {
         element={
           <Suspense fallback={<CargandoPanel />}>
             <PanelAdmin />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/turno/:id"
+        element={
+          <Suspense fallback={<div className="cargando-pagina" role="status">Buscando tu turno…</div>}>
+            <Seguimiento />
           </Suspense>
         }
       />

@@ -34,13 +34,20 @@ export function textoPidio(turno: Turno): string | null {
 
 /**
  * Mensaje de WhatsApp para el cliente desde la tarjeta del turno. Usa la fecha de agenda: la confirmada si existe,
- * si no la que pidió (contrato de la agenda).
+ * si no la que pidió (contrato de la agenda). Con `seguimiento` (la URL pública de /turno/<id>, solo si la web tiene
+ * `sitio.url`), suma el enlace para que el cliente vea el estado.
  */
-export function mensajeParaCliente(turno: Turno, servicio: string, nombreNegocio: string): string {
+export function mensajeParaCliente(
+  turno: Turno,
+  servicio: string,
+  nombreNegocio: string,
+  seguimiento: string | null = null,
+): string {
   const lugar = lugarEnAgenda(turno);
   const primerNombre = turno.nombre.trim().split(/\s+/)[0] ?? turno.nombre;
   const que = turno.estado === 'confirmado' ? 'turno' : 'pedido de turno';
-  return `¡Hola ${primerNombre}! Te escribimos de ${nombreNegocio} por tu ${que}: ${servicio}, el ${fechaLarga(lugar.fecha)} ${FRANJA_EN_FRASE[lugar.franja]}.`;
+  const mensaje = `¡Hola ${primerNombre}! Te escribimos de ${nombreNegocio} por tu ${que}: ${servicio}, el ${fechaLarga(lugar.fecha)} ${FRANJA_EN_FRASE[lugar.franja]}.`;
+  return seguimiento ? `${mensaje} Podés ver cómo va acá: ${seguimiento}` : mensaje;
 }
 
 /** true si el turno ocupa lugar en la agenda (los cancelados no). */

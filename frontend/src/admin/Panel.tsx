@@ -4,14 +4,15 @@ import { ETIQUETA_ROL, type UsuarioSesion } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { Logo } from '../components/Logo';
 import { nombreDeServicio } from '../data/servicios';
-import { puedeEditarCatalogo, puedeGestionarUsuarios } from './permisos';
+import { puedeEditarCatalogo, puedeEditarDisponibilidad, puedeGestionarUsuarios } from './permisos';
 import { useServicios } from './useServicios';
 import { VistaAgenda } from './VistaAgenda';
+import { VistaDisponibilidad } from './VistaDisponibilidad';
 import { VistaServicios } from './VistaServicios';
 import { VistaTurnos } from './VistaTurnos';
 import { VistaUsuarios } from './VistaUsuarios';
 
-type Vista = 'turnos' | 'agenda' | 'servicios' | 'usuarios';
+type Vista = 'turnos' | 'agenda' | 'disponibilidad' | 'servicios' | 'usuarios';
 
 interface Props {
   usuario: UsuarioSesion;
@@ -31,6 +32,7 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
   const secciones: readonly (readonly [Vista, string])[] = [
     ['turnos', 'Turnos'],
     ['agenda', 'Agenda'],
+    ['disponibilidad', 'Disponibilidad'],
     ['servicios', 'Servicios'],
     ...(gestionaUsuarios ? ([['usuarios', 'Usuarios']] as const) : []),
   ];
@@ -94,6 +96,8 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
           <VistaUsuarios idPropio={usuario.id} alVencerSesion={alVencerSesion} />
         ) : vista === 'agenda' ? (
           <VistaAgenda rol={usuario.rol} nombreServicio={nombreServicio} alVencerSesion={alVencerSesion} />
+        ) : vista === 'disponibilidad' ? (
+          <VistaDisponibilidad editable={puedeEditarDisponibilidad(usuario.rol)} alVencerSesion={alVencerSesion} />
         ) : vista === 'servicios' ? (
           <VistaServicios catalogo={catalogo} editable={puedeEditarCatalogo(usuario.rol)} />
         ) : (

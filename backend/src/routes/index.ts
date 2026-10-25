@@ -11,16 +11,22 @@ import { corsPolicy, noStore } from '../middleware/security.js';
 import type { AgendaService } from '../services/agenda.js';
 import type { AuthService } from '../services/auth.js';
 import type { BookingService } from '../services/bookings.js';
+import type { DisponibilidadService } from '../services/disponibilidad.js';
+import type { RecordatorioService } from '../services/recordatorios.js';
 import type { ServicioService } from '../services/servicios.js';
 import type { UsuarioService } from '../services/usuarios.js';
 import { adminAgendaRouter } from './admin-agenda.js';
 import { adminBookingsRouter } from './admin-bookings.js';
+import { adminDisponibilidadRouter } from './admin-disponibilidad.js';
 import { adminServiciosRouter } from './admin-servicios.js';
 import { adminUsuariosRouter } from './admin-usuarios.js';
 import { authRouter } from './auth.js';
 import { publicBookingsRouter } from './bookings.js';
+import { publicDisponibilidadRouter } from './disponibilidad.js';
 import { healthRouter } from './health.js';
+import { internalRouter } from './internal.js';
 import { publicServiciosRouter } from './servicios.js';
+import { publicTurnosRouter } from './turnos.js';
 
 export interface ApiDeps {
   config: AppConfig;
@@ -31,6 +37,8 @@ export interface ApiDeps {
   bookings: BookingRepository;
   bookingService: BookingService;
   agenda: AgendaService;
+  disponibilidad: DisponibilidadService;
+  recordatorios: RecordatorioService;
   auth: AuthService;
   usuarios: UsuarioService;
   servicios: ServicioService;
@@ -40,8 +48,22 @@ export interface ApiDeps {
 
 /** Router de /api. El ORDEN de los middlewares importa: cada uno protege a los que vienen después. */
 export function createApiRouter(deps: ApiDeps): Router {
-  const { config, logger, now, checkDatabase, bookings, bookingService, agenda, auth, usuarios, servicios, cookies, limiters } =
-    deps;
+  const {
+    config,
+    logger,
+    now,
+    checkDatabase,
+    bookings,
+    bookingService,
+    agenda,
+    disponibilidad,
+    recordatorios,
+    auth,
+    usuarios,
+    servicios,
+    cookies,
+    limiters,
+  } = deps;
   const api = Router();
 
   api.use(corsPolicy(config.frontendOrigins)); // también responde los preflight (OPTIONS)
@@ -55,12 +77,16 @@ export function createApiRouter(deps: ApiDeps): Router {
 
   api.use('/health', healthRouter(checkDatabase));
   api.use('/servicios', publicServiciosRouter({ servicios }));
+  api.use('/disponibilidad', publicDisponibilidadRouter({ disponibilidad, now }));
   api.use('/bookings', publicBookingsRouter({ bookings: bookingService, logger, now, limiter: limiters.bookings }));
+  api.use('/turnos', publicTurnosRouter({ bookings, limiter: limiters.seguimiento }));
+  api.use('/internal', internalRouter({ cronSecret: config.recordatorios.cronSecret, recordatorios }));
   api.use('/auth', authRouter({ auth, cookies, loginLimiter: limiters.loginFailures, requireSession: withSession }));
   // Todo lo que cuelga de /admin exige sesión, existan o no las rutas (así no se revela cuáles existen).
   api.use('/admin', withSession);
   api.use('/admin/bookings', adminBookingsRouter({ bookings, agenda, now }));
-  api.use('/admin/agenda', adminAgendaRouter({ agenda }));
+  api.use('/admin/agenda', adminAgendaRouter({ agenda, disponibilidad }));
+  api.use('/admin/disponibilidad', adminDisponibilidadRouter({ disponibilidad }));
   api.use('/admin/usuarios', adminUsuariosRouter({ usuarios }));
   api.use('/admin/servicios', adminServiciosRouter({ servicios }));
 

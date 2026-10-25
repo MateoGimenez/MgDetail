@@ -1,9 +1,10 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
-import { ETIQUETA_FRANJA, FRANJAS, type Turno } from '../api/contract';
+import { ETIQUETA_FRANJA, FRANJAS, type Franja, type Turno } from '../api/contract';
 import { type Rol } from '../api/contract-panel';
 import { SubrayadoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { agruparPorDia, cantidadDelDia, estaEnAgenda, lugarEnAgenda, textoCantidad, type Celda } from '../lib/agenda';
+import { lugaresDeFranja, textoLugares, textoLugaresLargo, type LugaresDeFranja } from '../lib/cupos';
 import {
   diaConMes,
   diasDeLaSemana,
@@ -59,6 +60,18 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
   const nombreSemana = nombreDeLaSemana(lunes);
   const esEstaSemana = dias.includes(hoy);
   const abierto = abiertoId ? (a.turnos?.find((t) => t.id === abiertoId) ?? null) : null;
+  const hayCupos = a.cupos.size > 0;
+  const cerrado = (dia: string) => a.cupos.get(dia)?.abierto === false;
+  /**
+   * Cupo de una franja. Los ocupados se cuentan con los turnos que muestra la agenda (los mismos que cuenta el
+   * backend): así el "2/3" sigue al día después de confirmar, reprogramar o cancelar sin recargar.
+   */
+  const lugares = (dia: string, franja: Franja): LugaresDeFranja | null => {
+    const cupo = a.cupos.get(dia);
+    return cupo ? lugaresDeFranja(cupo, franja, grupos?.get(dia)?.[franja].length ?? 0) : null;
+  };
+  const claseLugares = (l: LugaresDeFranja | null) =>
+    l === null ? '' : l.cerrada ? ' cupo--cerrado' : l.llena ? ' cupo--lleno' : '';
 
   const moverSemana = (semanas: number) => {
     setLunes((l) => sumarDias(l, 7 * semanas));
@@ -170,6 +183,7 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
 
         <div className="panel__estado" aria-live="polite">
           {a.cargando && <p className="panel__cargando">Cargando la agenda…</p>}
+          {!a.cargando && grupos && total === 0 && hayCupos && <p className="panel__conteo">No hay turnos esta semana.</p>}
           {!a.cargando && grupos && total > 0 && (
             <p className="panel__conteo">
               {textoCantidad(total)} esta semana
@@ -192,13 +206,13 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
           </div>
         )}
 
-        {grupos && total === 0 && (
+        {grupos && total === 0 && !hayCupos && (
           <div className="panel__vacio" role="status">
             <p>No hay turnos esta semana.</p>
           </div>
         )}
 
-        {grupos && total > 0 && (
+        {grupos && (total > 0 || hayCupos) && (
           <>
             {/* Celular: tira de días + el día elegido. */}
             <div className="agenda__celular">
@@ -215,6 +229,7 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
                           elegido ? 'tira__dia--elegido seleccionado' : '',
                           dia === hoy ? 'tira__dia--hoy' : '',
                           dia < hoy ? 'tira__dia--pasado' : '',
+                          cerrado(dia) ? 'tira__dia--cerrado' : '',
                         ]
                           .filter(Boolean)
                           .join(' ')}
@@ -236,7 +251,8 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
                         <span className={cantidad > 0 ? 'tira__punto' : 'tira__punto tira__punto--vacio'} aria-hidden="true" />
                         <span className="visualmente-oculto">
                           {conMayuscula(diaConMes(dia))}
-                          {dia === hoy ? ', hoy' : ''}: {cantidad > 0 ? textoCantidad(cantidad) : 'sin turnos'}
+                          {dia === hoy ? ', hoy' : ''}
+                          {cerrado(dia) ? ', cerrado' : ''}: {cantidad > 0 ? textoCantidad(cantidad) : 'sin turnos'}
                         </span>
                         {elegido && <SubrayadoFilete className="tira__trazo" />}
                       </button>
@@ -249,14 +265,23 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
                 <h3 className="agenda__dia-titulo">
                   {conMayuscula(diaConMes(diaElegido))}
                   {diaElegido === hoy && <span className="agenda__marca-hoy">Hoy</span>}
+                  {cerrado(diaElegido) && <span className="agenda__marca-cerrado">Cerrado</span>}
                 </h3>
                 {FRANJAS.map((franja) => {
                   const turnos = celdaElegida?.[franja] ?? [];
+                  const l = lugares(diaElegido, franja);
                   return (
-                    <div key={franja} className="agenda__franja">
+                    <div key={franja} className={`agenda__franja${claseLugares(l)}`}>
                       <h4 className="agenda__franja-titulo">
                         {ETIQUETA_FRANJA[franja]}
-                        <span className="agenda__cuenta">{textoCantidad(turnos.length)}</span>
+                        {l ? (
+                          <span className="agenda__cuenta agenda__cupo">
+                            <span aria-hidden="true">{textoLugares(l)}</span>
+                            <span className="visualmente-oculto">{textoLugaresLargo(l)}</span>
+                          </span>
+                        ) : (
+                          <span className="agenda__cuenta">{textoCantidad(turnos.length)}</span>
+                        )}
                       </h4>
                       {turnos.length > 0 ? (
                         <ul role="list" className="agenda__fichas">
@@ -301,9 +326,15 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
                             Hoy
                           </span>
                         )}
+                        {cerrado(dia) && (
+                          <span className="grilla__cerrado" aria-hidden="true">
+                            Cerrado
+                          </span>
+                        )}
                         <span className="visualmente-oculto">
                           {conMayuscula(diaConMes(dia))}
                           {dia === hoy ? ', hoy' : ''}
+                          {cerrado(dia) ? ', cerrado' : ''}
                         </span>
                       </th>
                     ))}
@@ -317,16 +348,25 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
                       </th>
                       {dias.map((dia) => {
                         const turnos = grupos.get(dia)?.[franja] ?? [];
+                        const l = lugares(dia, franja);
                         return (
                           <td
                             key={dia}
-                            className={['grilla__celda', dia === hoy ? 'grilla__celda--hoy' : '', dia < hoy ? 'grilla__celda--pasado' : '']
-                              .filter(Boolean)
-                              .join(' ')}
+                            className={
+                              ['grilla__celda', dia === hoy ? 'grilla__celda--hoy' : '', dia < hoy ? 'grilla__celda--pasado' : '']
+                                .filter(Boolean)
+                                .join(' ') + claseLugares(l)
+                            }
                           >
+                            {l && (
+                              <span className="grilla__cuenta grilla__cupo">
+                                <span aria-hidden="true">{textoLugares(l)}</span>
+                                <span className="visualmente-oculto">{textoLugaresLargo(l)}</span>
+                              </span>
+                            )}
                             {turnos.length > 0 ? (
                               <>
-                                <span className="grilla__cuenta">{textoCantidad(turnos.length)}</span>
+                                {!l && <span className="grilla__cuenta">{textoCantidad(turnos.length)}</span>}
                                 <ul role="list" className="agenda__fichas">
                                   {turnos.map(ficha)}
                                 </ul>

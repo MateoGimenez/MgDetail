@@ -23,6 +23,8 @@ export interface RateLimiters {
   bookings: RequestHandler;
   /** POST /api/auth/login: máx. 5 intentos FALLIDOS por IP cada 15 min (los logins correctos no cuentan). */
   loginFailures: RequestHandler;
+  /** GET /api/turnos/:id: seguimiento del turno (contra el barrido de ids). Cuentan todos los pedidos, también los 404. */
+  seguimiento: RequestHandler;
 }
 
 /**
@@ -41,6 +43,10 @@ export function createRateLimiters(rules: AppConfig['rateLimits']): RateLimiters
       rules.loginFailures,
       'Hiciste demasiados intentos fallidos. Esperá unos minutos antes de volver a probar.',
       { skipSuccessfulRequests: true },
+    ),
+    seguimiento: createLimiter(
+      rules.seguimiento,
+      'Consultaste tu turno demasiadas veces seguidas. Esperá unos minutos y probá de nuevo.',
     ),
   };
 }

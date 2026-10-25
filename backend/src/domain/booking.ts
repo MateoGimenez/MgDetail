@@ -56,6 +56,37 @@ export interface PublicBooking {
   fechaPreferida: string;
   franja: Franja;
   estado: 'pendiente';
+  /** Ruta relativa de la página de seguimiento: /turno/<id>. */
+  seguimientoUrl: string;
+}
+
+/** Ruta relativa de la página pública de seguimiento de un turno. */
+export const seguimientoPath = (id: string): string => `/turno/${id}`;
+
+/**
+ * Lo que ve el cliente en /turno/<id> (GET /api/turnos/:id). SOLO esto: nunca nombre, teléfono, email, vehículo,
+ * comentario ni notas internas. `fecha` y `franja` son las de agenda (la confirmada si existe, si no la pedida).
+ */
+export interface SeguimientoTurno {
+  id: string;
+  servicioNombre: string;
+  fecha: string;
+  franja: Franja;
+  estado: Estado;
+  /** updated_at en ISO 8601 UTC. */
+  actualizadoEl: string;
+}
+
+/** Un turno confirmado que necesita recordatorio: solo lo que hace falta para mandarlo. */
+export interface CandidatoRecordatorio {
+  id: string;
+  email: string | null;
+  /** El teléfono normalizado guardado (columna telefono_whatsapp); null si no hay. */
+  telefonoWhatsapp: string | null;
+  servicioNombre: string;
+  /** Fecha y franja de agenda. */
+  fecha: string;
+  franja: Franja;
 }
 
 export interface ListBookingsOptions {
@@ -114,8 +145,23 @@ export class TurnoCerradoError extends Error {
  * rutas ni servicios.
  */
 export interface BookingRepository {
-  /** Guarda un turno nuevo en estado "pendiente". */
+  /** Guarda un turno nuevo en estado "pendiente", sin mirar la disponibilidad (datos de prueba, scripts). */
   create(input: NewBooking, now: Date): Promise<Booking>;
+  /**
+   * El alta pública: en UNA transacción, bloquea la fecha (pg_advisory_xact_lock), calcula los cupos de ese día y,
+   * si hay lugar en la franja, guarda el turno. Lanza DiaCerradoError o FranjaLlenaError (domain/disponibilidad.ts)
+   * sin guardar nada. Dos altas simultáneas por el último lugar no pueden entrar las dos.
+   */
+  reservar(input: NewBooking, now: Date): Promise<Booking>;
+  /** Lo público del turno para la página de seguimiento. undefined si no existe (o el id no es un UUID). */
+  seguimiento(id: string): Promise<SeguimientoTurno | undefined>;
+  /** Confirmados con fecha de agenda `fecha` y sin recordatorio enviado, por orden de llegada. */
+  recordatoriosPendientes(fecha: string): Promise<CandidatoRecordatorio[]>;
+  /**
+   * Marca el recordatorio como enviado si el turno sigue confirmado, en esa fecha de agenda y sin marca. true si
+   * lo marcó.
+   */
+  marcarRecordatorio(id: string, fecha: string, now: Date): Promise<boolean>;
   /** Más nuevas primero. `total` es la cantidad que cumple el filtro, sin paginar. */
   list(options: ListBookingsOptions): Promise<{ bookings: Booking[]; total: number }>;
   /**
@@ -128,6 +174,8 @@ export interface BookingRepository {
   /**
    * Cambia la fecha/franja confirmadas (y el estado, si viene) en una sola escritura. undefined si el turno no
    * existe; TurnoCerradoError si está cancelado o completado (se verifica en el mismo UPDATE, sin carreras).
+   * Si cambia la fecha o la franja de agenda, limpia la marca del recordatorio (para que reciba el nuevo). No mira
+   * los cupos: el panel manda.
    */
   reprogramar(id: string, cambios: Reprogramacion, now: Date): Promise<Booking | undefined>;
   /**

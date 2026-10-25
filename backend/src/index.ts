@@ -30,6 +30,16 @@ async function main(): Promise<void> {
       : `Avisos de turnos activados (${config.whatsapp.provider})`,
   );
 
+  const canalesRecordatorio = [
+    ...(config.recordatorios.email ? ['email'] : []),
+    ...(config.recordatorios.whatsapp ? ['whatsapp'] : []),
+  ];
+  logger.info(
+    canalesRecordatorio.length === 0
+      ? 'Recordatorios desactivados (sin canal configurado)'
+      : `Recordatorios activados (${canalesRecordatorio.join(', ')})${config.recordatorios.cronSecret === undefined ? ', pero sin CRON_SECRET' : ''}`,
+  );
+
   logger.info(`Login del panel: Supabase Auth (${config.supabase.url})`);
 
   // 2) Base de datos: Postgres en Supabase (conecta y verifica que las migraciones estén aplicadas).

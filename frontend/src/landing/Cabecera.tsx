@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Icono } from '../components/Icono';
 import { Logo } from '../components/Logo';
+import { BotonTema } from '../tema/BotonTema';
+import { sincronizarTema } from '../tema/tema';
 import { useReserva } from './reserva-contexto';
 
 const SECCIONES = [
@@ -15,6 +17,11 @@ export function Cabecera() {
   const [abierto, setAbierto] = useState(false);
   const botonMenuRef = useRef<HTMLButtonElement>(null);
   const { reservar } = useReserva();
+
+  // Si se llegó desde /admin sin recargar, el script inicial no aplicó el tema guardado.
+  useEffect(() => {
+    sincronizarTema();
+  }, []);
 
   useEffect(() => {
     if (!abierto) return;
@@ -56,6 +63,8 @@ export function Cabecera() {
           </ul>
         </nav>
 
+        <BotonTema variante="cabecera" />
+
         <a className="boton boton--primario boton--chico cabecera__cta" href="#reservar" onClick={irAReservar}>
           Reservá<span className="cabecera__cta-resto"> tu turno</span>
         </a>
@@ -91,6 +100,9 @@ export function Cabecera() {
             </li>
           ))}
         </ul>
+        <div className="contenedor menu-movil__tema">
+          <BotonTema variante="menu" />
+        </div>
       </nav>
     </header>
   );

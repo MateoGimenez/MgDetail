@@ -86,3 +86,11 @@ export function accionesDeEstado(rol: Rol, estado: Estado): Accion[] {
   }
   return permitidas;
 }
+
+/**
+ * Cambiar el horario semanal y los días especiales. Verla la pueden todos los roles (el empleado, solo lectura).
+ * Espejo de puedeEditarDisponibilidad en backend/src/domain/permisos.ts.
+ */
+export function puedeEditarDisponibilidad(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
+}

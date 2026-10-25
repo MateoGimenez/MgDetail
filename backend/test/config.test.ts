@@ -371,3 +371,60 @@ describe('avisos por Telegram', () => {
     );
   });
 });
+
+describe('recordatorios', () => {
+  const SECRETO = 'secreto-de-cron-de-prueba-0123456789abcdef';
+  // Armada por partes para que los escáneres de secretos no la tomen por una clave real.
+  const RESEND = ['re', 'DePrueba0123456789'].join('_');
+  const EMAIL = { RESEND_API_KEY: RESEND, RECORDATORIO_EMAIL_DESDE: 'MgDetailing <turnos@mgdetailing.com.ar>' };
+  const CLOUD = {
+    WHATSAPP_CLOUD_TOKEN: 'token-de-meta',
+    WHATSAPP_CLOUD_PHONE_NUMBER_ID: '123456789',
+    WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO: 'recordatorio_turno',
+  };
+
+  it('por defecto: sin canales, sin CRON_SECRET y sin avisos', () => {
+    const config = parseConfig({});
+    expect(config.recordatorios).toEqual({ cronSecret: undefined, email: undefined, whatsapp: undefined });
+    expect(config.warnings).toEqual([]);
+  });
+
+  it('completo: email y WhatsApp (independiente de WHATSAPP_PROVIDER), con el idioma por defecto', () => {
+    const config = parseConfig({ CRON_SECRET: SECRETO, ...EMAIL, ...CLOUD, RECORDATORIO_EMAIL_DESDE: 'turnos@mgdetailing.com.ar' });
+    expect(config.whatsapp).toEqual({ provider: 'none' });
+    expect(config.recordatorios).toEqual({
+      cronSecret: SECRETO,
+      email: { apiKey: RESEND, from: 'turnos@mgdetailing.com.ar' },
+      whatsapp: { token: 'token-de-meta', phoneNumberId: '123456789', template: 'recordatorio_turno', language: 'es_AR' },
+    });
+    expect(config.warnings).toEqual([]);
+    expect(parseConfig({ CRON_SECRET: SECRETO, ...EMAIL }).recordatorios.email?.from).toBe(EMAIL.RECORDATORIO_EMAIL_DESDE);
+  });
+
+  it('valida CRON_SECRET, la API key y el remitente sin repetir el valor', () => {
+    const corto = problemsOf({ CRON_SECRET: 'corto-secreto' });
+    expect(corto).toContain('CRON_SECRET: tiene que tener al menos 32 caracteres');
+    expect(corto).not.toContain('corto-secreto');
+    expect(problemsOf({ CRON_SECRET: `${'a'.repeat(20)} ${'b'.repeat(20)}` })).toContain('CRON_SECRET: solo puede tener');
+    expect(problemsOf({ RESEND_API_KEY: 'sk_otra_cosa_123456789' })).toContain('RESEND_API_KEY: no parece');
+    for (const desde of ['no-es-email', 'Nombre <no-es-email>', 'a@b.com\r\nBcc: x@y.z', `${'n'.repeat(81)} <a@b.com>`]) {
+      expect(problemsOf({ ...EMAIL, RECORDATORIO_EMAIL_DESDE: desde }), desde).toContain('RECORDATORIO_EMAIL_DESDE');
+    }
+    expect(problemsOf({ WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO: 'Con Mayúsculas' })).toContain('WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO');
+  });
+
+  it('un canal a medio configurar: en desarrollo avisa y queda desactivado; en producción no arranca', () => {
+    const dev = parseConfig({ RESEND_API_KEY: RESEND, WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO: 'recordatorio_turno' });
+    expect(dev.recordatorios).toEqual({ cronSecret: undefined, email: undefined, whatsapp: undefined });
+    expect(dev.warnings.join('\n')).toContain('RECORDATORIO_EMAIL_DESDE');
+    expect(dev.warnings.join('\n')).toContain('WHATSAPP_CLOUD_TOKEN');
+    expect(problemsOf({ ...PRODUCTION, RECORDATORIO_EMAIL_DESDE: 'turnos@mgdetailing.com.ar' })).toContain('RESEND_API_KEY');
+    expect(problemsOf({ ...PRODUCTION, WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO: 'x' })).toContain('WHATSAPP_CLOUD_PHONE_NUMBER_ID');
+  });
+
+  it('avisa si hay secreto sin canal o canal sin secreto', () => {
+    expect(parseConfig({ CRON_SECRET: SECRETO }).warnings.join('\n')).toContain('no hay ningún canal');
+    expect(parseConfig({ ...EMAIL }).warnings.join('\n')).toContain('falta CRON_SECRET');
+    expect(parseConfig({ CRON_SECRET: SECRETO }).warnings.join('\n')).not.toContain(SECRETO);
+  });
+});

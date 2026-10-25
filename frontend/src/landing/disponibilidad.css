@@ -1,0 +1,324 @@
+/* =========================================================================
+   Disponibilidad en el formulario de turno y enlace de seguimiento en el
+   éxito. Solo variables semánticas de base.css: se ve en los dos temas.
+   ========================================================================= */
+
+/* ---------- Calendario de días ---------- */
+
+.reserva__cuando--calendario {
+  align-items: start;
+}
+
+@media (min-width: 760px) {
+  .reserva__cuando--calendario {
+    grid-template-columns: minmax(0, 25rem) minmax(0, 1fr);
+    column-gap: var(--e-6);
+  }
+}
+
+.calendario {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.calendario:focus {
+  outline: none;
+}
+
+.calendario > .campo__etiqueta {
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.calendario__cabeza {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: var(--e-2);
+  margin-bottom: var(--e-2);
+}
+
+.calendario__mes {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  letter-spacing: var(--display-tracking);
+  text-align: center;
+}
+
+.calendario__flecha {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--campo-borde);
+  border-radius: var(--radio-2);
+  background: var(--opcion-fondo);
+  color: var(--texto);
+  cursor: pointer;
+  transition: border-color var(--t-rapida);
+}
+
+.calendario__flecha:hover:not(:disabled) {
+  border-color: var(--campo-borde-hover);
+}
+
+.calendario__flecha:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.calendario__flecha:disabled {
+  border-color: var(--borde);
+  background: transparent;
+  color: var(--texto-3);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.calendario__semana,
+.calendario__dias {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendario__semana {
+  margin-bottom: 6px;
+}
+
+.calendario__semana abbr {
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  text-align: center;
+  text-decoration: none;
+}
+
+.calendario__dia {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  min-height: 52px;
+  padding: 7px 0 5px;
+  border: 1px solid var(--campo-borde);
+  border-radius: var(--radio-2);
+  background: var(--opcion-fondo);
+  color: var(--texto);
+  cursor: pointer;
+  transition:
+    border-color var(--t-rapida),
+    background-color var(--t-rapida);
+}
+
+.calendario__dia:hover {
+  border-color: var(--campo-borde-hover);
+}
+
+.calendario__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.calendario__numero {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.calendario__nota {
+  min-height: 0.9rem;
+  color: var(--texto-3);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 0.9rem;
+}
+
+.calendario__dia--hoy .calendario__nota {
+  color: var(--acento-texto);
+}
+
+.calendario__trazo {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 30px;
+  height: 8px;
+  translate: -50% 0;
+}
+
+.calendario__dia:has(.calendario__input:checked) {
+  border-color: var(--acento);
+  background: var(--opcion-fondo-activa);
+}
+
+/* El trazo ocupa el lugar de la nota cuando el día está elegido. */
+.calendario__dia:has(.calendario__input:checked) .calendario__nota {
+  visibility: hidden;
+}
+
+.calendario__dia:has(.calendario__input:focus-visible) {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.calendario__dia:has(.calendario__input[aria-invalid='true']) {
+  border-color: var(--error);
+}
+
+/* No disponibles: sin chapa. Cerrado tachado; lleno con su nota. El lector de pantalla dice cuál es. */
+.calendario__dia--cerrado,
+.calendario__dia--lleno {
+  border-color: transparent;
+  background: transparent;
+  color: var(--texto-3);
+  cursor: not-allowed;
+}
+
+.calendario__dia--cerrado:hover,
+.calendario__dia--lleno:hover {
+  border-color: transparent;
+}
+
+.calendario__dia--cerrado .calendario__numero,
+.calendario__muestra--cerrado {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.calendario__dia--lleno {
+  border: 1px dashed var(--borde);
+}
+
+.calendario__dia--lleno:hover {
+  border-color: var(--borde);
+}
+
+.calendario__vacio {
+  min-height: 52px;
+}
+
+.calendario__leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: var(--e-3);
+}
+
+.calendario__muestra {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border-radius: var(--radio-1);
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.calendario__muestra--lleno {
+  margin-left: var(--e-3);
+  border: 1px dashed var(--borde);
+}
+
+.calendario--cargando {
+  display: grid;
+  gap: 8px;
+}
+
+.calendario__esqueleto {
+  height: 330px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--fondo-hundido);
+}
+
+/* ---------- Franjas del día elegido ---------- */
+
+.selector__opcion:has(.selector__input:disabled) {
+  border-style: dashed;
+  border-color: var(--borde);
+  background: transparent;
+  color: var(--texto-3);
+  cursor: not-allowed;
+}
+
+.selector__opcion:has(.selector__input:disabled) .selector__input {
+  cursor: not-allowed;
+}
+
+.selector__sin-lugar {
+  font-weight: 500;
+}
+
+.franja__espera {
+  min-height: 52px;
+  padding: 14px 16px;
+  border: 1px dashed var(--borde);
+  border-radius: var(--radio-2);
+}
+
+/* ---------- Enlace de seguimiento (éxito) ---------- */
+
+.seguir {
+  display: grid;
+  gap: var(--e-2);
+  width: 100%;
+  padding: var(--e-4) 18px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+  text-align: left;
+}
+
+.seguir__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  letter-spacing: var(--display-tracking);
+}
+
+.seguir__texto {
+  color: var(--texto-2);
+}
+
+.seguir__fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  margin-top: var(--e-1);
+}
+
+.seguir__url {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font-size: 0.9375rem;
+  text-overflow: ellipsis;
+}
+
+.seguir__copiar {
+  flex: 0 0 auto;
+}
+
+.seguir__estado {
+  min-height: 1.4em;
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.seguir__ver {
+  justify-self: start;
+}

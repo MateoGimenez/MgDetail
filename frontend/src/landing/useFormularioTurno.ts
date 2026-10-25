@@ -1,11 +1,20 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ApiError } from '../api/client';
-import { crearEsquemaTurno, esSlugDeServicio, type CampoTurno, type TurnoNuevo } from '../api/contract';
+import {
+  CODIGO_FRANJA_LLENA,
+  crearEsquemaTurno,
+  esFranja,
+  esSlugDeServicio,
+  type CampoTurno,
+  type TurnoNuevo,
+} from '../api/contract';
 import { crearTurno } from '../api/turnos';
+import { estadoDelDia, franjaLibre } from '../lib/disponibilidad';
 import { rangoDeTurno } from '../lib/fechas';
 import { useCatalogo } from './catalogo-contexto';
 import { useReserva } from './reserva-contexto';
+import { useDisponibilidad, type DiasDisponibles } from './useDisponibilidad';
 
 export type Valores = Record<CampoTurno, string>;
 export type Errores = Partial<Record<CampoTurno, string>>;
@@ -14,7 +23,7 @@ export type Envio =
   | { fase: 'editando' }
   | { fase: 'enviando' }
   | { fase: 'error'; mensaje: string; reintentable: boolean }
-  | { fase: 'exito'; id: string | null; datos: TurnoNuevo };
+  | { fase: 'exito'; id: string | null; seguimiento: string | null; datos: TurnoNuevo };
 
 const VACIOS: Valores = {
   nombre: '',
@@ -42,7 +51,41 @@ const ORDEN: readonly CampoTurno[] = [
   'comentario',
 ];
 
-const RADIOS: ReadonlySet<CampoTurno> = new Set(['servicioId', 'vehiculoTipo', 'franja']);
+const MENSAJE_DIA_SIN_LUGAR = 'Ese día ya no tiene lugar. Elegí otro.';
+const MENSAJE_FRANJA_LLENA = 'Esa franja se llenó. Elegí otra.';
+const MENSAJE_DIA_CERRADO = 'Ese día no tomamos turnos. Elegí otro.';
+
+/**
+ * Con la disponibilidad recién cargada: lo elegido que ya no tiene lugar se borra y se pide otra elección.
+ * Devuelve los valores y errores nuevos, o null si lo elegido sigue disponible.
+ */
+export function conciliarEleccion(
+  valores: Valores,
+  dias: DiasDisponibles,
+  errores: Errores,
+): { valores: Valores; errores: Errores } | null {
+  const fecha = valores.fechaPreferida;
+  if (fecha === '') return null;
+  const dia = dias.get(fecha);
+  const estado = estadoDelDia(dia);
+  if (estado !== 'libre') {
+    const otros = { ...errores };
+    delete otros.franja;
+    return {
+      valores: { ...valores, fechaPreferida: '', franja: '' },
+      errores: { ...otros, fechaPreferida: estado === 'cerrado' ? MENSAJE_DIA_CERRADO : MENSAJE_DIA_SIN_LUGAR },
+    };
+  }
+  if (esFranja(valores.franja) && !franjaLibre(dia, valores.franja)) {
+    return { valores: { ...valores, franja: '' }, errores: { ...errores, franja: errores.franja ?? MENSAJE_FRANJA_LLENA } };
+  }
+  return null;
+}
+
+/** Rechazos del alta por disponibilidad: 409 FRANJA_LLENA, o 400 con el error solo en la fecha (día cerrado). */
+const esRechazoPorDisponibilidad = (error: ApiError) =>
+  (error.status === 409 && error.code === CODIGO_FRANJA_LLENA) ||
+  (error.status === 400 && error.fields?.fechaPreferida !== undefined && Object.keys(error.fields).length === 1);
 
 const MENSAJE_DEMASIADOS_PEDIDOS =
   'Recibimos varios pedidos seguidos desde tu conexión. Esperá unos minutos y volvé a intentar.';
@@ -82,6 +125,8 @@ export function useFormularioTurno() {
   const [validarEnVivo, setValidarEnVivo] = useState(false);
   const [envio, setEnvio] = useState<Envio>({ fase: 'editando' });
   const [rango] = useState(() => rangoDeTurno(new Date()));
+  const { disponibilidad, recargar: recargarDisponibilidad } = useDisponibilidad();
+  const dias = disponibilidad.fase === 'lista' ? disponibilidad.dias : null;
   const formRef = useRef<HTMLFormElement>(null);
   const exitoRef = useRef<HTMLHeadingElement>(null);
   const base = useId();
@@ -92,14 +137,15 @@ export function useFormularioTurno() {
     ayuda: (campo: CampoTurno) => `${base}-${campo}-ayuda`,
   };
 
+  /** El radio elegido, o el primero habilitado, o el control (o el grupo) con el id del campo. */
   const enfocar = (campo: CampoTurno) => {
     requestAnimationFrame(() => {
       const form = formRef.current;
       if (!form) return;
-      const elemento = RADIOS.has(campo)
-        ? (form.querySelector<HTMLInputElement>(`input[name="${campo}"]:checked`) ??
-          form.querySelector<HTMLInputElement>(`input[name="${campo}"]`))
-        : document.getElementById(ids.campo(campo));
+      const elemento =
+        form.querySelector<HTMLInputElement>(`input[type="radio"][name="${campo}"]:checked`) ??
+        form.querySelector<HTMLInputElement>(`input[type="radio"][name="${campo}"]:not(:disabled)`) ??
+        document.getElementById(ids.campo(campo));
       elemento?.focus();
     });
   };
@@ -120,7 +166,7 @@ export function useFormularioTurno() {
           for (const campo of ['servicioId', 'vehiculoTipo', 'fechaPreferida', 'franja', 'nombre'] as const) {
             const control = form.elements.namedItem(campo);
             if (control instanceof RadioNodeList && control.value === '') {
-              const primero = control[0];
+              const primero = Array.from(control).find((radio) => radio instanceof HTMLInputElement && !radio.disabled);
               if (primero instanceof HTMLElement) primero.focus({ preventScroll: true });
               return;
             }
@@ -152,6 +198,10 @@ export function useFormularioTurno() {
 
   const actualizar = (campo: CampoTurno, valor: string) => {
     const siguientes = { ...valores, [campo]: valor };
+    // Otro día: si la franja elegida no tiene lugar ahí, se borra (el selector solo deja marcar las que tienen).
+    if (campo === 'fechaPreferida' && dias && esFranja(siguientes.franja) && !franjaLibre(dias.get(valor), siguientes.franja)) {
+      siguientes.franja = '';
+    }
     setValores(siguientes);
     if (validarEnVivo || errores[campo] !== undefined) revalidarCampo(campo, siguientes);
   };
@@ -175,11 +225,15 @@ export function useFormularioTurno() {
     setErrores({});
     setEnvio({ fase: 'enviando' });
     try {
-      const { id } = await crearTurno(resultado.datos);
-      setEnvio({ fase: 'exito', id, datos: resultado.datos });
+      const { id, seguimiento } = await crearTurno(resultado.datos);
+      setEnvio({ fase: 'exito', id, seguimiento, datos: resultado.datos });
     } catch (error) {
       if (error instanceof ApiError && error.code === 'RATE_LIMITED') {
         setEnvio({ fase: 'error', mensaje: MENSAJE_DEMASIADOS_PEDIDOS, reintentable: false });
+        return;
+      }
+      if (error instanceof ApiError && esRechazoPorDisponibilidad(error)) {
+        await rechazadoPorDisponibilidad(error);
         return;
       }
       if (error instanceof ApiError && error.fields) {
@@ -199,6 +253,29 @@ export function useFormularioTurno() {
         reintentable: true,
       });
     }
+  };
+
+  /**
+   * 409 FRANJA_LLENA o 400 con `fields.fechaPreferida` (día cerrado): se recarga la disponibilidad, se borra lo que
+   * ya no tiene lugar y se pide otra elección, con el mensaje del backend en el campo.
+   */
+  const rechazadoPorDisponibilidad = async (error: ApiError) => {
+    const franjaLlena = error.code === CODIGO_FRANJA_LLENA;
+    const campo: CampoTurno = franjaLlena ? 'franja' : 'fechaPreferida';
+    const conError: Errores = { [campo]: error.fields?.[campo] ?? (franjaLlena ? MENSAJE_FRANJA_LLENA : MENSAJE_DIA_CERRADO) };
+    const limpios: Valores = franjaLlena ? { ...valores, franja: '' } : { ...valores, fechaPreferida: '', franja: '' };
+    setValores(limpios);
+    setErrores(conError);
+    setEnvio({ fase: 'error', mensaje: error.message, reintentable: false });
+
+    const nuevos = await recargarDisponibilidad();
+    // Con la disponibilidad al día: si el día entero se quedó sin lugar, también se pide otro día.
+    const ajuste = nuevos ? conciliarEleccion(limpios, nuevos, conError) : null;
+    if (ajuste) {
+      setValores(ajuste.valores);
+      setErrores(ajuste.errores);
+    }
+    enfocar(ajuste?.valores.fechaPreferida === '' ? 'fechaPreferida' : campo);
   };
 
   const nuevoPedido = () => {
@@ -222,6 +299,7 @@ export function useFormularioTurno() {
   });
 
   return {
+    disponibilidad,
     valores,
     setValores,
     errores,

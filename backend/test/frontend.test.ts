@@ -34,14 +34,15 @@ describe('SERVE_FRONTEND=true', () => {
   it('sirve index.html en / y hace fallback SPA en rutas que no son /api (ej.: /admin)', async () => {
     const { app } = await frontendApp();
 
-    for (const url of ['/', '/admin', '/admin/turnos', '/servicios/pulido']) {
+    for (const url of ['/', '/admin', '/admin/turnos', '/servicios/pulido', '/turno/5f0c2a3e-9b1d-4c7e-8a55-2d3f1e6b7a90']) {
       const response = await request(app).get(url);
       expect(response.status, url).toBe(200);
       expect(response.headers['content-type']).toMatch(/text\/html/);
       expect(response.text, url).toContain('id="root"');
       expect(response.headers['cache-control'], url).toBe('no-cache');
-      // El panel no se indexa aunque robots.txt impida ver su <meta robots>.
-      expect(response.headers['x-robots-tag'], url).toBe(url.startsWith('/admin') ? 'noindex, nofollow' : undefined);
+      // El panel y el seguimiento de un turno no se indexan aunque robots.txt impida ver su <meta robots>.
+      const privada = url.startsWith('/admin') || url.startsWith('/turno/');
+      expect(response.headers['x-robots-tag'], url).toBe(privada ? 'noindex, nofollow' : undefined);
     }
   });
 

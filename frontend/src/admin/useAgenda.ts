@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { actualizarTurno, eliminarTurno, listarAgenda } from '../api/admin';
 import { ApiError, esAbortado } from '../api/client';
-import type { CambiosTurno, Turno } from '../api/contract';
+import type { CambiosTurno, CupoDia, Turno } from '../api/contract';
 import { esSesionPerdida } from '../api/sesion';
 import { sumarDias } from '../lib/fechas';
 import { conLoMasNuevo } from '../lib/turnos';
 import type { Problema } from './useUsuarios';
 
-type Resultado = { clave: string; turnos: Turno[] } | { clave: string; error: string };
+type Resultado = { clave: string; turnos: Turno[]; cupos: CupoDia[] | null } | { clave: string; error: string };
 
 const conCambio = (conjunto: ReadonlySet<string>, id: string, activo: boolean) => {
   const nuevo = new Set(conjunto);
@@ -38,8 +38,8 @@ export function useAgenda(lunes: string, alVencerSesion: (mensaje: string) => vo
   useEffect(() => {
     const control = new AbortController();
     listarAgenda(lunes, sumarDias(lunes, 6), control.signal)
-      .then((turnos) => {
-        setResultado({ clave, turnos: conLoMasNuevo(turnos, guardados.current) });
+      .then(({ turnos, cupos }) => {
+        setResultado({ clave, turnos: conLoMasNuevo(turnos, guardados.current), cupos });
         setCambiadas(new Set());
         setErroresPorTurno({});
       })
@@ -112,6 +112,8 @@ export function useAgenda(lunes: string, alVencerSesion: (mensaje: string) => vo
   return {
     cargando: vigente === null,
     turnos: vigente && 'turnos' in vigente ? vigente.turnos : null,
+    /** Cupos de cada día de la semana por fecha (vacío si el backend no los mandó). */
+    cupos: new Map(vigente && 'cupos' in vigente ? (vigente.cupos ?? []).map((c) => [c.fecha, c] as const) : []),
     error: vigente && 'error' in vigente ? vigente.error : null,
     ocupadas,
     cambiadas,

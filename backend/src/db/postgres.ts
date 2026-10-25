@@ -23,6 +23,8 @@ export interface SqlClient {
 /** Esquema propio de la app en Postgres (no expuesto por la Data API de Supabase). Ver supabase/migrations/. */
 export const PG_SCHEMA = 'mgdetailing';
 const REQUIRED_TABLES = ['servicios', 'bookings', 'roles', 'perfiles'] as const;
+/** Lo que agrega la migración disponibilidad_seguimiento (tablas y la columna del recordatorio). */
+const DISPONIBILIDAD_TABLES = ['horario_semanal', 'dias_especiales'] as const;
 /** Columnas que agrega la migración catalogo_editable (las que lee el repositorio de servicios). */
 const CATALOGO_COLUMNS = ['resumen', 'descripcion', 'incluye', 'glosario', 'destacado'] as const;
 /** Columnas que agrega la migración agenda_fecha_confirmada (las que lee el repositorio de turnos). */
@@ -212,6 +214,26 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     throw new Error(
       `Faltan objetos de la migración de notas en mgdetailing (${missingNotas.join(', ')}). ` +
         'Aplicá la migración notas_telefono_cliente de backend/supabase/migrations/ (ver README, "Migraciones").',
+    );
+  }
+
+  // Disponibilidad, seguimiento y recordatorios (migración disponibilidad_seguimiento).
+  const disponibilidad = await client.query(
+    'SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1 AND tablename = ANY($2::text[])',
+    [PG_SCHEMA, DISPONIBILIDAD_TABLES],
+  );
+  const presentDisponibilidad = new Set(disponibilidad.rows.map((row) => row.tablename));
+  const missingDisponibilidad: string[] = DISPONIBILIDAD_TABLES.filter((table) => !presentDisponibilidad.has(table));
+  const recordatorio = await client.query(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = 'bookings' AND column_name = 'recordatorio_enviado_at'`,
+    [PG_SCHEMA],
+  );
+  if (recordatorio.rows.length === 0) missingDisponibilidad.push('bookings.recordatorio_enviado_at');
+  if (missingDisponibilidad.length > 0) {
+    throw new Error(
+      `Faltan objetos de la migración de disponibilidad en mgdetailing (${missingDisponibilidad.join(', ')}). ` +
+        'Aplicá la migración disponibilidad_seguimiento de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
   }
 

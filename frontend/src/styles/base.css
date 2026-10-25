@@ -49,12 +49,75 @@
   --campo-borde-hover: #59616a;
   --opcion-fondo: #121518;
   --opcion-fondo-activa: #22161a;
+  --texto-fuerte: #ffffff;
+  --sello-texto: var(--rojo-300);
+  --error-borde: rgb(255 139 150 / 0.45);
+  --error-fondo: rgb(228 44 66 / 0.1);
+  --enlace-subrayado: rgb(228 44 66 / 0.8);
+  --anillo-foco: rgb(228 44 66 / 0.35);
+  --scroll-pulgar: var(--grafito-600);
+  --scroll-riel: var(--grafito-950);
+
+  /* Velos y líneas finas sobre el fondo (hover, bordes de botón, cajas sutiles) */
+  --velo-suave: rgb(255 255 255 / 0.03);
+  --velo-hover: rgb(255 255 255 / 0.05);
+  --velo-hover-2: rgb(255 255 255 / 0.06);
+  --linea-boton: rgb(255 255 255 / 0.26);
+  --linea-boton-hover: rgb(255 255 255 / 0.55);
+  --borde-panel: rgb(255 255 255 / 0.07);
+  --borde-punteado: rgb(255 255 255 / 0.22);
+  --luz-interior: rgb(255 255 255 / 0.06);
+
+  /* Superficies de la landing: cabecera, cartel, paneles, vacíos, pie */
+  --cabecera-fondo: rgb(15 17 20 / 0.96);
+  --cabecera-sombra: 0 10px 24px -20px rgb(0 0 0 / 0.9);
+  --reflejo-fondo:
+    radial-gradient(120% 70% at 85% -10%, rgb(255 255 255 / 0.07), transparent 60%),
+    linear-gradient(
+      112deg,
+      transparent 28%,
+      rgb(255 255 255 / 0.035) 38%,
+      transparent 46%,
+      transparent 62%,
+      rgb(255 255 255 / 0.025) 70%,
+      transparent 77%
+    );
+  --reflejo-grano: 0.05;
+  --cartel-fondo:
+    linear-gradient(118deg, transparent 30%, rgb(255 255 255 / 0.045) 44%, transparent 52%),
+    radial-gradient(90% 60% at 50% 0%, rgb(255 255 255 / 0.06), transparent 70%),
+    linear-gradient(180deg, #1d2125 0%, #16191c 62%, #121417 100%);
+  --zocalo-fondo: rgb(8 10 12 / 0.55);
+  --zocalo-luz: rgb(255 255 255 / 0.04);
+  --destacada-borde: rgb(228 44 66 / 0.25);
+  --destacada-fondo:
+    radial-gradient(80% 60% at 0% 0%, rgb(228 44 66 / 0.08), transparent 70%),
+    linear-gradient(180deg, #1c1f23, #15181b);
+  --panel-fondo:
+    radial-gradient(70% 50% at 100% 0%, rgb(255 255 255 / 0.04), transparent 70%),
+    linear-gradient(180deg, #1b1e22, #14171a);
+  --vacio-fondo:
+    repeating-linear-gradient(135deg, rgb(255 255 255 / 0.018) 0 2px, transparent 2px 14px),
+    linear-gradient(180deg, #1b1e22, #121417);
+  --esqueleto: var(--grafito-750);
+  --esqueleto-brillo: var(--grafito-600);
+  --medallon-fondo: radial-gradient(circle at 35% 30%, #2b3036, #14171a 70%);
+  --medallon-hueco: var(--grafito-900);
+  --medallon-luz: rgb(255 255 255 / 0.35);
+  --pie-fondo: var(--grafito-950);
+  --velo-modal: rgb(5 6 8 / 0.86);
+  /* Sobre fotos y sobre el video del monograma: iguales en los dos temas */
+  --foto-rotulo-fondo: rgb(12 14 16 / 0.82);
+  --foto-rotulo-texto: var(--blanco);
+  --monograma-fondo: #000000;
+  --manija-fondo: var(--grafito-900);
 
   /* Filete: línea roja, brillo al centro, sombra y luz paralela */
   --filete: var(--rojo-500);
   --filete-brillo: #f39aa4;
   --filete-sombra: rgb(0 0 0 / 0.55);
   --filete-luz: rgb(255 255 255 / 0.5);
+  --filete-tenue: rgb(228 44 66 / 0.25);
 
   /* Cromo: cielo claro arriba, horizonte oscuro al medio, suelo claro abajo */
   --cromo: linear-gradient(
@@ -67,6 +130,7 @@
     #d9dee3 78%,
     #ffffff 100%
   );
+  --cromo-sombra: rgb(0 0 0 / 0.5);
 
   /* Tipografía */
   /* Tipografía: cambiar acá (y las caras en fuentes.css) para probar otra combinación. */
@@ -98,6 +162,11 @@
   /* Profundidad: siempre con desplazamiento y desenfoque */
   --sombra-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 18px -10px rgb(0 0 0 / 0.75);
   --sombra-2: 0 2px 6px rgb(0 0 0 / 0.35), 0 30px 60px -30px rgb(0 0 0 / 0.9);
+  --sombra-boton-cerca: 0 1px 2px rgb(0 0 0 / 0.45);
+  --sombra-boton-lejos: 0 10px 20px -12px rgb(0 0 0 / 0.9);
+  --sombra-cinta: 0 6px 14px -6px rgb(0 0 0 / 0.8);
+  --sombra-medallon: 0 6px 14px -6px rgb(0 0 0 / 0.8);
+  --sombra-manija: rgb(0 0 0 / 0.5);
 
   /* Movimiento: pincelazo (ataque rápido, final lento) */
   --ease-pincel: cubic-bezier(0.16, 1, 0.3, 1);
@@ -114,6 +183,122 @@
   }
 }
 
+/* ---------- Tema claro: el mismo cartel pintado sobre chapa esmaltada blanca ----------
+   Lo elige la persona con el botón de tema (src/tema/). El oscuro sigue siendo el de
+   arriba, sin cambios. Solo la web pública lo usa: el panel /admin nunca recibe data-tema.
+   Contrastes AA (calculados) en frontend/README.md → "Tema claro y oscuro". */
+
+:root[data-tema='claro'] {
+  /* Fondo: el blanco de la letra del tema oscuro; superficies blancas; hundido en gris imprimación */
+  --fondo: var(--blanco);
+  --fondo-hundido: var(--gris-100);
+  --superficie: #ffffff;
+  --superficie-2: #e6e9ec;
+  --borde: #cfd4d9;
+  --borde-suave: rgb(20 23 26 / 0.1);
+  --texto: #15181b;
+  --texto-2: var(--grafito-600);
+  --texto-3: #5b636c;
+  --texto-fuerte: var(--grafito-950);
+  --acento: var(--rojo-600);
+  --acento-texto: #a50c26;
+  --sello-texto: #a50c26;
+  --foco: var(--grafito-900);
+  --error: #b3261e;
+  --error-borde: rgb(179 38 30 / 0.45);
+  --error-fondo: rgb(200 16 46 / 0.06);
+  --exito: #1d7a46;
+  --campo-fondo: #ffffff;
+  --campo-borde: #7b838c;
+  --campo-borde-hover: #4d545c;
+  --opcion-fondo: #ffffff;
+  --opcion-fondo-activa: #fbeef0;
+  --enlace-subrayado: rgb(200 16 46 / 0.8);
+  --anillo-foco: rgb(200 16 46 / 0.22);
+  --scroll-pulgar: var(--gris-300);
+  --scroll-riel: var(--gris-100);
+
+  --velo-suave: rgb(20 23 26 / 0.035);
+  --velo-hover: rgb(20 23 26 / 0.04);
+  --velo-hover-2: rgb(20 23 26 / 0.06);
+  --linea-boton: rgb(20 23 26 / 0.34);
+  --linea-boton-hover: rgb(20 23 26 / 0.62);
+  --borde-panel: rgb(20 23 26 / 0.09);
+  --borde-punteado: rgb(20 23 26 / 0.32);
+  --luz-interior: rgb(255 255 255 / 0.9);
+
+  --cabecera-fondo: rgb(247 248 249 / 0.96);
+  --cabecera-sombra: 0 10px 24px -20px rgb(20 23 26 / 0.4);
+  /* El reflejo, sobre blanco, es una veladura gris apenas visible */
+  --reflejo-fondo:
+    radial-gradient(120% 70% at 85% -10%, rgb(255 255 255 / 0.9), transparent 60%),
+    linear-gradient(
+      112deg,
+      transparent 28%,
+      rgb(20 23 26 / 0.022) 38%,
+      transparent 46%,
+      transparent 62%,
+      rgb(20 23 26 / 0.016) 70%,
+      transparent 77%
+    );
+  --reflejo-grano: 0;
+  --cartel-fondo:
+    linear-gradient(118deg, transparent 30%, rgb(255 255 255 / 0.8) 44%, transparent 52%),
+    radial-gradient(90% 60% at 50% 0%, rgb(255 255 255 / 0.9), transparent 70%),
+    linear-gradient(180deg, #ffffff 0%, #f9fafb 62%, #f1f3f5 100%);
+  --zocalo-fondo: rgb(20 23 26 / 0.035);
+  --zocalo-luz: rgb(255 255 255 / 0.8);
+  --destacada-borde: rgb(200 16 46 / 0.3);
+  --destacada-fondo:
+    radial-gradient(80% 60% at 0% 0%, rgb(200 16 46 / 0.06), transparent 70%),
+    linear-gradient(180deg, #ffffff, #fafbfb);
+  --panel-fondo:
+    radial-gradient(70% 50% at 100% 0%, rgb(255 255 255 / 0.9), transparent 70%),
+    linear-gradient(180deg, #ffffff, #f9fafb);
+  --vacio-fondo:
+    repeating-linear-gradient(135deg, rgb(20 23 26 / 0.03) 0 2px, transparent 2px 14px),
+    linear-gradient(180deg, #ffffff, #f1f3f5);
+  --esqueleto: #e2e6e9;
+  --esqueleto-brillo: #f4f6f7;
+  --medallon-fondo: radial-gradient(circle at 35% 30%, #ffffff, #e8ebee 70%);
+  --medallon-hueco: #ffffff;
+  --medallon-luz: rgb(20 23 26 / 0.28);
+  --pie-fondo: #e9ecef;
+  --velo-modal: rgb(20 23 26 / 0.78);
+
+  /* Filete sobre fondo claro: rojo chapa con el contorno fino oscuro del fileteado
+     sobre fondos claros (la "luz" pasa a ser una línea grafito). */
+  --filete: var(--rojo-600);
+  --filete-brillo: #ef8a96;
+  --filete-sombra: rgb(20 23 26 / 0.3);
+  --filete-luz: rgb(20 23 26 / 0.42);
+  --filete-tenue: rgb(200 16 46 / 0.22);
+
+  /* Cromo para fondo claro: acero oscuro con el horizonte claro al medio,
+     así la letra se lee sobre blanco y sigue siendo metal. */
+  --cromo: linear-gradient(
+    180deg,
+    #4a525b 0%,
+    #2a2f35 30%,
+    #14171a 47%,
+    #9aa3ac 51%,
+    #3a4148 57%,
+    #1f2327 80%,
+    #3f454c 100%
+  );
+  --cromo-sombra: rgb(20 23 26 / 0.16);
+
+  --sombra-1: 0 1px 2px rgb(20 23 26 / 0.1), 0 8px 18px -10px rgb(20 23 26 / 0.3);
+  --sombra-2: 0 2px 6px rgb(20 23 26 / 0.06), 0 30px 60px -30px rgb(20 23 26 / 0.32);
+  --sombra-boton-cerca: 0 1px 2px rgb(20 23 26 / 0.28);
+  --sombra-boton-lejos: 0 10px 20px -12px rgb(20 23 26 / 0.55);
+  --sombra-cinta: 0 6px 14px -6px rgb(20 23 26 / 0.45);
+  --sombra-medallon: 0 6px 14px -6px rgb(20 23 26 / 0.35);
+  --sombra-manija: rgb(0 0 0 / 0.45);
+
+  color-scheme: light;
+}
+
 /* ---------- Base ---------- */
 
 *,
@@ -125,7 +310,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  scrollbar-color: var(--grafito-600) var(--grafito-950);
+  scrollbar-color: var(--scroll-pulgar) var(--scroll-riel);
   scroll-padding-top: calc(var(--cabecera-alto) + 12px);
 }
 
@@ -300,8 +485,8 @@ textarea {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.26),
     inset 0 -2px 0 rgb(0 0 0 / 0.16),
-    0 1px 2px rgb(0 0 0 / 0.45),
-    0 10px 20px -12px rgb(0 0 0 / 0.9);
+    var(--sombra-boton-cerca),
+    var(--sombra-boton-lejos);
 }
 
 .boton--primario:hover {
@@ -315,12 +500,12 @@ textarea {
 .boton--secundario {
   color: var(--texto);
   background: transparent;
-  border-color: rgb(255 255 255 / 0.26);
+  border-color: var(--linea-boton);
 }
 
 .boton--secundario:hover {
-  border-color: rgb(255 255 255 / 0.55);
-  background: rgb(255 255 255 / 0.05);
+  border-color: var(--linea-boton-hover);
+  background: var(--velo-hover);
 }
 
 .boton--fantasma {
@@ -331,7 +516,7 @@ textarea {
 
 .boton--fantasma:hover {
   color: var(--texto);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--velo-hover-2);
 }
 
 .boton--grande {
@@ -354,7 +539,7 @@ textarea {
   color: var(--texto);
   font-weight: 600;
   text-decoration: underline;
-  text-decoration-color: rgb(228 44 66 / 0.8);
+  text-decoration-color: var(--enlace-subrayado);
   text-decoration-thickness: 2px;
   text-underline-offset: 0.25em;
   transition: text-decoration-color var(--t-rapida);
@@ -429,7 +614,7 @@ textarea {
 .entrada:focus {
   outline: none;
   border-color: var(--acento);
-  box-shadow: 0 0 0 3px rgb(228 44 66 / 0.35);
+  box-shadow: 0 0 0 3px var(--anillo-foco);
 }
 
 .entrada:focus-visible {
@@ -597,7 +782,7 @@ input[type='date'].entrada {
   margin-left: 0.2em;
   font-family: var(--f-acento);
   font-size: 0.86em;
-  color: var(--rojo-500);
+  color: var(--acento);
   transform: rotate(-4deg) translateY(0.02em);
 }
 
@@ -621,7 +806,7 @@ input[type='date'].entrada {
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0.035em 0.045em 0 var(--rojo-700)) drop-shadow(0 0.08em 0.12em rgb(0 0 0 / 0.5));
+  filter: drop-shadow(0.035em 0.045em 0 var(--rojo-700)) drop-shadow(0 0.08em 0.12em var(--cromo-sombra));
 }
 
 .cromo--barrido {
@@ -900,11 +1085,11 @@ input[type='date'].entrada {
 .manija {
   width: 56px;
   height: 56px;
-  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.5));
+  filter: drop-shadow(0 6px 10px var(--sombra-manija));
 }
 
 .manija__fondo {
-  fill: var(--grafito-900);
+  fill: var(--manija-fondo);
 }
 
 .manija__aro {

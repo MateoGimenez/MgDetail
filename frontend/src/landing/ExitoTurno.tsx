@@ -6,16 +6,19 @@ import { negocio } from '../config/sitio';
 import { useCatalogo } from './catalogo-contexto';
 import { fechaLarga } from '../lib/fechas';
 import { referenciaDeTurno } from '../lib/turnos';
+import { EnlaceSeguimiento } from './EnlaceSeguimiento';
 
 interface Props {
   refTitulo: RefObject<HTMLHeadingElement | null>;
   id: string | null;
+  /** Ruta /turno/<id> para seguir el pedido, si el backend la mandó o se pudo armar con el id. */
+  seguimiento: string | null;
   datos: TurnoNuevo;
   alPedirOtro: () => void;
 }
 
-/** Pedido enviado: resumen y aviso opcional por WhatsApp con el mensaje armado. */
-export function ExitoTurno({ refTitulo, id, datos, alPedirOtro }: Props) {
+/** Pedido enviado: resumen, enlace para seguirlo y aviso opcional por WhatsApp con el mensaje armado. */
+export function ExitoTurno({ refTitulo, id, seguimiento, datos, alPedirOtro }: Props) {
   const nombreServicio = useCatalogo().buscar(datos.servicioId)?.nombre ?? datos.servicioId;
   const primerNombre = datos.nombre.split(/\s+/)[0] ?? datos.nombre;
   const referencia = id ? referenciaDeTurno(id) : null;
@@ -50,6 +53,7 @@ export function ExitoTurno({ refTitulo, id, datos, alPedirOtro }: Props) {
           </div>
         ))}
       </dl>
+      {seguimiento && <EnlaceSeguimiento ruta={seguimiento} />}
       <div className="exito__acciones">
         {whatsapp && (
           <a className="boton boton--primario boton--grande" href={whatsapp} target="_blank" rel="noopener noreferrer">

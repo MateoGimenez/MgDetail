@@ -2201,3 +2201,292 @@
   display: flex;
   justify-content: center;
 }
+
+/* =========================================================================
+   Disponibilidad (reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md)
+   ========================================================================= */
+
+/* ---------- Cupos en la agenda: "2/3", completa y cerrada ---------- */
+
+.grilla__cupo,
+.agenda__cupo {
+  font-variant-numeric: tabular-nums;
+}
+
+.cupo--lleno .grilla__cupo,
+.cupo--lleno .agenda__cupo {
+  color: var(--acento-texto);
+  font-weight: 700;
+}
+
+/* Cerrado: rayado suave (no solo color) y el rótulo "Cerrada" en la cuenta. */
+.grilla__celda.cupo--cerrado,
+.agenda__franja.cupo--cerrado {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 7px,
+    var(--borde-suave) 7px 9px
+  );
+}
+
+.agenda__franja.cupo--cerrado {
+  padding: 0 6px 6px;
+  border-radius: var(--radio-2);
+}
+
+.agenda__marca-cerrado,
+.grilla__cerrado {
+  padding: 1px 8px;
+  border: 1.5px dashed currentColor;
+  border-radius: 999px;
+  color: var(--texto-2);
+  font-family: var(--f-texto);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.agenda__marca-cerrado {
+  margin-left: var(--e-2);
+}
+
+.grilla__cerrado {
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.tira__dia--cerrado .tira__numero {
+  color: var(--texto-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+/* ---------- Aviso al confirmar o reprogramar ---------- */
+
+.fecha-turno__aviso:empty {
+  display: none;
+}
+
+.fecha-turno__aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+  color: var(--texto);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.fecha-turno__aviso .icono {
+  flex: none;
+  margin-top: 2px;
+  color: var(--acento-texto);
+}
+
+/* ---------- Sección Disponibilidad ---------- */
+
+.disponibilidad__bloque {
+  display: grid;
+  gap: var(--e-3);
+  margin-top: var(--e-6);
+}
+
+.horario {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.horario__lista,
+.horario--lectura {
+  display: grid;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+}
+
+.horario__fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--e-2) var(--e-4);
+  padding: 12px 16px;
+}
+
+.horario__fila + .horario__fila {
+  border-top: 1px solid var(--borde-suave);
+}
+
+.horario__fila--cerrada {
+  background: var(--fondo-hundido);
+}
+
+.horario__dia {
+  align-self: center;
+  font-weight: 700;
+}
+
+.horario__abierto {
+  min-height: 44px;
+}
+
+.horario__cupo {
+  display: grid;
+  gap: 4px;
+}
+
+.horario__etiqueta {
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.horario__entrada {
+  width: 6.5rem;
+  min-height: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.horario__entrada:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.horario__encabezado {
+  display: none;
+}
+
+.horario__resumen {
+  align-self: center;
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.horario__resumen--cerrado {
+  color: var(--texto-3);
+}
+
+.horario__acciones,
+.dia-especial__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+/* Desde 640 px: cada día en una fila de cuatro columnas, con los rótulos arriba una sola vez. */
+@media (min-width: 640px) {
+  .horario__encabezado {
+    display: grid;
+    grid-template-columns: 9rem 9rem 8rem 8rem;
+    gap: var(--e-4);
+    padding: 0 16px;
+    color: var(--texto-3);
+    font-size: 0.8125rem;
+    font-weight: 650;
+  }
+
+  .horario__lista .horario__fila {
+    grid-template-columns: 9rem 9rem 8rem 8rem;
+    align-items: center;
+    gap: var(--e-4);
+  }
+
+  .horario__lista .horario__etiqueta {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.dias-especiales {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.dia-especial {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+}
+
+.dia-especial--cerrado {
+  border-style: dashed;
+}
+
+.dia-especial__cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-3);
+}
+
+.dia-especial__fecha {
+  font-weight: 700;
+  font-size: 1.0625rem;
+}
+
+.dia-especial__feriado {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--fondo);
+  color: var(--texto-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dia-especial__detalle {
+  color: var(--texto-2);
+}
+
+.dia-especial__nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--texto);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.dia-especial__nota .icono {
+  flex: none;
+  margin-top: 3px;
+  color: var(--acento-texto);
+}
+
+.dia-especial__semanal {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+.dia-especial__acciones {
+  margin-top: var(--e-2);
+}
+
+.dia-especial__pregunta {
+  font-weight: 600;
+}
+
+.dia-especial-form {
+  margin-bottom: var(--e-2);
+}
+
+.dia-especial-form__fecha {
+  max-width: 17rem;
+}
+
+.dia-especial-form__cupos {
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+}

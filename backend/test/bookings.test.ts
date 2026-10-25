@@ -24,6 +24,8 @@ afterEach(async () => {
 });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+/** seguimientoUrl: ruta relativa /turno/<uuid> (objetivo 4). */
+const SEGUIMIENTO = /^\/turno\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 describe('POST /api/bookings: creación', () => {
   it('crea un turno válido y responde 201 solo con los campos públicos', async () => {
@@ -38,11 +40,12 @@ describe('POST /api/bookings: creación', () => {
         fechaPreferida: '2026-10-20',
         franja: 'manana',
         estado: 'pendiente',
+        seguimientoUrl: expect.stringMatching(SEGUIMIENTO) as string,
       },
     });
     // Nada de datos personales ni timestamps en la respuesta pública.
     expect(Object.keys(response.body.booking as object).sort()).toEqual(
-      ['estado', 'fechaPreferida', 'franja', 'id', 'servicioId'],
+      ['estado', 'fechaPreferida', 'franja', 'id', 'seguimientoUrl', 'servicioId'],
     );
     expect(await countRows(db, 'bookings')).toBe(1);
   });
@@ -265,6 +268,7 @@ describe('POST /api/bookings: honeypot (campo `website`)', () => {
         fechaPreferida: '2026-10-20',
         franja: 'manana',
         estado: 'pendiente',
+        seguimientoUrl: expect.stringMatching(SEGUIMIENTO) as string,
       },
     });
     expect(await countRows(context.db, 'bookings')).toBe(0);
@@ -344,6 +348,10 @@ describe('POST /api/bookings: logging', () => {
   it('si el repositorio falla, el error se propaga y no se loguea un alta que no ocurrió', async () => {
     const failing: BookingRepository = {
       create: () => Promise.reject(new Error('sin espacio')),
+      reservar: () => Promise.reject(new Error('sin espacio')),
+      seguimiento: () => Promise.reject(new Error('x')),
+      recordatoriosPendientes: () => Promise.reject(new Error('x')),
+      marcarRecordatorio: () => Promise.reject(new Error('x')),
       list: () => Promise.reject(new Error('x')),
       actualizar: () => Promise.reject(new Error('x')),
       updateEstado: () => Promise.reject(new Error('x')),
@@ -365,12 +373,12 @@ describe('POST /api/bookings: logging', () => {
     };
 
     // El catálogo responde bien (el servicio existe y está activo): lo que falla es guardar el turno.
-    const servicios = (await createPgliteDatabase().then((db) => {
+    const { servicios, disponibilidad } = await createPgliteDatabase().then((db) => {
       cleanups.push(db.close);
       return createPostgresRepositories(db.appSql);
-    })).servicios;
+    });
 
-    await expect(new BookingService({ bookings: failing, servicios, logger }).createBooking(data, NOW)).rejects.toThrow(
+    await expect(new BookingService({ bookings: failing, servicios, disponibilidad, logger }).createBooking(data, NOW)).rejects.toThrow(
       'sin espacio',
     );
     expect(logger.lines).toEqual([]);

@@ -47,8 +47,9 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     trustProxy: false,
     serveFrontend: false,
     frontendDistPath: '',
-    rateLimits: { api: NO_LIMIT, bookings: NO_LIMIT, loginFailures: NO_LIMIT },
+    rateLimits: { api: NO_LIMIT, bookings: NO_LIMIT, loginFailures: NO_LIMIT, seguimiento: NO_LIMIT },
     whatsapp: { provider: 'none' },
+    recordatorios: { cronSecret: undefined, email: undefined, whatsapp: undefined },
     publicUrl: undefined,
     warnings: [],
     ...overrides,
@@ -90,10 +91,31 @@ export interface TestContext {
 
 const openContexts = new Set<TestContext>();
 
+/**
+ * Los tests anteriores a la disponibilidad real (objetivo 4) crean varios turnos en el mismo día y franja, también
+ * en domingos y feriados. Con `disponibilidad: 'libre'` (el default) se abren los 7 días con el cupo máximo y se
+ * quitan los días especiales sembrados, así siguen probando lo suyo. Los tests de disponibilidad usan 'fabrica':
+ * la base tal como la deja la migración (lunes a sábado con 2 por franja, domingo cerrado, feriados cerrados).
+ */
+export type DisponibilidadInicial = 'libre' | 'fabrica';
+
+export async function abrirTodo(db: PgliteDatabase): Promise<void> {
+  await db.sql.query('UPDATE mgdetailing.horario_semanal SET abierto = true, cupo_manana = 20, cupo_tarde = 20');
+  await db.sql.query('DELETE FROM mgdetailing.dias_especiales');
+}
+
 export async function createTestContext(
-  options: { config?: Partial<AppConfig>; now?: Date; notifier?: BookingNotifier } = {},
+  options: {
+    config?: Partial<AppConfig>;
+    now?: Date;
+    notifier?: BookingNotifier;
+    disponibilidad?: DisponibilidadInicial;
+    /** fetch de los avisos y recordatorios (los tests nunca tocan la red). */
+    fetch?: typeof fetch;
+  } = {},
 ): Promise<TestContext> {
   const db = await createPgliteDatabase();
+  if ((options.disponibilidad ?? 'libre') === 'libre') await abrirTodo(db);
   const logger = new MemoryLogger();
   const clock = { current: options.now ?? NOW };
   const now = () => clock.current;
@@ -111,6 +133,7 @@ export async function createTestContext(
     authFetch: supabase.fetch,
     jwks: TEST_JWKS,
     ...(options.notifier && { notifier: options.notifier }),
+    ...(options.fetch && { fetch: options.fetch }),
   });
   } catch (error) {
     await db.close();

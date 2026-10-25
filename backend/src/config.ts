@@ -32,6 +32,19 @@ export type WhatsappConfig =
     };
 
 /**
+ * Recordatorios del día anterior a los clientes (contrato: reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md).
+ * Cada canal es independiente del aviso al dueño (WHATSAPP_PROVIDER): undefined = ese canal no está configurado.
+ */
+export interface RecordatoriosConfig {
+  /** Bearer que tiene que mandar el cron a POST /api/internal/recordatorios. undefined = el endpoint responde 404. */
+  cronSecret: string | undefined;
+  /** Email con Resend: RESEND_API_KEY + RECORDATORIO_EMAIL_DESDE. */
+  email: { apiKey: string; from: string } | undefined;
+  /** WhatsApp Cloud API: WHATSAPP_CLOUD_TOKEN + WHATSAPP_CLOUD_PHONE_NUMBER_ID + WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO. */
+  whatsapp: { token: string; phoneNumberId: string; template: string; language: string } | undefined;
+}
+
+/**
  * Base de datos: Postgres en Supabase (único motor).
  * `connection` tiene la contraseña: no se loguea nunca; para mostrar está `label`.
  */
@@ -99,8 +112,11 @@ export interface AppConfig {
     bookings: RateLimitRule;
     /** Intentos de login FALLIDOS, por IP. */
     loginFailures: RateLimitRule;
+    /** Consultas de seguimiento de un turno (GET /api/turnos/:id), por IP. */
+    seguimiento: RateLimitRule;
   };
   whatsapp: WhatsappConfig;
+  recordatorios: RecordatoriosConfig;
   /** Origen público del sitio (sin barra final), para el link al panel en los avisos. */
   publicUrl: string | undefined;
   /** Avisos para mostrar al arrancar (ej.: variables que ya no se usan). */
@@ -115,7 +131,12 @@ export const DEFAULT_RATE_LIMITS: AppConfig['rateLimits'] = {
   api: { windowMs: 60 * 1000, limit: 300 },
   bookings: { windowMs: 15 * 60 * 1000, limit: 5 },
   loginFailures: { windowMs: 15 * 60 * 1000, limit: 5 },
+  // Una persona mira su turno unas pocas veces; un barrido de ids necesitaría millones de pedidos.
+  seguimiento: { windowMs: 15 * 60 * 1000, limit: 60 },
 };
+
+/** Largo mínimo de CRON_SECRET: suficiente entropía para que no se pueda adivinar por fuerza bruta. */
+export const MIN_CRON_SECRET = 32;
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -260,6 +281,26 @@ const whatsappPhoneSchema = z
     }),
   );
 
+/**
+ * Remitente del recordatorio por email: `turnos@dominio` o `Nombre <turnos@dominio>` (el dominio verificado en
+ * Resend). Sin saltos de línea ni caracteres de control (va en una cabecera del email).
+ */
+const emailFromSchema = z.string().transform((raw, ctx): string => {
+  const value = raw.trim();
+  const fail = () => {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'tiene que ser un email (turnos@mgdetailing.com.ar) o "Nombre <turnos@mgdetailing.com.ar>", del dominio verificado en Resend',
+    });
+    return z.NEVER;
+  };
+  if (value.length > 200 || /\p{Cc}/u.test(value)) return fail();
+  const conNombre = /^([^<>"]{1,80}?)\s*<([^<>\s]+)>$/.exec(value);
+  const email = conNombre ? conNombre[2] : value;
+  if (email === undefined || !z.email().safeParse(email).success) return fail();
+  return value;
+});
+
 const envSchema = z.object({
   NODE_ENV: optionalEnv(
     z.enum(['development', 'test', 'production'], { error: 'tiene que ser development, test o production' }),
@@ -311,6 +352,24 @@ const envSchema = z.object({
     z.string().trim().regex(/^[a-z0-9_]{1,512}$/, { error: 'es el nombre de la plantilla (minúsculas, números y _)' }),
   ),
   WHATSAPP_CLOUD_LANGUAGE: optionalEnv(z.enum(['es_AR', 'es'], { error: 'tiene que ser es_AR o es' })),
+  WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO: optionalEnv(
+    z.string().trim().regex(/^[a-z0-9_]{1,512}$/, { error: 'es el nombre de la plantilla (minúsculas, números y _)' }),
+  ),
+  // Los mensajes de error nunca repiten el valor (es un secreto).
+  CRON_SECRET: optionalEnv(
+    z
+      .string()
+      .trim()
+      .min(MIN_CRON_SECRET, {
+        error: `tiene que tener al menos ${String(MIN_CRON_SECRET)} caracteres (generá uno con: node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))")`,
+      })
+      .max(200, { error: 'es demasiado larga' })
+      .regex(/^[\x21-\x7E]+$/, { error: 'solo puede tener caracteres imprimibles, sin espacios' }),
+  ),
+  RESEND_API_KEY: optionalEnv(
+    z.string().trim().regex(/^re_[A-Za-z0-9_-]{10,200}$/, { error: 'no parece una API key de Resend (empieza con re_)' }),
+  ),
+  RECORDATORIO_EMAIL_DESDE: optionalEnv(emailFromSchema),
   SERVE_FRONTEND: optionalEnv(
     z
       .string()
@@ -660,6 +719,8 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     }
   }
 
+  const recordatorios = recordatoriosFromValues(values, isProduction, problems, warnings);
+
   const database = databaseResult.database;
   if (problems.length > 0 || values === undefined || database === undefined || supabase === undefined) {
     throw new ConfigError(problems);
@@ -701,9 +762,66 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     frontendDistPath: path.resolve(BACKEND_ROOT, '..', 'frontend', 'dist'),
     rateLimits: DEFAULT_RATE_LIMITS,
     whatsapp,
+    recordatorios,
     publicUrl: values.PUBLIC_URL,
     warnings,
   };
+}
+
+/**
+ * Recordatorios (opcionales): cada canal se activa con sus variables, independiente de WHATSAPP_PROVIDER. Un canal a
+ * medio configurar es un aviso en desarrollo y un error en producción (como los proveedores de avisos). Sin nada
+ * configurado, no hay avisos: los recordatorios quedan desactivados y el endpoint interno responde 404.
+ */
+function recordatoriosFromValues(
+  values: z.output<typeof envSchema> | undefined,
+  isProduction: boolean,
+  problems: string[],
+  warnings: string[],
+): RecordatoriosConfig {
+  const vacio: RecordatoriosConfig = { cronSecret: undefined, email: undefined, whatsapp: undefined };
+  if (values === undefined) return vacio;
+  const incompleto = (message: string) => (isProduction ? problems : warnings).push(message);
+
+  let email: RecordatoriosConfig['email'];
+  const { RESEND_API_KEY: apiKey, RECORDATORIO_EMAIL_DESDE: from } = values;
+  if (apiKey !== undefined && from !== undefined) {
+    email = { apiKey, from };
+  } else if (apiKey !== undefined || from !== undefined) {
+    incompleto(
+      'RESEND_API_KEY y RECORDATORIO_EMAIL_DESDE: van juntas (falta una). Los recordatorios por email quedan ' +
+        'desactivados hasta completarlas (ver README, "Recordatorios").',
+    );
+  }
+
+  let whatsapp: RecordatoriosConfig['whatsapp'];
+  const template = values.WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO;
+  if (template !== undefined) {
+    const { WHATSAPP_CLOUD_TOKEN: token, WHATSAPP_CLOUD_PHONE_NUMBER_ID: phoneNumberId } = values;
+    if (token !== undefined && phoneNumberId !== undefined) {
+      whatsapp = { token, phoneNumberId, template, language: values.WHATSAPP_CLOUD_LANGUAGE ?? 'es_AR' };
+    } else {
+      incompleto(
+        'WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO necesita WHATSAPP_CLOUD_TOKEN y WHATSAPP_CLOUD_PHONE_NUMBER_ID: los ' +
+          'recordatorios por WhatsApp quedan desactivados hasta completarlas (ver README, "Recordatorios").',
+      );
+    }
+  }
+
+  const cronSecret = values.CRON_SECRET;
+  const hayCanal = email !== undefined || whatsapp !== undefined;
+  if (cronSecret !== undefined && !hayCanal) {
+    warnings.push(
+      'CRON_SECRET está configurada pero no hay ningún canal de recordatorios (email con Resend o WhatsApp Cloud): ' +
+        'el cron puede llamar al endpoint, pero no se manda nada.',
+    );
+  } else if (cronSecret === undefined && hayCanal) {
+    warnings.push(
+      'Hay un canal de recordatorios configurado pero falta CRON_SECRET: POST /api/internal/recordatorios responde ' +
+        '404 y nadie puede dispararlos (ver README, "Recordatorios").',
+    );
+  }
+  return { cronSecret, email, whatsapp };
 }
 
 /** Carga el .env y valida process.env. Es lo que usa el servidor al arrancar. */

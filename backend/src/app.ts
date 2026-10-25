@@ -12,12 +12,15 @@ import { mountFrontend } from './middleware/frontend.js';
 import { createRateLimiters } from './middleware/rate-limit.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security.js';
-import { createNotifier } from './notifications/index.js';
+import { NOTIFY_TIMEOUT_MS, createNotifier } from './notifications/index.js';
+import { createCanalesRecordatorio } from './notifications/recordatorio.js';
 import type { Repositories } from './repositories/index.js';
 import { createApiRouter } from './routes/index.js';
 import { AgendaService } from './services/agenda.js';
 import { AuthService } from './services/auth.js';
 import { BookingService } from './services/bookings.js';
+import { DisponibilidadService } from './services/disponibilidad.js';
+import { RecordatorioService } from './services/recordatorios.js';
 import { ServicioService } from './services/servicios.js';
 import { UsuarioService } from './services/usuarios.js';
 
@@ -30,7 +33,7 @@ export interface AppDeps {
   logger?: Logger;
   /** Reloj inyectable (los tests lo fijan). */
   now?: () => Date;
-  /** fetch inyectable para los avisos (los tests nunca tocan la red). */
+  /** fetch inyectable para los avisos y los recordatorios (los tests nunca tocan la red). */
   fetch?: FetchFn;
   /** fetch inyectable para Supabase Auth (los tests usan un Supabase Auth falso). */
   authFetch?: FetchFn;
@@ -49,10 +52,11 @@ export function createApp(deps: AppDeps): Express {
   const logger = deps.logger ?? createLogger();
   const now = deps.now ?? (() => new Date());
 
-  const { bookings, perfiles, servicios } = deps.repositories;
+  const { bookings, perfiles, servicios, disponibilidad } = deps.repositories;
   const bookingService = new BookingService({
     bookings,
     servicios,
+    disponibilidad,
     logger,
     notifier: deps.notifier ?? createNotifier(config.whatsapp, config.publicUrl, deps.fetch),
   });
@@ -78,6 +82,17 @@ export function createApp(deps: AppDeps): Express {
   });
   const agenda = new AgendaService({ bookings, logger, now });
   const servicioService = new ServicioService({ servicios, logger, now });
+  const disponibilidadService = new DisponibilidadService({ disponibilidad, logger, now });
+  const recordatorios = new RecordatorioService({
+    bookings,
+    canales: createCanalesRecordatorio(config.recordatorios, {
+      fetch: deps.fetch ?? fetch,
+      publicUrl: config.publicUrl,
+      timeoutMs: NOTIFY_TIMEOUT_MS,
+    }),
+    logger,
+    now,
+  });
   const cookies = new SessionCookies(config);
   const limiters = createRateLimiters(config.rateLimits);
 
@@ -99,6 +114,8 @@ export function createApp(deps: AppDeps): Express {
       bookings,
       bookingService,
       agenda,
+      disponibilidad: disponibilidadService,
+      recordatorios,
       auth,
       usuarios,
       servicios: servicioService,

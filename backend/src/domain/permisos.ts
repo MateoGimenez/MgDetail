@@ -4,11 +4,11 @@ import type { Rol } from './perfil.js';
 /**
  * Permisos por rol. Es LA regla: la UI solo esconde botones, la API decide con estas funciones.
  *
- * | Rol        | Ver turnos y agenda | Cambiar estado      | Reprogramar | Borrar turnos | Gestionar usuarios | Ver catálogo | Editar catálogo |
- * |------------|---------------------|---------------------|-------------|---------------|--------------------|--------------|-----------------|
- * | superadmin | sí                  | a cualquier estado  | sí          | sí            | sí                 | sí           | sí              |
- * | admin      | sí                  | a cualquier estado  | sí          | sí            | no                 | sí           | sí              |
- * | empleado   | sí                  | solo a "completado" | no          | no            | no                 | sí           | no              |
+ * | Rol        | Ver turnos y agenda | Cambiar estado      | Reprogramar | Borrar turnos | Gestionar usuarios | Ver catálogo | Editar catálogo | Editar disponibilidad |
+ * |------------|---------------------|---------------------|-------------|---------------|--------------------|--------------|-----------------|-----------------------|
+ * | superadmin | sí                  | a cualquier estado  | sí          | sí            | sí                 | sí           | sí              | sí                    |
+ * | admin      | sí                  | a cualquier estado  | sí          | sí            | no                 | sí           | sí              | sí                    |
+ * | empleado   | sí                  | solo a "completado" | no          | no            | no                 | sí           | no              | no                    |
  *
  * "Reprogramar" = cambiar la fecha/franja confirmadas de un turno (también al confirmarlo "para otra fecha", o
  * volver a la que pidió el cliente).
@@ -35,5 +35,13 @@ export function puedeGestionarUsuarios(rol: Rol): boolean {
 }
 
 export function puedeEditarCatalogo(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
+}
+
+/**
+ * "Editar disponibilidad" = cambiar el horario semanal y crear, cambiar o quitar días especiales. Verla (y ver los
+ * cupos en la agenda): todos los roles.
+ */
+export function puedeEditarDisponibilidad(rol: Rol): boolean {
   return rol === 'superadmin' || rol === 'admin';
 }

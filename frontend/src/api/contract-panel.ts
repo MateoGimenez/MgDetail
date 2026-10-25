@@ -126,3 +126,61 @@ export interface NuevoServicio {
 
 /** Body de PATCH /api/admin/servicios/:id: al menos un campo; el id no se manda nunca. */
 export type CambiosServicio = Partial<Omit<NuevoServicio, 'id'>>;
+
+/* ---------- Disponibilidad (reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md) ---------- */
+
+/** Cupos por franja: enteros de 0 a 20. Un cupo en 0 cierra esa franja. */
+export const CUPO_MAXIMO = 20;
+export const MOTIVO_MAXIMO = 80;
+
+const cupoFranja = z.int().check(z.gte(0), z.lte(CUPO_MAXIMO));
+/** Un cupo que puede faltar (día especial cerrado): se lee como null. */
+const cupoOpcional = z.pipe(
+  z.optional(z.nullable(cupoFranja)),
+  z.transform((valor) => valor ?? null),
+);
+
+/**
+ * Un día del horario semanal. `dia` sigue la convención de Date.getDay(): 0 = domingo, 1 = lunes … 6 = sábado.
+ * Se lee con z.object (tolerante a campos de más): el contrato fija estos, el backend puede sumar otros.
+ */
+export const horarioDiaSchema = z.object({
+  dia: z.int().check(z.gte(0), z.lte(6)),
+  abierto: z.boolean(),
+  cupoManana: cupoFranja,
+  cupoTarde: cupoFranja,
+});
+export type HorarioDia = z.output<typeof horarioDiaSchema>;
+
+/** Día especial: gana sobre el horario semanal. Cerrado (cupos null) o abierto con sus propios cupos. */
+export const diaEspecialSchema = z.object({
+  fecha: z.string().check(z.regex(/^\d{4}-\d{2}-\d{2}$/)),
+  abierto: z.boolean(),
+  cupoManana: cupoOpcional,
+  cupoTarde: cupoOpcional,
+  motivo: z.pipe(
+    z.optional(z.nullable(z.string())),
+    z.transform((valor) => (valor === undefined || valor === null || valor.trim() === '' ? null : valor)),
+  ),
+});
+export type DiaEspecial = z.output<typeof diaEspecialSchema>;
+
+/** GET /api/admin/disponibilidad: los siete días del horario y los días especiales de hoy en adelante. */
+export const disponibilidadPanelSchema = z.object({
+  horarioSemanal: z.array(horarioDiaSchema).check(z.length(7)),
+  diasEspeciales: z.array(diaEspecialSchema),
+});
+
+/** PUT /api/admin/disponibilidad/horario-semanal → el horario completo (como `horarioSemanal` o como `dias`). */
+export const respuestaHorarioSchema = z.union([
+  z.object({ horarioSemanal: z.array(horarioDiaSchema).check(z.length(7)) }),
+  z.object({ dias: z.array(horarioDiaSchema).check(z.length(7)) }),
+]);
+
+/** PUT /api/admin/disponibilidad/dias-especiales/:fecha → `{ dia }`. */
+export const respuestaDiaEspecialSchema = z.object({ dia: diaEspecialSchema });
+
+/** Body de PUT /api/admin/disponibilidad/dias-especiales/:fecha: cerrado sin cupos, o abierto con los dos. */
+export type CambioDiaEspecial =
+  | { abierto: false; motivo: string | null }
+  | { abierto: true; cupoManana: number; cupoTarde: number; motivo: string | null };

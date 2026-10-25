@@ -26,3 +26,9 @@ export function fechaConfirmadaRange(now: Date): { min: string; max: string } {
   const min = todayInLaRioja(now);
   return { min, max: addDays(min, MAX_DAYS_CONFIRMADA) };
 }
+
+/** Cuántos días puede abarcar una consulta pública de disponibilidad (inclusive). */
+export const MAX_DIAS_DISPONIBILIDAD = 62;
+
+/** Hasta cuántos días adelante se puede cargar un día especial (dos años: alcanza para los feriados del año que viene). */
+export const MAX_DAYS_DIA_ESPECIAL = 730;

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { logoUrl } from '../config/enlaces';
-import { sitio } from '../config/sitio';
+import { marca, sitio } from '../config/sitio';
+import { useTema } from '../tema/useTema';
 
 /**
  * Logo de MgDetailing. Si en `sitio.ts` está cargado `logo` (ej.: '/logo.png'),
  * se muestra esa imagen; si está vacío —o el archivo no carga— se muestra el
  * wordmark tipográfico: "Mg" cromado y "Detailing" en letra script.
+ * Con el tema claro usa la versión para fondo claro (`marca.logoClaro`).
  */
 
 interface Props {
@@ -14,7 +16,9 @@ interface Props {
 }
 
 export function Logo({ className, tamano = 'normal' }: Props) {
-  const ruta = logoUrl();
+  const tema = useTema();
+  const logo = logoUrl();
+  const ruta = logo && tema === 'claro' ? marca.logoClaro : logo;
   const [fallo, setFallo] = useState(false);
   const clases = ['logo', `logo--${tamano}`, className].filter(Boolean).join(' ');
 

@@ -40,6 +40,11 @@ export const negocio = {
  * livianas en public/marca/ con `npm run marca`).
  */
 export const marca = {
+  /**
+   * Logo plano para fondo claro (tema claro de la web). Mismo recorte y tamaño que
+   * `sitio.logo`; se usa solo si `sitio.logo` está cargado.
+   */
+  logoClaro: '/marca/logo-fondo-claro.png',
   /** Monograma 3D animado (1080 × 1080, 16 s). Se reproduce solo cuando se ve. */
   video: '/fotos/MgDetailing-monograma-3D.mp4',
   /** Cuadro fijo del monograma: póster del video y reemplazo con "menos movimiento". */
