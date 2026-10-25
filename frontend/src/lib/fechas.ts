@@ -186,6 +186,12 @@ export function diaCorto(fechaIso: string): string {
   return p ? `${DIAS_CORTOS[p.semana] ?? ''} ${String(p.dia)}` : fechaIso;
 }
 
+/** "jue 24/10" (la fecha en la tarjeta plegada de Turnos: corta, con el mes porque puede ser otro). */
+export function diaCortoConMes(fechaIso: string): string {
+  const p = partesDe(fechaIso);
+  return p ? `${DIAS_CORTOS[p.semana] ?? ''} ${String(p.dia)}/${String(p.mes)}` : fechaIso;
+}
+
 /** "jueves 24 de octubre" (sin depender de Intl, para títulos de la agenda). */
 export function diaConMes(fechaIso: string): string {
   const p = partesDe(fechaIso);

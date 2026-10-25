@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   ESTADOS,
   ETIQUETA_ESTADO,
@@ -13,8 +13,8 @@ import { type Rol } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { seguimientoPublicoUrl, whatsappClienteUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
-import { lugarEnAgenda, mensajeParaCliente } from '../lib/agenda';
-import { fechaCorta, momentoEnLaRioja } from '../lib/fechas';
+import { lugarEnAgenda, mensajeParaCliente, textoPidio } from '../lib/agenda';
+import { diaCortoConMes, fechaCorta, momentoEnLaRioja } from '../lib/fechas';
 import { referenciaDeTurno, selloDeCliente } from '../lib/turnos';
 import { ElegirFecha, type ModoFecha } from './ElegirFecha';
 import { NotaInterna } from './NotaInterna';
@@ -49,6 +49,18 @@ interface Props {
   idTitulo?: string;
   /** En la lista es h3 (bajo el h1 de la vista); dentro del detalle de la agenda, h2. */
   nivelTitulo?: 2 | 3;
+  /**
+   * Solo en la lista de Turnos: la tarjeta se pliega en una fila compacta y la cabecera es el botón que la abre. El
+   * estado lo guarda la vista por id de turno. Sin esto (agenda, historial) la tarjeta se ve completa, como siempre.
+   */
+  plegado?: Plegado;
+}
+
+export interface Plegado {
+  expandida: boolean;
+  alAlternar: () => void;
+  /** Avisa si hay algo a medio escribir (nota en edición, elegir fecha), para que "Plegar todas" no lo esconda. */
+  alCambiarBorrador: (abierto: boolean) => void;
 }
 
 export function TarjetaTurno({
@@ -65,11 +77,14 @@ export function TarjetaTurno({
   alVerHistorial,
   idTitulo,
   nivelTitulo = 3,
+  plegado,
 }: Props) {
   const id = useId();
   const tituloId = idTitulo ?? `${id}-nombre`;
+  const cuerpoId = `${id}-cuerpo`;
   const tarjetaRef = useRef<HTMLElement>(null);
   const [formulario, setFormulario] = useState<ModoFecha | null>(null);
+  const [editandoNota, setEditandoNota] = useState(false);
   const Titulo = nivelTitulo === 2 ? 'h2' : 'h3';
 
   const servicio = nombreServicio;
@@ -91,6 +106,23 @@ export function TarjetaTurno({
       : formulario === 'reprogramar'
         ? admiteNuevaFecha(turno.estado)
         : false;
+
+  // Algo a medio escribir: la vista no lo pliega con "Plegar todas" (y plegar a mano solo lo oculta, no lo borra).
+  const borrador = (abierto && formulario !== null) || editandoNota;
+  const avisarRef = useRef(plegado?.alCambiarBorrador);
+  useEffect(() => {
+    avisarRef.current = plegado?.alCambiarBorrador;
+  });
+  useEffect(() => {
+    const avisar = avisarRef.current;
+    avisar?.(borrador);
+    return () => {
+      avisar?.(false);
+    };
+  }, [borrador]);
+
+  const expandida = plegado ? plegado.expandida : true;
+  const pidio = textoPidio(turno);
 
   const cerrarFormulario = () => {
     const modo = formulario;
@@ -114,24 +146,16 @@ export function TarjetaTurno({
     void alCambiar({ estado });
   };
 
-  return (
-    <article
-      ref={tarjetaRef}
-      className={['turno', `turno--${turno.estado}`, cambiada ? 'turno--cambiada' : ''].filter(Boolean).join(' ')}
-      aria-labelledby={tituloId}
-      aria-busy={ocupada}
-    >
-      <header className="turno__cabeza">
-        <div className="turno__quien">
-          <Titulo id={tituloId} className="turno__nombre">
-            {turno.nombre}
-          </Titulo>
-          {nueva && <span className="turno__nueva">Nueva</span>}
-          <span className="turno__ref">#{referenciaDeTurno(turno.id)}</span>
-        </div>
-        <span className={`sello sello--${turno.estado}`}>{ETIQUETA_ESTADO[turno.estado]}</span>
-      </header>
+  const sello = <span className={`sello sello--${turno.estado}`}>{ETIQUETA_ESTADO[turno.estado]}</span>;
+  const marcas = (
+    <>
+      {nueva && <span className="turno__nueva">Nueva</span>}
+      <span className="turno__ref">#{referenciaDeTurno(turno.id)}</span>
+    </>
+  );
 
+  const contenido = (
+    <>
       <dl className="turno__datos">
         <div>
           <dt>Servicio</dt>
@@ -210,7 +234,12 @@ export function TarjetaTurno({
       )}
 
       {puedeEditarNotas(rol) ? (
-        <NotaInterna nota={turno.notasInternas} ocupada={ocupada} alGuardar={alCambiar} />
+        <NotaInterna
+          nota={turno.notasInternas}
+          ocupada={ocupada}
+          alGuardar={alCambiar}
+          alCambiarEdicion={setEditandoNota}
+        />
       ) : (
         turno.notasInternas && (
           <div className="nota">
@@ -321,6 +350,113 @@ export function TarjetaTurno({
           )}
         </div>
       )}
+    </>
+  );
+
+  const clases = ['turno', `turno--${turno.estado}`, cambiada ? 'turno--cambiada' : ''];
+
+  if (!plegado) {
+    return (
+      <article
+        ref={tarjetaRef}
+        className={clases.filter(Boolean).join(' ')}
+        aria-labelledby={tituloId}
+        aria-busy={ocupada}
+      >
+        <header className="turno__cabeza">
+          <div className="turno__quien">
+            <Titulo id={tituloId} className="turno__nombre">
+              {turno.nombre}
+            </Titulo>
+            {marcas}
+          </div>
+          {sello}
+        </header>
+        {contenido}
+      </article>
+    );
+  }
+
+  // Señales de la fila plegada: lo que conviene saber sin abrirla.
+  const frecuente = cliente?.conHistorial === true;
+  const conNota = Boolean(turno.notasInternas);
+  const senales = !expandida && (frecuente || conNota || borrador || Boolean(error));
+
+  return (
+    <article
+      ref={tarjetaRef}
+      className={[...clases, 'turno--plegable', expandida ? '' : 'turno--plegada'].filter(Boolean).join(' ')}
+      aria-labelledby={tituloId}
+      aria-busy={ocupada}
+    >
+      {/* Patrón acordeón: el título contiene el botón; todo lo de la fila plegada es su texto. */}
+      <Titulo className="turno__titulo">
+        <button
+          type="button"
+          className="turno__resumen"
+          aria-expanded={expandida}
+          aria-controls={cuerpoId}
+          onClick={plegado.alAlternar}
+        >
+          <span className="turno__cabeza">
+            <span className="turno__quien">
+              <span id={tituloId} className="turno__nombre">
+                {turno.nombre}
+              </span>
+              {marcas}
+            </span>
+            <span className="turno__estado-flecha">
+              {sello}
+              <Icono nombre="abajo" tamano={20} className="turno__flecha" />
+            </span>
+          </span>
+          {!expandida && (
+            <span className="turno__breve">
+              <span className="turno__breve-linea">
+                <span>{servicio}</span>
+                <span className="turno__breve-fecha">
+                  {diaCortoConMes(lugar.fecha)} · {ETIQUETA_FRANJA[lugar.franja]}
+                </span>
+                {pidio && <span className="turno__breve-pidio">{pidio}</span>}
+              </span>
+              {senales && (
+                <span className="turno__senales">
+                  {error && (
+                    <span className="senal senal--error">
+                      <Icono nombre="alerta" tamano={14} />
+                      No se guardó
+                    </span>
+                  )}
+                  {borrador && (
+                    <span className="senal senal--borrador">
+                      <Icono nombre="reloj" tamano={14} />
+                      Sin terminar
+                    </span>
+                  )}
+                  {frecuente && (
+                    <span className="senal senal--frecuente">
+                      <Icono nombre="estrella" tamano={14} />
+                      Frecuente
+                    </span>
+                  )}
+                  {conNota && (
+                    <span className="senal">
+                      <Icono nombre="lapiz" tamano={14} />
+                      Nota
+                    </span>
+                  )}
+                </span>
+              )}
+            </span>
+          )}
+        </button>
+      </Titulo>
+      {/* Plegado solo oculta (no desmonta): una nota o una fecha a medio elegir siguen ahí al volver a abrir. */}
+      <div id={cuerpoId} className="turno__cuerpo" inert={!expandida}>
+        <div className="turno__cuerpo-recorte">
+          <div className="turno__cuerpo-contenido">{contenido}</div>
+        </div>
+      </div>
     </article>
   );
 }

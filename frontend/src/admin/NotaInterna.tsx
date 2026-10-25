@@ -12,13 +12,15 @@ interface Props {
   ocupada: boolean;
   /** Manda el cambio; null si salió bien o el problema (el mensaje general lo muestra la tarjeta). */
   alGuardar: (cambios: CambiosTurno) => Promise<Problema | null>;
+  /** Avisa cuando se abre o se cierra el campo (la tarjeta plegable no esconde lo escrito sin querer). */
+  alCambiarEdicion?: (editando: boolean) => void;
 }
 
 /**
  * Nota interna del turno, dentro de la misma tarjeta: se ve si hay, y "Agregar nota" / "Editar nota" la abre en un
  * campo con contador, Guardar y Cancelar. La usa cualquier rol, en cualquier estado. El cliente nunca la ve.
  */
-export function NotaInterna({ nota, ocupada, alGuardar }: Props) {
+export function NotaInterna({ nota, ocupada, alGuardar, alCambiarEdicion }: Props) {
   const id = useId();
   const montado = useMontado();
   const cajaRef = useRef<HTMLDivElement>(null);
@@ -37,6 +39,7 @@ export function NotaInterna({ nota, ocupada, alGuardar }: Props) {
     setTexto(nota ?? '');
     setError(undefined);
     setEditando(true);
+    alCambiarEdicion?.(true);
     requestAnimationFrame(() => {
       const campo = cajaRef.current?.querySelector('textarea');
       if (!campo) return;
@@ -48,6 +51,7 @@ export function NotaInterna({ nota, ocupada, alGuardar }: Props) {
 
   const cerrar = () => {
     setEditando(false);
+    alCambiarEdicion?.(false);
     setError(undefined);
     enfocar('[data-abre="nota"]');
   };

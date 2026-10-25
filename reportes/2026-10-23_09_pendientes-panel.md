@@ -25,7 +25,7 @@ Detalles menores que encontraron los agentes de pruebas y que quedaron sin cambi
 - [ ] **Sello desactualizado:** cuando entra un turno nuevo del mismo cliente, el "Cliente frecuente · N turnos" de las tarjetas ya visibles no cambia hasta recargar.
 - [ ] **`normalizar-telefonos` cambia `updated_at`** de los turnos que completa (por el trigger). Documentado en el script.
 - [x] **Revisión visual de búsqueda, notas e historial:** probada en Edge a 390 px y 1280 px (2026-10-23). En el celular, la barra de secciones del panel hacía desplazar toda la página de costado: corregido en `admin.css`.
-- [ ] **Tarjetas de turno muy largas en el celular:** con todos los datos, la nota y los botones, cada tarjeta ocupa casi dos pantallas. Conviene una vista compacta (nombre, servicio, fecha y estado) que se expanda al tocarla.
+- [x] **Tarjetas de turno muy largas en el celular** (resuelto 2026-10-25: en Turnos arrancan plegadas por debajo de 760 px, con "Expandir todas"): con todos los datos, la nota y los botones, cada tarjeta ocupa casi dos pantallas. Conviene una vista compacta (nombre, servicio, fecha y estado) que se expanda al tocarla.
 
 ## Disponibilidad, seguimiento y recordatorios (objetivo 4)
 

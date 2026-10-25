@@ -4,10 +4,20 @@ import { type Rol } from '../api/contract-panel';
 import { SubrayadoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { ESPERA_BUSQUEDA_MS, consultaDe, interpretarBusqueda } from '../lib/busqueda';
+import {
+  PLEGADO_INICIAL,
+  alternar,
+  conMarca,
+  estaExpandida,
+  expandirTodas,
+  hayPlegadas,
+  plegarTodas,
+} from '../lib/plegado';
 import { DialogoEliminar } from './DialogoEliminar';
 import { DialogoHistorial } from './DialogoHistorial';
 import { ErrorCampo } from './ErroresFormulario';
 import { TarjetaTurno } from './TarjetaTurno';
+import { usePantallaAncha } from './usePantallaAncha';
 import { POR_PAGINA, esNueva, useTurnos, type Filtro } from './useTurnos';
 
 const FILTROS: readonly { valor: Filtro; texto: string }[] = [
@@ -62,10 +72,17 @@ export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
   const q = consultaDe(busqueda);
 
   // Una búsqueda nueva arranca en la primera página (se ajusta en el mismo render: no sale un pedido viejo).
+  // Tarjetas plegadas o abiertas, por id de turno: sobrevive a Actualizar, a cambiar de página y a guardar un cambio.
+  // Una pestaña o una búsqueda nueva vuelve a como arrancan (plegadas en el celular).
+  const ancha = usePantallaAncha();
+  const [plegado, setPlegado] = useState(PLEGADO_INICIAL);
+  const [conBorrador, setConBorrador] = useState<ReadonlySet<string>>(() => new Set());
+
   const [qDeLaPagina, setQDeLaPagina] = useState(q);
   if (qDeLaPagina !== q) {
     setQDeLaPagina(q);
     setPagina(0);
+    setPlegado(PLEGADO_INICIAL);
   }
 
   const [aEliminar, setAEliminar] = useState<Turno | null>(null);
@@ -105,6 +122,9 @@ export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
   const haySiguiente = datos ? (pagina + 1) * POR_PAGINA < datos.total : false;
   const buscado = q === undefined ? null : `«${q}»`;
   const errorBusqueda = t.errorBusqueda ?? (busqueda.tipo === 'larga' ? MENSAJE_BUSQUEDA : null);
+
+  const idsVisibles = datos ? datos.turnos.map((x) => x.id) : [];
+  const algunaPlegada = hayPlegadas(plegado, idsVisibles, ancha);
 
   const conteo = () => {
     if (!datos || datos.total === 0) return null;
@@ -180,6 +200,7 @@ export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
                   className={x.valor === filtro ? 'filtro seleccionado' : 'filtro'}
                   aria-pressed={x.valor === filtro}
                   onClick={() => {
+                    if (x.valor !== filtro) setPlegado(PLEGADO_INICIAL);
                     setFiltro(x.valor);
                     setPagina(0);
                   }}
@@ -198,6 +219,7 @@ export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
           </ul>
         </nav>
 
+        <div className="turnos__barra">
         <div className="panel__estado" aria-live="polite">
           {busqueda.tipo === 'corta' && (
             <p className="panel__conteo">Escribí al menos {BUSQUEDA.min} caracteres para buscar.</p>
@@ -207,6 +229,19 @@ export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
           {!cargando && buscado && datos?.total === 0 && (
             <p className="visualmente-oculto">No encontramos turnos para {buscado}</p>
           )}
+        </div>
+        {!cargando && idsVisibles.length > 0 && (
+          <button
+            type="button"
+            className="boton boton--fantasma boton--chico turnos__todas"
+            onClick={() => {
+              setPlegado((previo) => (algunaPlegada ? expandirTodas() : plegarTodas(previo, ancha, conBorrador)));
+            }}
+          >
+            <Icono nombre={algunaPlegada ? 'abajo' : 'arriba'} tamano={18} />
+            {algunaPlegada ? 'Expandir todas' : 'Plegar todas'}
+          </button>
+        )}
         </div>
 
         {cargando && (
@@ -288,6 +323,15 @@ export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
                 alVerHistorial={() => {
                   setHistorialDe(turno);
                   historialRef.current?.showModal();
+                }}
+                plegado={{
+                  expandida: estaExpandida(plegado, turno.id, ancha),
+                  alAlternar: () => {
+                    setPlegado((previo) => alternar(previo, turno.id, ancha));
+                  },
+                  alCambiarBorrador: (abierto) => {
+                    setConBorrador((previo) => conMarca(previo, turno.id, abierto));
+                  },
                 }}
               />
             ))}

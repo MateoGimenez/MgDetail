@@ -2490,3 +2490,207 @@
 .dia-especial-form__cupos {
   grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
 }
+
+/* ---------- Turnos: tarjetas plegables ----------
+   En el celular cada solicitud arranca como una fila compacta (nombre, sello, servicio, fecha de agenda y señales);
+   la cabecera es un botón real que la abre. En pantalla ancha arrancan abiertas. Plegar solo oculta el cuerpo
+   (no lo desmonta), así una nota o una fecha a medio elegir siguen ahí. */
+
+.turnos__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-1) var(--e-3);
+  margin-top: var(--e-4);
+}
+
+.turnos__barra .panel__estado {
+  margin-top: 0;
+}
+
+.turnos__todas {
+  min-height: 44px;
+  margin-left: auto;
+  margin-right: -10px;
+}
+
+.turno--plegable {
+  gap: 0;
+  padding: 0;
+}
+
+.turno__titulo {
+  margin: 0;
+  font: inherit;
+}
+
+.turno__resumen {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-height: 56px;
+  padding: 14px clamp(16px, 2.4vw, 24px);
+  border: 0;
+  border-radius: var(--radio-3);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.turno--plegable:not(.turno--plegada) .turno__resumen {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+@media (hover: hover) {
+  .turno__resumen:hover {
+    background: var(--fondo-hundido);
+  }
+}
+
+.turno__resumen:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
+}
+
+.turno__resumen .turno__cabeza {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.turno__estado-flecha {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+.turno__flecha {
+  flex: none;
+  color: var(--texto-3);
+}
+
+.turno--plegable:not(.turno--plegada) .turno__flecha {
+  transform: rotate(180deg);
+}
+
+.turno__breve {
+  display: grid;
+  gap: 8px;
+}
+
+.turno__breve-linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 0;
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  font-weight: 550;
+  line-height: 1.35;
+}
+
+.turno__breve-linea > * + *::before {
+  content: '·' / '';
+  margin-inline: 7px;
+  color: var(--texto-3);
+}
+
+.turno__breve-fecha {
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.turno__breve-pidio {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.turno__senales {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.senal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--fondo-hundido);
+  color: var(--texto-2);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.senal--frecuente {
+  border-color: rgb(165 12 38 / 0.3);
+  background: #fdeef0;
+  color: var(--acento-texto);
+}
+
+.senal--borrador {
+  border-color: rgb(138 82 0 / 0.35);
+  background: #fff4e0;
+  color: #8a5200;
+}
+
+.senal--error {
+  border-color: rgb(179 38 30 / 0.35);
+  background: #fdf0ef;
+  color: #a3221b;
+}
+
+/* Cuerpo: la fila de la grilla va de 0fr a 1fr (alto real, sin medir con JS). */
+.turno__cuerpo {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.turno--plegada .turno__cuerpo {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+
+.turno__cuerpo-recorte {
+  /* position: relative para que el recorte también contenga a lo posicionado de adentro (los labels
+     .visualmente-oculto son absolute): si no, se escapan del overflow y estiran la página con la tarjeta plegada. */
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.turno__cuerpo-contenido {
+  display: grid;
+  gap: var(--e-4);
+  padding: var(--e-1) clamp(16px, 2.4vw, 24px) clamp(16px, 2.4vw, 24px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .turno__cuerpo {
+    transition:
+      grid-template-rows 220ms var(--ease-salida),
+      visibility 0s linear 0s;
+  }
+
+  /* Al plegar, el contenido deja de verse (y de recibir foco) recién cuando termina de cerrarse. */
+  .turno--plegada .turno__cuerpo {
+    transition:
+      grid-template-rows 180ms var(--ease-salida),
+      visibility 0s linear 180ms;
+  }
+
+  .turno__flecha {
+    transition: transform var(--t-rapida) var(--ease-salida);
+  }
+}
