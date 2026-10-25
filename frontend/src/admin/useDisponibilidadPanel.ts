@@ -66,25 +66,29 @@ export function useDisponibilidadPanel(alVencerSesion: (mensaje: string) => void
     try {
       const horarioSemanal = await guardarHorarioSemanal(dias);
       cambiarDatos((datos) => ({ ...datos, horarioSemanal }));
-      setAviso('Se guardó el horario de la semana.');
+      setAviso('Se guardó el horario habitual.');
       return null;
     } catch (error) {
       return problemaDe(error, 'No se pudo guardar el horario.');
     }
   };
 
-  const guardarDia = async (fecha: string, cambio: CambioDiaEspecial): Promise<Problema | null> => {
+  /** `aviso`: lo que dice la región en vivo si sale bien (vacío = no cambia; la selección de varios días avisa al final). */
+  const guardarDia = async (fecha: string, cambio: CambioDiaEspecial, aviso = 'Se guardó el día.'): Promise<Problema | null> => {
     try {
       const dia = await guardarDiaEspecial(fecha, cambio);
       cambiarDatos((datos) => ({ ...datos, diasEspeciales: conDiaEspecial(datos.diasEspeciales, dia) }));
-      setAviso('Se guardó el día especial.');
+      if (aviso) setAviso(aviso);
       return null;
     } catch (error) {
       return problemaDe(error, 'No se pudo guardar el día.');
     }
   };
 
-  const quitarDia = async (fecha: string): Promise<Problema | null> => {
+  const quitarDia = async (
+    fecha: string,
+    aviso = 'Ese día volvió al horario habitual.',
+  ): Promise<Problema | null> => {
     try {
       await quitarDiaEspecial(fecha);
     } catch (error) {
@@ -92,7 +96,7 @@ export function useDisponibilidadPanel(alVencerSesion: (mensaje: string) => void
       if (!(error instanceof ApiError && error.status === 404)) return problemaDe(error, 'No se pudo quitar el día.');
     }
     cambiarDatos((datos) => ({ ...datos, diasEspeciales: datos.diasEspeciales.filter((d) => d.fecha !== fecha) }));
-    setAviso('Se quitó el día especial: ese día vuelve al horario de la semana.');
+    if (aviso) setAviso(aviso);
     return null;
   };
 
@@ -106,6 +110,7 @@ export function useDisponibilidadPanel(alVencerSesion: (mensaje: string) => void
     guardarHorario,
     guardarDia,
     quitarDia,
+    avisar: setAviso,
     recargar: () => {
       setRecarga((r) => r + 1);
     },

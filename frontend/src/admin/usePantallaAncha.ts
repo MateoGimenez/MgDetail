@@ -1,19 +1,25 @@
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 /** Mismo corte que admin.css: desde acá las tarjetas de Turnos arrancan abiertas (debajo, plegadas). */
 const CONSULTA = '(min-width: 760px)';
 
-function suscribir(avisar: () => void) {
-  const lista = window.matchMedia(CONSULTA);
-  lista.addEventListener('change', avisar);
-  return () => {
-    lista.removeEventListener('change', avisar);
-  };
+/** true mientras la media query se cumple (en el servidor o sin window, true: la vista ancha). */
+export function useConsulta(consulta: string): boolean {
+  const suscribir = useCallback(
+    (avisar: () => void) => {
+      const lista = window.matchMedia(consulta);
+      lista.addEventListener('change', avisar);
+      return () => {
+        lista.removeEventListener('change', avisar);
+      };
+    },
+    [consulta],
+  );
+  const ahora = useCallback(() => window.matchMedia(consulta).matches, [consulta]);
+  return useSyncExternalStore(suscribir, ahora, () => true);
 }
-
-const ahora = () => window.matchMedia(CONSULTA).matches;
 
 /** true en pantalla ancha (tablet apaisada, compu); false en el celular. */
 export function usePantallaAncha(): boolean {
-  return useSyncExternalStore(suscribir, ahora, () => true);
+  return useConsulta(CONSULTA);
 }

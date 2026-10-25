@@ -150,6 +150,8 @@
   --campo-borde: #b9c0c7;
   --campo-borde-hover: #8e969f;
   --filete: var(--rojo-600);
+  /* Fondo apenas rojo de lo elegido en "Elegir varios días" (el texto encima sigue en tinta). */
+  --acento-fondo: #fcecef;
 
   min-height: 100svh;
   background: var(--fondo);
@@ -2288,207 +2290,1106 @@
   color: var(--acento-texto);
 }
 
-/* ---------- Sección Disponibilidad ---------- */
+/* ---------- Sección Disponibilidad: calendario ----------
+   El mes de un vistazo, celular primero: a 390 px entran las siete columnas (≈47 px) con el número y dos rayitas por
+   día (mañana arriba, tarde abajo; cada segmento es un turno, lleno = ocupado). Cerrado se lee en el rayado, el
+   borde punteado y el número tachado, no solo en el color. En pantalla ancha el detalle va al costado. */
 
-.disponibilidad__bloque {
-  display: grid;
-  gap: var(--e-3);
-  margin-top: var(--e-6);
+.disponibilidad__esqueleto {
+  min-height: 420px;
+  margin-top: var(--e-5);
 }
 
-.horario {
+.disponibilidad__cuerpo {
   display: grid;
-  gap: var(--e-3);
+  gap: var(--e-5);
+  margin-top: var(--e-2);
 }
 
-.horario__lista,
-.horario--lectura {
+.disponibilidad__cuerpo--ancho {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+}
+
+.disponibilidad__mes {
   display: grid;
+  gap: var(--e-3);
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.disponibilidad__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2) var(--e-3);
+}
+
+/* "Elegir varios días" prendido: borde de tinta, como lo elegido */
+.disponibilidad__barra .boton[aria-pressed='true'] {
+  border-color: var(--texto);
+  box-shadow: inset 0 0 0 1px var(--texto);
+}
+
+.disponibilidad__navegacion {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+.disponibilidad__navegacion .boton-icono {
+  width: 44px;
+  height: 44px;
+}
+
+.disponibilidad__nombre-mes {
+  min-width: 8.5ch;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.4rem;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.disponibilidad__aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+  color: var(--texto);
+  font-size: 0.9375rem;
+}
+
+.disponibilidad__aviso .icono {
+  flex: none;
+  margin-top: 2px;
+  color: var(--acento-texto);
+}
+
+.boton-texto {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--acento-texto);
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.boton-texto:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+/* La grilla */
+.cal {
+  display: grid;
+  gap: 3px;
+  border-radius: var(--radio-2);
+}
+
+.cal:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 4px;
+}
+
+.cal__fila {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.cal__columna {
+  padding-block: 2px 4px;
+  color: var(--texto-3);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.cal__celda {
+  display: grid;
+  min-width: 0;
+}
+
+.cal__dia {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  min-height: 66px;
+  padding: 5px 4px 7px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--t-rapida),
+    box-shadow var(--t-rapida);
+}
+
+.cal__dia:hover {
+  border-color: var(--texto-3);
+}
+
+.cal__dia:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.cal__cabeza {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2px;
+}
+
+.cal__numero {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Cambiado a mano: rombo hueco del filete, chico, arriba a la derecha */
+.cal__mano {
+  width: 9px;
+  height: 9px;
+  margin-top: 2px;
+  fill: none;
+  stroke: var(--acento);
+  stroke-width: 1.8;
+}
+
+.cal__cuerpo {
+  display: grid;
+  align-content: end;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cal__feriado {
+  overflow: hidden;
+  color: var(--acento-texto);
+  /* Condensada: "Feriado" entra entero en la celda de 47 px del celular */
+  font-family: var(--f-display);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal__franja {
+  display: grid;
+  gap: 2px;
+}
+
+/* La cifra "Mañana 1/2" aparece cuando la celda tiene lugar (ver @container abajo). */
+.cal__cifra {
+  display: none;
+  justify-content: space-between;
+  gap: 4px;
+  color: var(--texto-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal__franja-nombre {
+  color: var(--texto-3);
+  font-weight: 600;
+}
+
+.cal__franja--completa .cal__cifra {
+  color: var(--texto);
+  font-weight: 750;
+}
+
+.cal__barra {
+  display: flex;
+  gap: 2px;
+  height: 5px;
+}
+
+.cal__lugar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1px var(--texto-3);
+}
+
+.cal__lugar--ocupado {
+  background: var(--texto);
+  box-shadow: none;
+}
+
+.cal__barra--continua {
+  overflow: hidden;
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1px var(--texto-3);
+}
+
+.cal__relleno {
+  height: 100%;
+  background: var(--texto);
+}
+
+.cal__barra--sin {
+  height: 0;
+  margin-block: 2px 3px;
+  border-top: 1.5px dashed var(--campo-borde);
+}
+
+.cal__cerrado {
+  display: none;
+  color: var(--texto-2);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+/* Cerrado: rayado, borde punteado y número tachado */
+.cal__dia--cerrado {
+  border-style: dashed;
+  border-color: var(--campo-borde);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--fondo-hundido) 0 5px,
+    var(--borde-suave) 5px 6px
+  );
+}
+
+.cal__dia--cerrado .cal__numero {
+  color: var(--texto-2);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.cal__dia--otro-mes .cal__numero {
+  color: var(--texto-3);
+  font-weight: 650;
+}
+
+/* Pasados: apagados, sin rayado de fondo que compita */
+.cal__dia--pasado {
+  border-color: var(--borde-suave);
+  background: var(--fondo-hundido);
+}
+
+.cal__dia--pasado .cal__numero,
+.cal__dia--pasado .cal__cifra {
+  color: var(--texto-3);
+}
+
+.cal__dia--pasado .cal__lugar--ocupado,
+.cal__dia--pasado .cal__relleno {
+  background: var(--texto-3);
+}
+
+.cal__dia--pasado .cal__lugar,
+.cal__dia--pasado .cal__barra--continua {
+  box-shadow: inset 0 0 0 1px var(--campo-borde);
+}
+
+/* Hoy: el número en chapa grafito (forma, no solo color), como en la agenda */
+.cal__dia--hoy .cal__numero {
+  margin: -1px 0 0 -1px;
+  padding: 2px 5px 1px;
+  border-radius: var(--radio-1);
+  background: var(--grafito-900);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+/* El día del detalle (pantalla ancha): borde de tinta y el filete debajo */
+.cal__dia--elegido {
+  border-style: solid;
+  border-color: var(--texto);
+  box-shadow: inset 0 0 0 1px var(--texto);
+}
+
+.cal__trazo {
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 26px;
+  height: 8px;
+  translate: -50% 0;
+}
+
+/* Elegir varios días: borde rojo, fondo apenas rojo y una tilde */
+.cal--varios .cal__dia[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.cal--varios .cal__dia--elegido {
+  border-color: var(--acento);
+  background: var(--acento-fondo);
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+
+.cal--varios .cal__dia--ancla {
+  box-shadow: inset 0 0 0 3px var(--acento);
+}
+
+.cal__tilde {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--acento);
+}
+
+.cal__tilde::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2.5px;
+  width: 4px;
+  height: 7px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  rotate: 45deg;
+}
+
+.cal--varios .cal__dia--elegido .cal__mano {
+  visibility: hidden;
+}
+
+@container (min-width: 520px) {
+  .cal,
+  .cal__fila {
+    gap: 6px;
+  }
+
+  .cal__dia {
+    min-height: 96px;
+    padding: 7px 8px 9px;
+  }
+
+  .cal__numero {
+    font-size: 1.35rem;
+  }
+
+  .cal__cifra {
+    display: flex;
+  }
+
+  .cal__cerrado {
+    display: block;
+  }
+
+  .cal__feriado {
+    font-size: 0.875rem;
+  }
+
+  .cal__tilde {
+    top: 7px;
+    right: 7px;
+  }
+}
+
+/* Referencias */
+.leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  color: var(--texto-2);
+  font-size: 0.8125rem;
+}
+
+.leyenda li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leyenda__muestra {
+  flex: none;
+}
+
+.leyenda__muestra--lugares {
+  display: flex;
+  gap: 2px;
+  width: 22px;
+  height: 5px;
+}
+
+.leyenda__muestra--cerrado {
+  width: 20px;
+  height: 14px;
+  border: 1px dashed var(--campo-borde);
+  border-radius: 3px;
+  background: repeating-linear-gradient(135deg, var(--fondo-hundido) 0 3px, var(--borde-suave) 3px 4px);
+}
+
+.leyenda__rombo {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: var(--acento);
+  stroke-width: 1.8;
+}
+
+/* Panel del costado (pantalla ancha) */
+.disponibilidad__lado {
+  position: sticky;
+  top: var(--e-4);
+  max-height: calc(100dvh - 2 * var(--e-4));
+  overflow-y: auto;
+  padding: var(--e-5);
   border: 1px solid var(--borde);
   border-radius: var(--radio-3);
   background: var(--superficie);
 }
 
-.horario__fila {
+/* Hoja del día (celular): sube desde abajo; desde 640 px es un diálogo centrado */
+.hoja-dia {
+  width: 100%;
+  max-width: 100%;
+  max-height: 90dvh;
+  margin: auto 0 0;
+  padding: 0;
+  overflow-y: auto;
+  border-bottom: 0;
+  border-radius: var(--radio-3) var(--radio-3) 0 0;
+}
+
+.hoja-dia__cuerpo {
+  padding: var(--e-4) var(--e-4) calc(var(--e-5) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 640px) {
+  .hoja-dia {
+    width: min(100vw - 32px, 520px);
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    border-bottom: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+  }
+
+  .hoja-dia__cuerpo {
+    padding: var(--e-5);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hoja-dia[open] {
+    animation: hoja-sube 260ms var(--ease-salida);
+  }
+
+  .interruptor__riel,
+  .interruptor__perilla {
+    transition:
+      background-color var(--t-rapida),
+      border-color var(--t-rapida),
+      translate var(--t-rapida) var(--ease-salida);
+  }
+
+  .plegable__flecha {
+    transition: rotate var(--t-rapida) var(--ease-salida);
+  }
+}
+
+@keyframes hoja-sube {
+  from {
+    translate: 0 32px;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+/* Detalle de un día */
+.detalle-dia {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--e-2) var(--e-4);
-  padding: 12px 16px;
+  gap: var(--e-4);
 }
 
-.horario__fila + .horario__fila {
-  border-top: 1px solid var(--borde-suave);
+.detalle-dia__cabeza {
+  display: grid;
+  gap: 8px;
 }
 
-.horario__fila--cerrada {
-  background: var(--fondo-hundido);
+.detalle-dia__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  line-height: 1.15;
 }
 
-.horario__dia {
-  align-self: center;
+.detalle-dia__titulo:focus {
+  outline: none;
+}
+
+.detalle-dia__titulo:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 3px;
+}
+
+.detalle-dia__marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detalle-dia__marcas:empty {
+  display: none;
+}
+
+.marca-dia {
+  padding: 2px 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  color: var(--texto-2);
+  font-size: 0.75rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
-.horario__abierto {
-  min-height: 44px;
+.marca-dia--hoy {
+  border-color: var(--grafito-900);
+  background: var(--grafito-900);
+  color: #ffffff;
 }
 
-.horario__cupo {
+.marca-dia--mano {
+  color: var(--acento-texto);
+}
+
+.marca-dia--cerrado {
+  border-style: dashed;
+}
+
+.detalle-dia__feriado {
+  font-weight: 650;
+}
+
+.detalle-dia__nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.detalle-dia__nota .icono {
+  flex: none;
+  margin-top: 3px;
+  color: var(--acento-texto);
+}
+
+.detalle-dia__ocupacion {
   display: grid;
-  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--e-3);
 }
 
-.horario__etiqueta {
+.detalle-dia__ocupacion dt {
   color: var(--texto-3);
   font-size: 0.8125rem;
   font-weight: 650;
 }
 
-.horario__entrada {
-  width: 6.5rem;
-  min-height: 44px;
+.detalle-dia__ocupacion dd {
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.horario__entrada:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+.detalle-dia__bloque {
+  display: grid;
+  gap: var(--e-2);
 }
 
-.horario__encabezado {
-  display: none;
+.detalle-dia__franjas {
+  display: grid;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
 }
 
-.horario__resumen {
-  align-self: center;
-  color: var(--texto-2);
-  font-variant-numeric: tabular-nums;
+.detalle-dia__franja {
+  display: grid;
+  gap: 4px;
+  padding: 4px 12px 12px;
 }
 
-.horario__resumen--cerrado {
+.detalle-dia__franja + .detalle-dia__franja {
+  border-top: 1px solid var(--borde-suave);
+}
+
+.detalle-dia__franja--apagada {
+  padding-bottom: 8px;
+  background: var(--fondo-hundido);
+}
+
+.detalle-dia__cupo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2) var(--e-3);
+}
+
+.detalle-dia__agendados {
   color: var(--texto-3);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.horario__acciones,
-.dia-especial__acciones {
+.detalle-dia__texto {
+  color: var(--texto-2);
+}
+
+.detalle-dia__acciones {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--e-2);
 }
 
-/* Desde 640 px: cada día en una fila de cuatro columnas, con los rótulos arriba una sola vez. */
-@media (min-width: 640px) {
-  .horario__encabezado {
-    display: grid;
-    grid-template-columns: 9rem 9rem 8rem 8rem;
-    gap: var(--e-4);
-    padding: 0 16px;
-    color: var(--texto-3);
-    font-size: 0.8125rem;
-    font-weight: 650;
-  }
-
-  .horario__lista .horario__fila {
-    grid-template-columns: 9rem 9rem 8rem 8rem;
-    align-items: center;
-    gap: var(--e-4);
-  }
-
-  .horario__lista .horario__etiqueta {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+.detalle-dia__habitual {
+  display: grid;
+  justify-items: start;
+  gap: var(--e-2);
+  padding-top: var(--e-4);
+  border-top: 1px solid var(--borde-suave);
+  color: var(--texto-2);
+  font-size: 0.9375rem;
 }
 
-.dias-especiales {
+/* Interruptor: perilla a la izquierda = no, a la derecha y riel rojo = sí; el texto de al lado lo dice igual */
+.interruptor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-1);
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.interruptor:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.interruptor:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.interruptor__etiqueta {
+  flex: 1;
+  min-width: 0;
+}
+
+.interruptor__estado {
+  color: var(--texto-2);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.interruptor__riel {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 28px;
+  border: 2px solid var(--texto-3);
+  border-radius: 999px;
+  background: var(--superficie);
+}
+
+.interruptor__perilla {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--texto-3);
+}
+
+.interruptor[aria-checked='true'] .interruptor__riel {
+  border-color: var(--acento);
+  background: var(--acento);
+}
+
+.interruptor[aria-checked='true'] .interruptor__perilla {
+  background: #ffffff;
+  translate: 18px 0;
+}
+
+.interruptor[aria-checked='true'] .interruptor__estado {
+  color: var(--texto);
+}
+
+/* Cupo con − y + */
+.pasos {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  border: 1px solid var(--campo-borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+}
+
+.pasos__boton {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.pasos__boton:hover:not(:disabled) {
+  background: var(--fondo-hundido);
+}
+
+.pasos__boton:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
+}
+
+.pasos__boton:disabled {
+  color: var(--texto-3);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pasos__valor {
+  min-width: 2.6ch;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Elegir varios días */
+.varios {
   display: grid;
   gap: var(--e-3);
-}
-
-.dia-especial {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
+  padding: var(--e-4);
   border: 1px solid var(--borde);
   border-radius: var(--radio-3);
   background: var(--superficie);
 }
 
-.dia-especial--cerrado {
-  border-style: dashed;
+.disponibilidad__lado .varios {
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
-.dia-especial__cabeza {
+.varios__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+
+.varios__modo {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.varios__opcion {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--campo-borde);
+  background: var(--superficie);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.varios__opcion:first-of-type {
+  border-radius: var(--radio-2) 0 0 var(--radio-2);
+}
+
+.varios__opcion:last-of-type {
+  margin-left: -1px;
+  border-radius: 0 var(--radio-2) var(--radio-2) 0;
+}
+
+.varios__opcion:has(input:checked) {
+  position: relative;
+  border-color: var(--texto);
+  box-shadow: inset 0 0 0 1px var(--texto);
+}
+
+.varios__opcion input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--texto);
+}
+
+.varios__modo:disabled .varios__opcion {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.varios__ayuda {
+  color: var(--texto-2);
+}
+
+.varios__resumen {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.varios__acciones {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--e-2) var(--e-3);
+  gap: var(--e-2);
 }
 
-.dia-especial__fecha {
-  font-weight: 700;
-  font-size: 1.0625rem;
+.varios__progreso {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
 }
 
-.dia-especial__feriado {
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--fondo);
-  color: var(--texto-2);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.varios__progreso progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--acento);
 }
 
-.dia-especial__detalle {
-  color: var(--texto-2);
+.varios__errores {
+  display: grid;
+  gap: 6px;
 }
 
-.dia-especial__nota {
+.varios__errores li {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  color: var(--texto);
+  color: var(--error);
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.dia-especial__nota .icono {
+.varios__errores .icono {
   flex: none;
   margin-top: 3px;
-  color: var(--acento-texto);
 }
 
-.dia-especial__semanal {
+/* Plegables: horario habitual y próximos cambios */
+.plegable {
+  margin-top: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+}
+
+.disponibilidad__cuerpo + .plegable {
+  margin-top: var(--e-6);
+}
+
+.plegable__titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  min-height: 56px;
+  padding: 0 var(--e-4);
+  border-radius: var(--radio-3);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  list-style: none;
+  cursor: pointer;
+}
+
+.plegable__titulo::-webkit-details-marker {
+  display: none;
+}
+
+.plegable__titulo:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.plegable__resumen {
+  margin-left: auto;
   color: var(--texto-3);
   font-size: 0.875rem;
-}
-
-.dia-especial__acciones {
-  margin-top: var(--e-2);
-}
-
-.dia-especial__pregunta {
   font-weight: 600;
 }
 
-.dia-especial-form {
-  margin-bottom: var(--e-2);
+.plegable__flecha {
+  flex: none;
+  color: var(--texto-2);
 }
 
-.dia-especial-form__fecha {
-  max-width: 17rem;
+.plegable[open] .plegable__flecha {
+  rotate: 180deg;
 }
 
-.dia-especial-form__cupos {
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+.plegable__cuerpo {
+  display: grid;
+  gap: var(--e-3);
+  padding: 0 var(--e-4) var(--e-4);
+}
+
+.plegable__cuerpo .usuarios__ayuda {
+  margin-top: 0;
+}
+
+/* Horario habitual: siete filas compactas */
+.habitual-form {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.habitual {
+  display: grid;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+}
+
+.habitual__fila {
+  display: grid;
+  gap: 4px;
+  padding: 4px 12px 10px;
+}
+
+.habitual__fila + .habitual__fila {
+  border-top: 1px solid var(--borde-suave);
+}
+
+.habitual__fila--cerrada {
+  padding-bottom: 4px;
+  background: var(--fondo-hundido);
+}
+
+.habitual__cupos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2) var(--e-5);
+}
+
+.habitual__cupo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.habitual__etiqueta {
+  min-width: 4rem;
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+/* Solo lectura: día y resumen en una línea */
+.habitual__dia {
+  font-weight: 700;
+}
+
+.habitual__resumen {
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.habitual--lectura .habitual__fila {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--e-2);
+  padding: 12px;
+}
+
+@media (min-width: 720px) {
+  .habitual-form .habitual__fila {
+    grid-template-columns: 16rem minmax(0, 1fr);
+    align-items: center;
+    gap: var(--e-5);
+    padding-block: 6px;
+  }
+
+  .habitual__cupos {
+    flex-wrap: nowrap;
+  }
+}
+
+/* Próximos cambios */
+.proximos {
+  display: grid;
+}
+
+.proximos__dia {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 8px;
+  border: 0;
+  border-top: 1px solid var(--borde-suave);
+  border-radius: 0;
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proximos > li:first-child .proximos__dia {
+  border-top: 0;
+}
+
+.proximos__dia:hover {
+  background: var(--fondo-hundido);
+}
+
+.proximos__dia:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
+}
+
+.proximos__fecha {
+  font-weight: 650;
+}
+
+.proximos__detalle {
+  color: var(--texto-2);
+  font-size: 0.875rem;
 }
 
 /* ---------- Turnos: tarjetas plegables ----------

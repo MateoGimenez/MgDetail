@@ -33,7 +33,8 @@ Detalles menores que encontraron los agentes de pruebas y que quedaron sin cambi
 - [ ] **Recordatorio por WhatsApp duplicado:** si el envío sale bien pero falla la marca en la base, la próxima corrida lo vuelve a mandar (el email lo evita con la Idempotency-Key de Resend; WhatsApp no tiene algo igual).
 - [ ] **Ocupados de la agenda:** el front los cuenta con los turnos que muestra, no con `ocupadosManana`/`ocupadosTarde` del backend; se desalinearía si la agenda algún día filtra turnos.
 - [ ] **Agenda con días pasados:** muestra "0/2" también en los días que ya pasaron; podría ocultarse el cupo ahí.
-- [ ] **Días especiales largos en el celular:** con los 15 feriados precargados, la lista ocupa varias pantallas; podría agruparse por mes o plegar los lejanos.
+- [x] **Días especiales largos en el celular** (resuelto 2026-10-25: Disponibilidad pasó a ser un calendario mensual): con los 15 feriados precargados, la lista ocupa varias pantallas; podría agruparse por mes o plegar los lejanos.
+- [ ] **"Elegir varios días" en el celular:** después de marcar los días hay que bajar para tocar "Cerrar N días"; podría ir en una barra fija abajo.
 - [ ] **Tests de componentes del frontend:** son de lógica pura (no hay testing-library); el selector de días, el 409 y la página de seguimiento se verificaron con capturas, no con tests renderizados.
 - [ ] **Tests del backend bajo carga:** con muchos workers, los primeros tests pueden pasar el timeout de 20 s al arrancar PGlite; `npx vitest run --maxWorkers=4` lo evita.
 - [ ] **Activar los recordatorios:** cuenta de Resend (dominio verificado), plantilla de WhatsApp en Meta ({{1}} servicio, {{2}} día, {{3}} franja), `CRON_SECRET` y el cron diario a las 18:00 de La Rioja cuando la web esté publicada.
