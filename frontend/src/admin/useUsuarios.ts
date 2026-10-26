@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { actualizarUsuario, crearUsuario, eliminarUsuario, listarUsuarios } from '../api/admin';
 import { ApiError, esAbortado } from '../api/client';
 import { esSesionPerdida } from '../api/sesion';
+import { avisoDeCambioUsuario, quienEs } from '../lib/avisosUsuario';
+import { useAvisos } from './toast/contexto';
 import type { CambiosUsuario, NuevoUsuario, UsuarioPanel } from '../api/contract-panel';
 
 type Resultado =
@@ -23,6 +25,7 @@ const conCambio = (conjunto: ReadonlySet<string>, id: string, activo: boolean) =
 
 /** Usuarios del panel (solo superadmin): lista, alta, cambios y baja. */
 export function useUsuarios(alVencerSesion: (mensaje: string) => void) {
+  const avisos = useAvisos();
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [ocupados, setOcupados] = useState<ReadonlySet<string>>(new Set());
@@ -70,6 +73,7 @@ export function useUsuarios(alVencerSesion: (mensaje: string) => void) {
     setErrores((previos) => Object.fromEntries(Object.entries(previos).filter(([id]) => id !== usuario.id)));
     try {
       reemplazar(await actualizarUsuario(usuario.id, cambios));
+      avisos.exito(avisoDeCambioUsuario(usuario, cambios));
       return true;
     } catch (error) {
       const problema = problemaDe(error, 'No se pudo guardar el cambio.');
@@ -90,6 +94,7 @@ export function useUsuarios(alVencerSesion: (mensaje: string) => void) {
     setErrores((previos) => Object.fromEntries(Object.entries(previos).filter(([id]) => id !== usuario.id)));
     try {
       reemplazar(await actualizarUsuario(usuario.id, cambios));
+      avisos.exito(avisoDeCambioUsuario(usuario, cambios));
       return null;
     } catch (error) {
       recargarSiFueDelServidor(error);
@@ -102,6 +107,7 @@ export function useUsuarios(alVencerSesion: (mensaje: string) => void) {
     try {
       const creado = await crearUsuario(datos);
       cambiarLista((usuarios) => [...usuarios.filter((u) => u.id !== creado.id), creado]);
+      avisos.exito(`Creaste el usuario de ${quienEs(creado)}.`);
       return null;
     } catch (error) {
       recargarSiFueDelServidor(error);
@@ -119,6 +125,7 @@ export function useUsuarios(alVencerSesion: (mensaje: string) => void) {
       }
     }
     cambiarLista((usuarios) => usuarios.filter((u) => u.id !== usuario.id));
+    avisos.exito(`Eliminaste a ${quienEs(usuario)}.`);
     return null;
   };
 

@@ -14,6 +14,11 @@ beforeAll(() => {
   dist = mkdtempSync(path.join(tmpdir(), 'mg-dist-'));
   mkdirSync(path.join(dist, 'assets'));
   mkdirSync(path.join(dist, 'fotos'));
+  mkdirSync(path.join(dist, 'admin'));
+  writeFileSync(path.join(dist, 'admin', 'sw.js'), 'self.addEventListener("push", () => {});');
+  writeFileSync(path.join(dist, 'admin', 'manifest.webmanifest'), '{"name":"MgDetailing · Panel"}');
+  writeFileSync(path.join(dist, 'admin', 'sin-conexion.html'), '<!doctype html><p>Sin conexión</p>');
+  writeFileSync(path.join(dist, 'admin', 'sin-conexion.css'), 'body{margin:0}');
   writeFileSync(path.join(dist, 'fotos', 'taller.jpg'), 'no-es-un-jpg-real');
   writeFileSync(path.join(dist, 'index.html'), '<!doctype html><html><body><div id="root">SPA</div></body></html>');
   writeFileSync(path.join(dist, 'assets', 'app.abc123.js'), 'console.log("app");');
@@ -44,6 +49,42 @@ describe('SERVE_FRONTEND=true', () => {
       const privada = url.startsWith('/admin') || url.startsWith('/turno/');
       expect(response.headers['x-robots-tag'], url).toBe(privada ? 'noindex, nofollow' : undefined);
     }
+  });
+
+  it('la app instalable del panel: sw.js sin caché y como JavaScript, el manifest con su tipo, ambos antes de la SPA', async () => {
+    const { app } = await frontendApp();
+
+    const sw = await request(app).get('/admin/sw.js');
+    expect(sw.status).toBe(200);
+    expect(sw.headers['content-type']).toMatch(/^text\/javascript/);
+    expect(sw.headers['cache-control']).toBe('no-cache');
+    expect(sw.headers['service-worker-allowed']).toBe('/admin');
+    expect(sw.text).toContain('addEventListener');
+    // El manifest y el resto de /admin no llevan ese header.
+    expect((await request(app).get('/admin/manifest.webmanifest')).headers['service-worker-allowed']).toBeUndefined();
+    expect(sw.text).not.toContain('id="root"');
+
+    const manifest = await request(app).get('/admin/manifest.webmanifest');
+    expect(manifest.status).toBe(200);
+    expect(manifest.headers['content-type']).toMatch(/^application\/manifest\+json/);
+    expect(manifest.body).toEqual({ name: 'MgDetailing · Panel' });
+
+    const offline = await request(app).get('/admin/sin-conexion.html');
+    expect(offline.status).toBe(200);
+    expect(offline.headers['content-type']).toMatch(/text\/html/);
+    expect(offline.text).toContain('Sin conexión');
+
+    // Su estilo es un archivo propio (nada inline): style-src 'self' alcanza, y se revalida siempre.
+    const estilo = await request(app).get('/admin/sin-conexion.css');
+    expect(estilo.status).toBe(200);
+    expect(estilo.headers['content-type']).toMatch(/^text\/css/);
+    expect(estilo.headers['cache-control']).not.toMatch(/immutable/);
+    expect(sw.headers['x-content-type-options']).toBe('nosniff');
+
+    // Las rutas del panel siguen cayendo en la SPA; un archivo que no existe, en 404.
+    expect((await request(app).get('/admin/turnos')).text).toContain('id="root"');
+    expect((await request(app).get('/admin')).text).toContain('id="root"');
+    expect((await request(app).get('/admin/viejo.js')).status).toBe(404);
   });
 
   it('los archivos de /assets se sirven con caché larga e inmutable', async () => {
@@ -148,6 +189,8 @@ describe('SERVE_FRONTEND=true', () => {
         "img-src 'self' data:",
         "connect-src 'self'",
         "frame-src 'none'",
+        "worker-src 'self'",
+        "manifest-src 'self'",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",

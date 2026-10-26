@@ -1,11 +1,30 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import compression from 'compression';
-import express, { type Express } from 'express';
+import express, { type Express, type Response } from 'express';
 import { isApiPath } from './security.js';
 
 /** Carpetas que solo tienen archivos del build: nunca son rutas de la SPA. */
 const isStaticFolderPath = (urlPath: string): boolean => /^\/(?:assets|fotos|marca)(?:\/|$)/i.test(urlPath);
+
+/**
+ * Cabeceras de los dos archivos de la app instalable del panel (public/admin/ del frontend, copiados a dist/admin/):
+ *  - sw.js: el navegador tiene que revisar el service worker en cada visita (no-cache) para actualizarlo, y exige un
+ *    Content-Type de JavaScript;
+ *  - manifest.webmanifest: application/manifest+json.
+ * El resto de public/admin (sin-conexion.html, íconos) usa la revalidación de siempre.
+ */
+function adminAssetHeaders(res: Response, filePath: string): void {
+  const name = path.basename(filePath);
+  if (name === 'sw.js') {
+    res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    // Sin esto el worker (que vive en /admin/) solo controla /admin/...: no la ruta exacta /admin, el start_url de la app.
+    res.setHeader('Service-Worker-Allowed', '/admin');
+  } else if (name === 'manifest.webmanifest') {
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+  }
+}
 
 /**
  * Sirve el build del frontend (../frontend/dist) como estáticos, con fallback SPA a index.html para
@@ -30,6 +49,12 @@ export function mountFrontend(app: Express, distPath: string): void {
   );
   // Las fotos NO llevan hash: 7 días de caché. Al reemplazar una foto hay que cambiarle el nombre.
   app.use('/fotos', express.static(path.join(distPath, 'fotos'), { index: false, redirect: false, maxAge: '7d' }));
+  // Los archivos de la app instalable del panel (/admin/sw.js, /admin/manifest.webmanifest, /admin/sin-conexion.html)
+  // se sirven ANTES del fallback de la SPA. Una ruta del panel (/admin, /admin/turnos) no es un archivo: sigue de largo.
+  app.use(
+    '/admin',
+    express.static(path.join(distPath, 'admin'), { index: false, redirect: false, maxAge: 0, setHeaders: adminAssetHeaders }),
+  );
   // El resto (favicon, imágenes, etc.) se revalida siempre.
   app.use(express.static(distPath, { index: false, redirect: false, maxAge: 0 }));
 

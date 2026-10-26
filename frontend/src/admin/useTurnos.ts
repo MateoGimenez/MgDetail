@@ -3,7 +3,9 @@ import { actualizarTurno, contarTurnos, eliminarTurno, listarTurnos } from '../a
 import { ApiError, esAbortado } from '../api/client';
 import { esSesionPerdida } from '../api/sesion';
 import type { CambiosTurno, Estado, Turno } from '../api/contract';
+import { avisoDeCambio, avisoDeEliminacion } from '../lib/avisosTurno';
 import { conLoMasNuevo } from '../lib/turnos';
+import { useAvisos } from './toast/contexto';
 import type { Problema } from './useUsuarios';
 
 export const POR_PAGINA = 20;
@@ -63,6 +65,7 @@ export function useTurnos(
   q: string | undefined,
   alVencerSesion: (mensaje: string) => void,
 ) {
+  const avisos = useAvisos();
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [pendientes, setPendientes] = useState<number | null>(null);
@@ -136,6 +139,7 @@ export function useTurnos(
       });
       setCambiadas((c) => conCambio(c, turno.id, true));
       setConteo((n) => n + 1);
+      avisos.exito(avisoDeCambio(turno, cambios));
       return null;
     } catch (error) {
       if (esSesionPerdida(error)) {
@@ -161,6 +165,7 @@ export function useTurnos(
       }
       return error instanceof Error ? error.message : 'No se pudo eliminar la solicitud.';
     }
+    avisos.exito(avisoDeEliminacion(turno));
     setResultado((previo) => {
       if (!previo || !('turnos' in previo)) return previo;
       const restaba = filtro === 'todas' || turno.estado === filtro ? 1 : 0;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ServicioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
+import { EsqueletoServicios } from './Esqueleto';
 import { DialogoServicio, type EdicionServicio } from './DialogoServicio';
 import { FilaServicio } from './FilaServicio';
 import { idBajar, idSubir, mensajeActivo, type Catalogo } from './useServicios';
@@ -82,18 +83,11 @@ export function VistaServicios({ catalogo: c, editable }: Props) {
               : activos === 0
                 ? 'ninguno activo: la web avisa que por ahora no hay turnos online'
                 : `${String(activos)} ${activos === 1 ? 'activo' : 'activos'} en la web`}
-            {c.aviso && <span className="servicios-panel__aviso"> · {c.aviso}</span>}
           </p>
         )}
       </div>
 
-      {c.cargando && (
-        <ul className="turnos" aria-hidden="true">
-          {[0, 1, 2].map((n) => (
-            <li key={n} className="turno turno--esqueleto servicio--esqueleto" />
-          ))}
-        </ul>
-      )}
+      {c.cargando && <EsqueletoServicios />}
 
       {c.error && (
         <div className="panel__error" role="alert">

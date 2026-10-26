@@ -41,9 +41,18 @@ Detalles menores que encontraron los agentes de pruebas y que quedaron sin cambi
 
 ## Modo claro (objetivo 5)
 
-- [ ] **Borde de los campos en el modo oscuro** (`#3a4047` sobre `#0f1214`) da 1,79:1, por debajo del 3:1 de WCAG. Es de antes del modo claro; no se tocó porque el oscuro tenía que quedar igual.
-- [ ] **`DESIGN.md`** no documenta la paleta clara.
+- [x] **Borde de los campos en el modo oscuro** (resuelto 2026-10-26: `--campo-borde` de `#3a4047` a `#6f777f`, 3,5 a 4,1:1) y en el panel claro (`#b9c0c7` a `#7b838c` solo en `.panel .entrada`, 3,8:1).
+- [x] **`DESIGN.md`** documenta la paleta clara (resuelto 2026-10-26).
 - [ ] **Botón de tema en el celular:** está solo dentro del menú (en la barra no entra a 360 px). Confirmar que alcanza.
+
+## Pulido del panel y app instalable (objetivo 6)
+
+- [ ] **"Hoy" a medianoche:** `useHoy` calcula "hoy" una sola vez; con el panel abierto pasada la medianoche sigue mostrando el día anterior hasta tocar "Actualizar".
+- [ ] **Rotación de claves VAPID:** una suscripción hecha con una clave vieja puede recibir 401/403 del servicio de push; cuenta como "fallida" y no se borra hasta que el panel la reconfirme.
+- [ ] **Esqueletos y toasts en un navegador real:** no se vieron renderizados los esqueletos sin saltos ni el apilado del toast sobre la barra fija de "Elegir varios días".
+- [ ] **Prueba real del aviso push** (necesita https, claves VAPID reales y un celular): los tests usan un sender falso. Probar en Android (Chrome) y en iPhone con la app instalada.
+- [ ] **Alcance `/admin` por prefijo:** el scope del manifest y del service worker también cubriría `/adminXYZ`; el handler lo filtra, sin efecto práctico.
+- [x] **Celular compartido** (resuelto 2026-10-26): el dispositivo recuerda quién activó los avisos; si entra otra persona (por ejemplo, porque venció la sesión de la primera sin tocar "Salir"), se libera en lugar de pasarle los avisos.
 
 ## Supabase
 

@@ -25,6 +25,8 @@ export const PG_SCHEMA = 'mgdetailing';
 const REQUIRED_TABLES = ['servicios', 'bookings', 'roles', 'perfiles'] as const;
 /** Lo que agrega la migración disponibilidad_seguimiento (tablas y la columna del recordatorio). */
 const DISPONIBILIDAD_TABLES = ['horario_semanal', 'dias_especiales'] as const;
+/** Lo que agrega la migración push_suscripciones (avisos push al celular). */
+const PUSH_COLUMNS = ['perfil_id', 'endpoint', 'p256dh', 'auth', 'agente', 'ultimo_aviso_at'] as const;
 /** Columnas que agrega la migración catalogo_editable (las que lee el repositorio de servicios). */
 const CATALOGO_COLUMNS = ['resumen', 'descripcion', 'incluye', 'glosario', 'destacado'] as const;
 /** Columnas que agrega la migración agenda_fecha_confirmada (las que lee el repositorio de turnos). */
@@ -234,6 +236,21 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     throw new Error(
       `Faltan objetos de la migración de disponibilidad en mgdetailing (${missingDisponibilidad.join(', ')}). ` +
         'Aplicá la migración disponibilidad_seguimiento de backend/supabase/migrations/ (ver README, "Migraciones").',
+    );
+  }
+
+  // Avisos push (migración push_suscripciones): la tabla de dispositivos.
+  const pushColumns = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = 'push_suscripciones' AND column_name = ANY($2::text[])`,
+    [PG_SCHEMA, PUSH_COLUMNS],
+  );
+  const presentPush = new Set(pushColumns.rows.map((row) => row.column_name));
+  const missingPush = PUSH_COLUMNS.filter((column) => !presentPush.has(column));
+  if (missingPush.length > 0) {
+    throw new Error(
+      `Faltan objetos de la migración de avisos push en mgdetailing (push_suscripciones: ${missingPush.join(', ')}). ` +
+        'Aplicá la migración push_suscripciones de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
   }
 

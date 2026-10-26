@@ -26,7 +26,9 @@ import { CalendarioMes } from './CalendarioMes';
 import { DetalleDia } from './DetalleDia';
 import { useMontado } from './dialogo';
 import { Contador, ErrorCampo } from './ErroresFormulario';
+import { EsqueletoCalendario } from './Esqueleto';
 import { HorarioHabitual } from './HorarioHabitual';
+import { useAvisos } from './toast/contexto';
 import { useDisponibilidadPanel } from './useDisponibilidadPanel';
 import { useOcupadosDelMes } from './useOcupadosDelMes';
 import { useConsulta } from './usePantallaAncha';
@@ -72,6 +74,7 @@ interface Progreso {
  */
 export function VistaDisponibilidad({ editable, alVencerSesion }: Props) {
   const d = useDisponibilidadPanel(alVencerSesion);
+  const avisos = useAvisos();
   const [hoy] = useState(() => hoyEnLaRioja(new Date()));
   const ancha = useConsulta(CONSULTA_ANCHA);
   const montado = useMontado();
@@ -198,10 +201,10 @@ export function VistaDisponibilidad({ editable, alVencerSesion }: Props) {
     setProgreso({ tipo, total: elegidas.length, hechos, errores, terminado: true });
     // Quedan elegidos solo los que fallaron, para reintentar.
     setSeleccion({ fechas: new Set(fallados), ancla: null });
-    d.avisar(
-      `${tipo === 'cerrar' ? 'Se cerraron' : 'Se abrieron'} ${dias(bien)}.` +
-        (fallados.length > 0 ? ` ${dias(fallados.length)} no se pudieron guardar: siguen elegidos para reintentar.` : ''),
-    );
+    if (bien > 0) avisos.exito(`${tipo === 'cerrar' ? 'Se cerraron' : 'Se abrieron'} ${dias(bien)}.`);
+    if (fallados.length > 0) {
+      avisos.error(`${dias(fallados.length)} no se pudieron guardar: siguen elegidos para reintentar.`);
+    }
   };
 
   const elegidoEstado = fuentes ? estadoDelDia(elegido, fuentes) : null;
@@ -401,10 +404,9 @@ export function VistaDisponibilidad({ editable, alVencerSesion }: Props) {
 
       <div className="panel__estado" aria-live="polite">
         {d.cargando && <p>Cargando la disponibilidad…</p>}
-        {!d.cargando && d.aviso && <p className="panel__conteo">{d.aviso}</p>}
       </div>
 
-      {d.cargando && <div className="turno turno--esqueleto disponibilidad__esqueleto" aria-hidden="true" />}
+      {d.cargando && <EsqueletoCalendario ancha={ancha} />}
 
       {d.error && (
         <div className="panel__error" role="alert">

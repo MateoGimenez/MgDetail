@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { UsuarioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { DialogoCuenta, DialogoEliminarUsuario, DialogoNuevoUsuario, type EdicionCuenta } from './DialogosUsuario';
+import { EsqueletoUsuarios } from './Esqueleto';
 import { FilaUsuario } from './FilaUsuario';
 import { useUsuarios } from './useUsuarios';
 
@@ -96,6 +97,8 @@ export function VistaUsuarios({ idPropio, alVencerSesion }: Props) {
       <div className="panel__estado" aria-live="polite">
         {u.cargando && <p>Cargando usuarios…</p>}
       </div>
+
+      {u.cargando && <EsqueletoUsuarios />}
 
       {u.error && (
         <div className="panel__error" role="alert">

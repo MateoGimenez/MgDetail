@@ -4,7 +4,9 @@ import { ApiError, esAbortado } from '../api/client';
 import type { CambiosTurno, CupoDia, Turno } from '../api/contract';
 import { esSesionPerdida } from '../api/sesion';
 import { sumarDias } from '../lib/fechas';
+import { avisoDeCambio, avisoDeEliminacion } from '../lib/avisosTurno';
 import { conLoMasNuevo } from '../lib/turnos';
+import { useAvisos } from './toast/contexto';
 import type { Problema } from './useUsuarios';
 
 type Resultado = { clave: string; turnos: Turno[]; cupos: CupoDia[] | null } | { clave: string; error: string };
@@ -25,6 +27,7 @@ const sinClave = (registro: Readonly<Record<string, string>>, id: string) =>
  * abierto lo sigue mostrando) y la grilla lo deja afuera al agrupar. Si la sesión se pierde avisa con `alVencerSesion`.
  */
 export function useAgenda(lunes: string, alVencerSesion: (mensaje: string) => void) {
+  const avisos = useAvisos();
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [ocupadas, setOcupadas] = useState<ReadonlySet<string>>(new Set());
@@ -72,6 +75,7 @@ export function useAgenda(lunes: string, alVencerSesion: (mensaje: string) => vo
     try {
       reemplazar(await actualizarTurno(turno.id, cambios));
       setCambiadas((c) => conCambio(c, turno.id, true));
+      avisos.exito(avisoDeCambio(turno, cambios));
       return null;
     } catch (error) {
       if (esSesionPerdida(error)) {
@@ -97,6 +101,7 @@ export function useAgenda(lunes: string, alVencerSesion: (mensaje: string) => vo
       }
       return error instanceof Error ? error.message : 'No se pudo eliminar la solicitud.';
     }
+    avisos.exito(avisoDeEliminacion(turno));
     setResultado((previo) =>
       previo && 'turnos' in previo ? { ...previo, turnos: previo.turnos.filter((t) => t.id !== turno.id) } : previo,
     );

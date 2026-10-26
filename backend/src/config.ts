@@ -45,6 +45,19 @@ export interface RecordatoriosConfig {
 }
 
 /**
+ * Avisos push al celular cuando entra un turno nuevo (contrato: reportes/2026-10-26_13_panel-pulido-y-app.md).
+ * Las tres claves van juntas (npm run vapid las genera). `privateKey` es un SECRETO: nunca se loguea ni sale del servidor.
+ */
+export interface PushConfig {
+  /** Clave pública VAPID (base64url, punto P-256 sin comprimir de 65 bytes). El navegador la usa para suscribirse. */
+  publicKey: string;
+  /** Clave privada VAPID (base64url, 32 bytes). */
+  privateKey: string;
+  /** Contacto del servidor para los servicios de push: mailto: o https:. */
+  subject: string;
+}
+
+/**
  * Base de datos: Postgres en Supabase (único motor).
  * `connection` tiene la contraseña: no se loguea nunca; para mostrar está `label`.
  */
@@ -117,6 +130,8 @@ export interface AppConfig {
   };
   whatsapp: WhatsappConfig;
   recordatorios: RecordatoriosConfig;
+  /** Avisos push (VAPID). undefined = apagados: el backend no manda push y el panel no ofrece el interruptor. */
+  push: PushConfig | undefined;
   /** Origen público del sitio (sin barra final), para el link al panel en los avisos. */
   publicUrl: string | undefined;
   /** Avisos para mostrar al arrancar (ej.: variables que ya no se usan). */
@@ -285,6 +300,28 @@ const whatsappPhoneSchema = z
  * Remitente del recordatorio por email: `turnos@dominio` o `Nombre <turnos@dominio>` (el dominio verificado en
  * Resend). Sin saltos de línea ni caracteres de control (va en una cabecera del email).
  */
+/** Clave pública VAPID: 65 bytes en base64url (87 caracteres), un punto P-256 sin comprimir (empieza con 0x04). */
+export function isVapidPublicKey(value: string): boolean {
+  return /^[A-Za-z0-9_-]{87}$/.test(value) && Buffer.from(value, 'base64url')[0] === 0x04;
+}
+
+/** Clave privada VAPID: 32 bytes en base64url (43 caracteres). */
+export function isVapidPrivateKey(value: string): boolean {
+  return /^[A-Za-z0-9_-]{43}$/.test(value);
+}
+
+/** Contacto VAPID (RFC 8292): mailto:alguien@dominio o una URL https. */
+export function isVapidSubject(value: string): boolean {
+  if (/\s/.test(value)) return false;
+  if (/^mailto:[^@\s,;?]+@[^@\s,;?]+\.[^@\s,;?]+$/i.test(value)) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname !== '' && url.username === '' && url.password === '';
+  } catch {
+    return false;
+  }
+}
+
 const emailFromSchema = z.string().transform((raw, ctx): string => {
   const value = raw.trim();
   const fail = () => {
@@ -370,6 +407,24 @@ const envSchema = z.object({
     z.string().trim().regex(/^re_[A-Za-z0-9_-]{10,200}$/, { error: 'no parece una API key de Resend (empieza con re_)' }),
   ),
   RECORDATORIO_EMAIL_DESDE: optionalEnv(emailFromSchema),
+  // Los mensajes de error nunca repiten el valor (la privada es un secreto).
+  VAPID_PUBLIC_KEY: optionalEnv(
+    z.string().trim().refine(isVapidPublicKey, {
+      error: 'no parece una clave pública VAPID (base64url de 65 bytes). Generá el par con: npm run vapid',
+    }),
+  ),
+  VAPID_PRIVATE_KEY: optionalEnv(
+    z.string().trim().refine(isVapidPrivateKey, {
+      error: 'no parece una clave privada VAPID (base64url de 32 bytes). Generá el par con: npm run vapid',
+    }),
+  ),
+  VAPID_SUBJECT: optionalEnv(
+    z
+      .string()
+      .trim()
+      .max(200, { error: 'es demasiado larga' })
+      .refine(isVapidSubject, { error: 'tiene que ser mailto:tu@email o una URL https:// (sin espacios)' }),
+  ),
   SERVE_FRONTEND: optionalEnv(
     z
       .string()
@@ -720,6 +775,7 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
   }
 
   const recordatorios = recordatoriosFromValues(values, isProduction, problems, warnings);
+  const push = pushFromValues(values, problems);
 
   const database = databaseResult.database;
   if (problems.length > 0 || values === undefined || database === undefined || supabase === undefined) {
@@ -763,6 +819,7 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     rateLimits: DEFAULT_RATE_LIMITS,
     whatsapp,
     recordatorios,
+    push,
     publicUrl: values.PUBLIC_URL,
     warnings,
   };
@@ -822,6 +879,33 @@ function recordatoriosFromValues(
     );
   }
   return { cronSecret, email, whatsapp };
+}
+
+/**
+ * Avisos push (opcionales): las tres variables VAPID juntas o ninguna. Si falta alguna es un error de configuración
+ * (en cualquier entorno: una clave sin su par no sirve para nada y es una señal de que algo quedó a medias).
+ */
+function pushFromValues(values: z.output<typeof envSchema> | undefined, problems: string[]): PushConfig | undefined {
+  if (values === undefined) return undefined;
+  const { VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: privateKey, VAPID_SUBJECT: subject } = values;
+  if (publicKey !== undefined && privateKey !== undefined && subject !== undefined) {
+    return { publicKey, privateKey, subject };
+  }
+  const faltan = [
+    ['VAPID_PUBLIC_KEY', publicKey],
+    ['VAPID_PRIVATE_KEY', privateKey],
+    ['VAPID_SUBJECT', subject],
+  ]
+    .filter(([, valor]) => valor === undefined)
+    .map(([nombre]) => nombre);
+  // Con las tres vacías no hay nada que avisar: los avisos push quedan apagados.
+  if (faltan.length < 3) {
+    problems.push(
+      `VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY y VAPID_SUBJECT: van las tres juntas o ninguna (falta ${faltan.join(', ')}). ` +
+        'Generá el par con: npm run vapid (ver README, "Avisos push").',
+    );
+  }
+  return undefined;
 }
 
 /** Carga el .env y valida process.env. Es lo que usa el servidor al arrancar. */

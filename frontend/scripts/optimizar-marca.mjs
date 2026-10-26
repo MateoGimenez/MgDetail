@@ -60,4 +60,25 @@ const base = await monograma.png().toBuffer();
 await guardar(sharp(base).resize(180, 180).png({ compressionLevel: 9 }), 'apple-touch-icon.png');
 await guardar(sharp(base).resize(48, 48).png({ compressionLevel: 9 }), 'favicon-48.png');
 
+// Íconos de la app instalable del panel (/admin), sobre el fondo oscuro de la marca.
+// "any": el logo ocupa todo el cuadro; "maskable": queda dentro del 80 % central (zona segura
+// que ningún sistema recorta) y el fondo llega hasta los bordes.
+// Se parte del avatar cuadrado (logo completo, fondo transparente): el cuadro se ve igual que en la web.
+const monogramaApp = await sharp(origen('MgDetailing-avatar-3D-1080.png')).flatten({ background: '#0b0d10' }).png().toBuffer();
+// El avatar ya trae su propio fondo con viñeta casi negra: el margen del maskable repite sus bordes
+// (sin franjas ni cuadro visible).
+const iconoApp = async (lado, proporcion) => {
+  const interior = Math.round(lado * proporcion);
+  const imagen = sharp(monogramaApp).resize(interior, interior);
+  if (interior === lado) return imagen.png({ compressionLevel: 9 });
+  const margen = lado - interior;
+  const bajo = Math.floor(margen / 2);
+  return sharp(await imagen.png().toBuffer())
+    .extend({ top: bajo, bottom: margen - bajo, left: bajo, right: margen - bajo, extendWith: 'copy' })
+    .png({ compressionLevel: 9 });
+};
+await guardar(await iconoApp(192, 1), 'app-192.png');
+await guardar(await iconoApp(512, 1), 'app-512.png');
+await guardar(await iconoApp(512, 0.8), 'app-maskable-512.png');
+
 console.log(salidas.join('\n'));

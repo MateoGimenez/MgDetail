@@ -9,6 +9,7 @@ API REST de MgDetailing, taller de detailing de autos en La Rioja, Argentina. Ha
 5. Arma la **agenda** del panel: qué turnos hay cada día y franja (`GET /api/admin/agenda`), con la **fecha y franja confirmadas** por el taller cuando difieren de las que pidió el cliente.
 6. Guarda **notas internas** por turno (el cliente nunca las ve), **busca** turnos por nombre, email, vehículo o teléfono y arma el **historial del cliente** (sus turnos, por teléfono normalizado).
 7. Maneja la **disponibilidad real** (horario semanal, días especiales y cupos por franja: el formulario solo acepta días y franjas con lugar), el **seguimiento** público del turno (`/turno/<id>`) y los **recordatorios** del día anterior por email (Resend) y/o WhatsApp Cloud, que dispara un cron. Contrato: `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md`.
+8. Manda **avisos push** al celular de quienes los activaron en el panel cuando entra un turno nuevo (sin datos personales en el aviso). Contrato: `reportes/2026-10-26_13_panel-pulido-y-app.md`, bloque A.
 
 Stack: Node 24 + TypeScript (strict, ESM) + Express 5, **Postgres en Supabase** (driver `pg`) como único motor, **Supabase Auth** (API REST de GoTrue, sin `supabase-js`), zod, helmet, cors, express-rate-limit, jose (verificación de los JWT contra el JWKS del proyecto). Los tests usan PGlite (Postgres en memoria).
 
@@ -23,6 +24,7 @@ Stack: Node 24 + TypeScript (strict, ESM) + Express 5, **Postgres en Supabase** 
 - [Contrato de la API](#contrato-de-la-api)
 - [Avisos por WhatsApp](#avisos-por-whatsapp)
 - [Recordatorios](#recordatorios)
+- [Avisos push](#avisos-push)
 - [Operación](#operación)
 - [Seguridad](#seguridad)
 - [Estructura del proyecto](#estructura-del-proyecto)
@@ -77,6 +79,8 @@ Copiá `.env.example` a `.env` (está ignorado por git; nunca subas uno con secr
 | `CRON_SECRET` | (vacía) | **Secreto** del cron de recordatorios: `Authorization: Bearer <CRON_SECRET>` en `POST /api/internal/recordatorios`. Mínimo 32 caracteres imprimibles sin espacios. Sin ella el endpoint responde `404`. Ver [Recordatorios](#recordatorios). |
 | `RESEND_API_KEY`, `RECORDATORIO_EMAIL_DESDE` | (vacías) | Recordatorio por **email con Resend**. Van juntas: la API key (`re_...`, **secreto**) y el remitente del dominio verificado (`turnos@dominio` o `Nombre <turnos@dominio>`). |
 | `WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO` | (vacía) | Recordatorio por **WhatsApp Cloud**: nombre de la plantilla aprobada (tres variables). Usa `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID` y `WHATSAPP_CLOUD_LANGUAGE` aunque `WHATSAPP_PROVIDER` no sea `cloud`. |
+
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | (vacías) | **Avisos push** al celular. Las **tres juntas o ninguna** (con una o dos el servidor no arranca, también en desarrollo). Las genera `npm run vapid`. La privada es un **secreto** (nunca se loguea ni sale del servidor); `VAPID_SUBJECT` es `mailto:tu@email` o una URL `https://`. Sin ellas los avisos quedan apagados sin errores. Ver [Avisos push](#avisos-push). |
 
 Un canal de recordatorios a medio configurar (falta una de sus variables) es un aviso en desarrollo y un error en producción, como los proveedores de avisos. También se avisa si hay `CRON_SECRET` sin ningún canal, o un canal sin `CRON_SECRET`.
 
@@ -153,6 +157,7 @@ erDiagram
     servicios ||--o{ bookings : "servicio_id (FK, RESTRICT)"
     auth_users ||--|| perfiles : "id (FK, ON DELETE CASCADE)"
     roles ||--o{ perfiles : "rol_id (FK, RESTRICT)"
+    perfiles ||--o{ push_suscripciones : "perfil_id (FK, ON DELETE CASCADE)"
     auth_users ||--o{ auth_sessions : "user_id (Supabase Auth)"
 
     servicios {
@@ -220,6 +225,16 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+    push_suscripciones {
+        uuid id PK "gen_random_uuid()"
+        uuid perfil_id FK "dueño del dispositivo"
+        text endpoint UK "https, servicio de push conocido, hasta 2048"
+        text p256dh "clave del navegador (base64url)"
+        text auth "secreto de la suscripción (base64url)"
+        text agente "nullable, hasta 120"
+        timestamptz created_at
+        timestamptz ultimo_aviso_at "nullable"
+    }
     auth_users {
         uuid id PK "esquema auth (Supabase)"
         text email
@@ -239,6 +254,7 @@ erDiagram
 | `dias_especiales` | La excepción, gana sobre el horario semanal: una fecha cerrada (feriado, vacaciones) o abierta con sus cupos. Sembrada con los feriados inamovibles de lo que queda de 2026 y de 2027 más el 23/11/2026 (Soberanía, trasladable, "a confirmar"), todos cerrados y con motivo que empieza con `Feriado: `. | PK `fecha`; CHECK `dias_especiales_cupos` (abierto con los dos cupos, cerrado con los dos en null), cupos 0 a 20, `motivo` 1 a 80; trigger `updated_at`. |
 | `roles` | Los 3 roles del panel (sembrados por migración). Los permisos de cada rol los aplica el backend (`domain/permisos.ts`). | PK `id` (slug). |
 | `perfiles` | Un perfil por usuario de Supabase Auth: rol y si puede entrar. Lo crea el trigger de `auth.users`; se borra en cascada con el usuario. | PK/FK `id -> auth.users ON DELETE CASCADE`; FK `rol_id -> roles` con índice; CHECK de email en minúsculas y largo de nombre; trigger `updated_at`; trigger `perfiles_al_menos_un_superadmin`. |
+| `push_suscripciones` | Dispositivos de las personas del panel que activaron los avisos push (ver [Avisos push](#avisos-push)). `endpoint`, `p256dh` y `auth` son secretos de capacidad: quien los tiene puede mandarle avisos a ese aparato. | PK `id`; FK `perfil_id -> perfiles ON DELETE CASCADE`; `endpoint` único (CHECK: `https`, de 12 a 2048); CHECK de formato base64url en `p256dh` y `auth` y de largo en `agente` (≤ 120); índice `(perfil_id, created_at)` para la FK y el tope de 10 por persona. RLS con policies solo para `mgdetailing_app`; GRANT `SELECT`, `DELETE`, `INSERT` por columna y `UPDATE (ultimo_aviso_at)`. |
 
 Funciones y triggers (migración `perfiles_roles_supabase_auth`):
 
@@ -262,6 +278,7 @@ Decisiones:
 - Todo vive en los esquemas **`mgdetailing`** y **`mgdetailing_private`**, que **no** están entre los expuestos por la Data API (PostgREST/GraphQL publican `public` y `graphql_public`; un pedido con `Accept-Profile: mgdetailing` responde `PGRST106`). La web **nunca** habla con Supabase: ni `supabase-js`, ni claves en el frontend. El único cliente de la base y de Supabase Auth es este backend.
 - **Rol dedicado `mgdetailing_app`** (migración `rol_app_minimo_privilegio`): el backend se conecta con él, **no** con `postgres`. Puede solo lo que el backend hace: `SELECT` en `roles`; `SELECT` en `servicios`, `INSERT` por columna (todas salvo `created_at`) y `UPDATE` por columna (los campos editables, `orden` y `updated_at`; nunca `id` ni `created_at`), sin `DELETE`, y `EXECUTE` de las dos funciones de validación del catálogo; `SELECT/INSERT/DELETE` en `bookings` y `UPDATE` solo de `estado`, `updated_at`, `fecha_confirmada`, `franja_confirmada`, `notas_internas` y `telefono_whatsapp` (nunca los datos del cliente ni el pedido original), y `EXECUTE` de `mgdetailing.texto_busqueda`; `SELECT` en `perfiles` y `UPDATE` solo de `rol_id`, `activo`, `nombre` y `updated_at` (sin `INSERT` ni `DELETE`: los hace el trigger / la cascada); `EXECUTE` solo de `mgdetailing_private.sesion_vigente`. Sin DDL, sin `TRUNCATE`, sin `BYPASSRLS`, sin acceso a `auth`, `storage` ni `public`. Topes de sesión: `statement_timeout` 10 s, `lock_timeout` 5 s, `idle_in_transaction_session_timeout` 30 s. Se crea **NOLOGIN y sin contraseña** (no hay secretos en el repo): el dueño le pone la contraseña (ver [Conectar Supabase](#conectar-supabase)). Si el backend arranca conectado con un rol privilegiado (`postgres`), lo avisa en el log.
 - Desde la migración `disponibilidad_seguimiento`, además: `SELECT` en `horario_semanal` y `dias_especiales`, `UPDATE (abierto, cupo_manana, cupo_tarde)` del horario (sin `INSERT` ni `DELETE`: las 7 filas son fijas), `INSERT`/`UPDATE (abierto, cupos, motivo)`/`DELETE` de días especiales y `UPDATE (recordatorio_enviado_at)` en `bookings`.
+- Desde la migración `push_suscripciones`, además: `SELECT`/`DELETE` en `push_suscripciones`, `INSERT (perfil_id, endpoint, p256dh, auth, agente)` y `UPDATE (ultimo_aviso_at)`. Reasignar un dispositivo a otra persona es borrar y crear la fila (no hay `UPDATE` de `perfil_id`).
 - **RLS habilitado en las 6 tablas** (`horario_semanal` y `dias_especiales` incluidas), con policies **solo para `mgdetailing_app`** (`USING (true)`: el backend es un único cliente de confianza que ve todas las filas; la autorización por usuario y por rol la hace la API con la sesión del panel). `anon`, `authenticated` y `service_role` no tienen ni privilegios ni policies: aunque alguien expusiera el esquema por error, no verían una fila. `postgres` (dueño de las tablas, con `BYPASSRLS`) queda para migraciones y backups.
 - **`REVOKE` de todo** (tablas, secuencias, funciones y el `USAGE` del esquema) a `public`, `anon`, `authenticated` y `service_role`, y privilegios por defecto revocados para lo que se cree después en el esquema. Un test lo comprueba en PGlite (incluso haciendo `SET ROLE anon`).
 - Advisors de Supabase (security y performance) después de aplicar: security sin avisos; performance solo con el INFO esperado *unused index* (la base está vacía; se usan en cuanto haya turnos). La migración `endurecer_rls_auto_enable` revocó el `EXECUTE` de `public.rls_auto_enable()` (una función de Supabase que ya venía en el proyecto, del event trigger que activa RLS en tablas nuevas de `public`) a `anon`/`authenticated`, que el linter marcaba como WARN.
@@ -280,6 +297,7 @@ Decisiones:
 - **`20261023120000_agenda_fecha_confirmada` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-22_08_agenda.md`). Agrega `fecha_confirmada` y `franja_confirmada` (nullable) a `bookings` con sus CHECK (franja válida; las dos juntas), el índice parcial `bookings_agenda_idx` y `GRANT UPDATE (fecha_confirmada, franja_confirmada)` a `mgdetailing_app`. Columnas nullable sin default: no reescribe la tabla. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan columnas en mgdetailing.bookings"); aplicala (después de `catalogo_editable`) antes de desplegar y corré los advisors.
 - **`20261023180000_notas_telefono_cliente` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-23_10_notas-busqueda-historial.md`). Agrega `notas_internas` y `telefono_whatsapp` (nullable, con CHECK) a `bookings`, el índice parcial `bookings_telefono_whatsapp_idx`, la función `mgdetailing.texto_busqueda` (con `EXECUTE` solo para `mgdetailing_app`) y `GRANT UPDATE (notas_internas, telefono_whatsapp)` a `mgdetailing_app`. Columnas nullable sin default: no reescribe la tabla. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de notas"). Orden: aplicar la migración (después de `agenda_fecha_confirmada`), desplegar el backend, correr **`npm run normalizar-telefonos`** una vez (completa `telefono_whatsapp` en los turnos existentes; se puede repetir sin riesgo) y los advisors.
 - **`20261023200000_disponibilidad_seguimiento` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md`). Crea `horario_semanal` (7 filas) y `dias_especiales` (15 feriados) con RLS y policies solo para `mgdetailing_app`, agrega `bookings.recordatorio_enviado_at` (nullable, sin reescribir la tabla), hace que el trigger de `updated_at` de `bookings` no corra cuando cambia la marca del recordatorio (marcarlo no es un cambio del turno: el cliente ve "actualizado el") y da a `mgdetailing_app` `SELECT` en las dos tablas, `UPDATE (abierto, cupo_manana, cupo_tarde)` en el horario, `INSERT`/`UPDATE (abierto, cupos, motivo)`/`DELETE` en los días especiales y `UPDATE (recordatorio_enviado_at)` en `bookings`. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de disponibilidad"). Orden: después de `notas_telefono_cliente`, antes de desplegar; después, los advisors. **Al aplicarla, el formulario empieza a rechazar domingos, feriados y franjas con 2 turnos**: revisá antes el horario y los cupos con el dueño.
+- **`20261026120000_push_suscripciones` (2026-10-26): PENDIENTE de aplicar en Supabase, con aprobación del dueño** (contrato `reportes/2026-10-26_13_panel-pulido-y-app.md`, bloque A). Crea `push_suscripciones` (tabla nueva y vacía: no reescribe nada) con RLS, policies solo para `mgdetailing_app`, CHECK de formato y los GRANT de arriba. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de avisos push"). Orden: después de `disponibilidad_seguimiento`, antes de desplegar; después, los advisors (se espera el INFO *unused index* en `push_suscripciones_perfil_idx` hasta que haya dispositivos).
 - Los servicios ya **no** se agregan por migración ni en el código: se crean desde el panel.
 
 ### Backups (Supabase)
@@ -729,6 +747,23 @@ Quita el día especial (vuelve al horario semanal). `204`; `404 NOT_FOUND` si no
 
 `Authorization: Bearer <CRON_SECRET>` y `Content-Type: application/json` (sin body). `200 { "enviados", "fallidos", "sinCanal" }`. Sin `CRON_SECRET` configurada => `404` (como una ruta inexistente); con la variable y sin cabecera, otro esquema u otro secreto => `401 UNAUTHORIZED` (*"No autorizado."*, con `WWW-Authenticate: Bearer`). Ver [Recordatorios](#recordatorios).
 
+### `GET /api/admin/push/estado` (requiere sesión; todos los roles)
+
+`200 { "disponible": boolean, "clavePublica": string | null }`. `disponible` es `false` (y `clavePublica` `null`) si faltan las claves VAPID: el panel no ofrece el interruptor de avisos. `clavePublica` es la que usa `PushManager.subscribe` (`applicationServerKey`). Ver [Avisos push](#avisos-push).
+
+### `POST /api/admin/push/suscripciones` (requiere sesión; todos los roles)
+
+Body: la forma de `PushSubscription.toJSON()`: `{ "endpoint", "keys": { "p256dh", "auth" }, "agente"? }` (`expirationTime`, que manda el navegador, se acepta y se ignora; cualquier otro campo => `400`). `201 { "ok": true }`.
+
+- `endpoint`: `https`, hasta 2048 caracteres y de un servicio de push conocido (`fcm.googleapis.com`, `updates.push.services.mozilla.com`, `*.notify.windows.com`, `web.push.apple.com`, `*.push.apple.com`; sin credenciales ni puerto distinto de 443). Otro host => `400 VALIDATION_ERROR` con `fields.endpoint` (así el servidor nunca le hace un pedido a una dirección arbitraria).
+- `keys.p256dh` (80 a 100) y `keys.auth` (16 a 32): base64url. `agente` (opcional): 1 a 120 caracteres, sin caracteres de control, solo para que la persona reconozca el aparato.
+- Si el endpoint ya existía (también de otra persona: mismo aparato, otra persona), la fila se reemplaza y queda atada a quien está logueado. Máximo **10 dispositivos por persona**: al pasar, se descartan los más viejos.
+- Sin claves VAPID => `404 NOT_FOUND`. Sin sesión => `401`.
+
+### `DELETE /api/admin/push/suscripciones` (requiere sesión; todos los roles)
+
+Body `{ "endpoint" }` => `204`, también si no existía (y también con los avisos apagados: cerrar sesión no puede fallar por esto). Borra el dispositivo con ese endpoint, sea de quien sea: el endpoint es una URL imposible de adivinar y, si otra persona usó el mismo aparato, el que cierra sesión tiene que poder dejarlo sin avisos.
+
 ### `DELETE /api/admin/bookings/:id` (requiere sesión; solo `admin` y `superadmin`)
 
 `204` sin body. `404 NOT_FOUND` si no existe. `403 FORBIDDEN` para `empleado` (*"Con tu rol no podés borrar turnos."*). Exige `Content-Type: application/json` aunque no lleve body.
@@ -920,6 +955,36 @@ Si el backend tiene varias instancias, el cron se programa **una sola vez** (no 
 - **WhatsApp**: cuenta de WhatsApp Business en Meta (la misma de la Opción 2 de avisos), número registrado, token permanente de System User y la plantilla de recordatorio aprobada (`WHATSAPP_CLOUD_TEMPLATE_RECORDATORIO`). Meta cobra cada plantilla enviada.
 - **Cron**: `CRON_SECRET` en el servidor y el job (opción A o B), cuando la web esté publicada.
 
+## Avisos push
+
+Cuando entra un turno nuevo por el formulario público, las personas del panel que activaron los avisos en su celular reciben una notificación (contrato: `reportes/2026-10-26_13_panel-pulido-y-app.md`, bloque A). Van **además** de Telegram/CallMeBot/Cloud, no en lugar de.
+
+- **Qué dice**: título "Turno nuevo", cuerpo `<servicio> · <día corto> · <franja>` (ej.: "Lavado Premium · jue 29/10 · Mañana"), `pendientes` (cantidad de turnos pendientes, para el globito del ícono) y `url: "/admin"`. **Nunca** nombre, teléfono, email, vehículo ni comentario.
+- **Quién los recibe**: cada dispositivo suscripto (`POST /api/admin/push/suscripciones`) de una persona **activa**. Si se desactiva al usuario, deja de recibirlos en el acto (el envío filtra por `perfiles.activo`); si se lo elimina, sus dispositivos se borran en cascada. Cualquier rol puede suscribirse.
+- **Envío** (`src/services/push.ts`, cliente en `src/notifications/push.ts` con la librería `web-push`): después de guardar el turno, sin esperar (nunca demora ni rompe la respuesta al cliente). Todos los dispositivos en paralelo, con tope de 5 s cada uno. Un `404`/`410` del servicio de push borra esa suscripción; cualquier otro error solo se cuenta. El honeypot y los pedidos rechazados no disparan avisos. El cliente de envío se inyecta (`createApp({ pushSender })`): los tests nunca tocan la red.
+- **Seguridad**: el endpoint se valida contra una lista de servicios de push **al guardar y otra vez antes de enviar** (anti SSRF); `web-push` no sigue redirecciones. Los logs llevan solo cantidades (`Aviso push: enviados=2 caducados=1 fallidos=0`), nunca endpoints, claves de la suscripción ni VAPID. `GET /api/admin/push/estado` publica solo la clave pública. La clave privada VAPID no sale del servidor.
+- **Apagado sin errores**: sin las tres variables VAPID no se manda nada, `estado` dice `disponible: false` y `POST /suscripciones` responde `404`.
+
+### Activarlos (lo que necesita el dueño)
+
+1. En `backend/`: `npm run vapid:dev` (o `npm run vapid` después de `npm run build`). Imprime tres líneas; no escribe archivos ni las registra:
+
+   ```
+   VAPID_PUBLIC_KEY=...
+   VAPID_PRIVATE_KEY=...
+   VAPID_SUBJECT=mailto:tu-email@ejemplo.com
+   ```
+
+2. Pegalas en `backend/.env` (y en el entorno del servidor en producción), cambiá `VAPID_SUBJECT` por tu email (`mailto:`) o la URL del sitio (`https://`) y reiniciá. Al arrancar el log dice `Avisos push activados`.
+3. Aplicar la migración `20261026120000_push_suscripciones` en Supabase (ver [Migraciones](#migraciones-postgres)).
+4. En el celular: abrir el panel en `https` (o `localhost`), instalar la app y activar "Avisarme de turnos nuevos". En iPhone los avisos solo funcionan con la app instalada en la pantalla de inicio (iOS 16.4 o más).
+
+Si se vuelve a correr `npm run vapid` y se cambia el par, los dispositivos ya suscriptos dejan de recibir hasta que se suscriban otra vez (la suscripción queda atada a la clave pública).
+
+### Hosting del panel como app
+
+Con `SERVE_FRONTEND=true` (`middleware/frontend.ts`, `middleware/security.ts`): la CSP de la web lleva `worker-src 'self'` y `manifest-src 'self'` (la de `/api` sigue siendo `default-src 'none'`); `/admin/sw.js` se sirve como `text/javascript` con `Cache-Control: no-cache` (el navegador revisa el service worker en cada visita) y `Service-Worker-Allowed: /admin` (así controla también la ruta exacta `/admin`, el `start_url`); `/admin/manifest.webmanifest` como `application/manifest+json`; y los estáticos de `public/admin/*` (copiados a `dist/admin/`, p. ej. `sin-conexion.html`) se sirven **antes** del fallback de la SPA. Las rutas del panel (`/admin`, `/admin/turnos`) siguen cayendo en `index.html`.
+
 ## Operación
 
 ### Despliegue objetivo
@@ -950,6 +1015,7 @@ Con mismo origen no hay CORS de por medio, las cookies `SameSite=Strict` funcion
 | `DATABASE_URL` | La cadena del Session pooler con la contraseña, en el gestor de secretos de la plataforma (nunca en el repo). |
 | `DATABASE_SSL_CA_FILE` | Ruta al certificado raíz de Supabase (obligatoria). |
 | `SERVE_FRONTEND` | `true` para el despliegue de un solo proceso. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Opcionales: avisos push al celular (`npm run vapid` genera el par). La privada es un secreto: solo en el entorno del servidor. |
 
 ### Límites conocidos
 
@@ -1004,14 +1070,14 @@ backend/
     domain/             tipos del negocio, reglas (permisos por rol) e interfaces async de los repositorios
     repositories/       fábrica de repositorios
       postgres/         implementación Postgres (turnos, perfiles, servicios; SQL con $1...)
-    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno, agenda y reprogramación, catálogo, disponibilidad, recordatorios)
+    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno, agenda y reprogramación, catálogo, disponibilidad, recordatorios, avisos push)
     routes/             rutas HTTP (health, bookings, servicios, auth, admin/bookings, admin/agenda, admin/usuarios, admin/servicios, disponibilidad, turnos (seguimiento), admin/disponibilidad, internal (recordatorios))
     notifications/      avisos de WhatsApp al dueño (CallMeBot, Cloud API) y formato del mensaje; recordatorios a clientes (Resend, Cloud API)
     middleware/         seguridad, CSRF, rate limit, errores, logger, estáticos
     schemas/            validación de entrada con zod
     db/                 database.ts (abre la base), postgres.ts (pool, TLS, verificación del esquema), rows.ts
     lib/                utilidades: errores, logger, fechas, cookies, cliente de Supabase Auth, verificación de JWT
-    scripts/            clave-db (contraseña del rol mgdetailing_app), normalizar-telefonos (telefono_whatsapp de turnos viejos)
+    scripts/            clave-db (contraseña del rol mgdetailing_app), normalizar-telefonos (telefono_whatsapp de turnos viejos), vapid (claves de los avisos push)
   supabase/migrations/  migraciones de Postgres (fuente de verdad del esquema en Supabase)
   test/                 vitest + supertest (Postgres en memoria con PGlite y un Supabase Auth falso)
 ```
@@ -1024,6 +1090,7 @@ backend/
 | `npm run build` | Compila a `dist/` con `tsc`. |
 | `npm start` | `node dist/index.js`. |
 | `npm run clave-db:dev` / `npm run clave-db` | Genera la contraseña del rol `mgdetailing_app` y el `ALTER ROLE` con hash SCRAM para pegar en Supabase. |
+| `npm run vapid:dev` / `npm run vapid` | Imprime un par de claves VAPID nuevo (con `VAPID_SUBJECT` de ejemplo) listo para pegar en `.env`, para los [avisos push](#avisos-push). No escribe archivos. |
 | `npm run normalizar-telefonos:dev` / `npm run normalizar-telefonos` (después de `npm run build`) | Completa `telefono_whatsapp` en los turnos que no lo tienen (una vez, después de aplicar la migración `notas_telefono_cliente`; idempotente). Imprime solo cantidades. |
 | `npm test` | Tests (vitest + supertest). |
 | `npm run typecheck` | `tsc --noEmit`. |
@@ -1041,6 +1108,9 @@ Los tests usan un reloj fijo, **PGlite** (Postgres compilado a WebAssembly, en m
 - `servicios.test.ts`: API del catálogo (público y panel con los campos exactos, permisos por rol con `empleado` 403, validaciones 400, id reservado, caracteres de control, `409 SERVICIO_EXISTE`, 404, destacado único, orden, CSRF en `PUT`) y turnos contra la base (servicio inactivo, nuevo o renombrado).
 - `disponibilidad.test.ts`: cálculo de cupos; `GET /api/disponibilidad` (campos exactos, domingo cerrado por defecto, feriado sembrado cerrado, rango y formato); alta con día cerrado (400), franja llena y cupo 0 (409 `FRANJA_LLENA`), día especial abierto que pisa al domingo, feriado quitado, último lugar con dos altas simultáneas (entra una), lock de la fecha antes de contar, cancelado que no ocupa, reprogramado que libera y ocupa (y el panel que sí puede llenar o usar un día cerrado), honeypot; panel (lista exacta de feriados, lunes a domingo, roles, validaciones); seguimiento (campos exactos, sin datos personales, 404 uniforme, rate limit propio); GRANT y CHECK de la migración.
 - `recordatorios.test.ts`: 404 sin `CRON_SECRET`, 401 con secreto incorrecto, CSRF, envío por Resend y Cloud (cabeceras, body, plantilla), idempotencia, solo confirmados de mañana por fecha de agenda, fallo que no marca y se reintenta, un canal que falla y otro que anda, sin canal, reprogramar limpia la marca, marcar no cambia `updated_at`, dos corridas a la vez, log sin datos personales.
+
+- `push.test.ts`: lista permitida de endpoints (anti SSRF), estado con y sin claves, alta válida e inválida (host no permitido, http, base64 malo, campos de más), todos los roles, 401 sin sesión, CSRF, reasignación entre usuarios, tope de 10, baja idempotente, cascade al borrar el perfil, permisos de la tabla, envío (payload exacto sin datos personales, solo usuarios activos, `pendientes`, 404/410 borra, fallos y colgados que no rompen el alta ni los otros envíos, tope de tiempo, sin claves no envía, honeypot) y el cliente real `web-push` con la red simulada.
+- `vapid.test.ts`: el par generado y el formato de `npm run vapid`. `config.test.ts` cubre las tres variables VAPID juntas o ninguna; `frontend.test.ts`, `worker-src`/`manifest-src` y los headers de `/admin/sw.js` y `/admin/manifest.webmanifest`.
 
 `createTestContext` abre por defecto los 7 días con 20 cupos y quita los días especiales (`disponibilidad: 'libre'`), para que los tests anteriores al objetivo 4 sigan probando lo suyo; los de disponibilidad usan `disponibilidad: 'fabrica'` (la base tal como la deja la migración).
 

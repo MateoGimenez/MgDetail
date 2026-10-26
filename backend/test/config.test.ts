@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { ConfigError, DEFAULT_RATE_LIMITS, loadDotEnv, parseConfig as parseRaw } from '../src/config.js';
+import { generarClavesVapid } from '../src/scripts/vapid-cli.js';
 
 // Certificado CA "de mentira": la config solo verifica que el archivo exista.
 const caDirectory = mkdtempSync(path.join(tmpdir(), 'mg-ca-'));
@@ -426,5 +427,52 @@ describe('recordatorios', () => {
     expect(parseConfig({ CRON_SECRET: SECRETO }).warnings.join('\n')).toContain('no hay ningún canal');
     expect(parseConfig({ ...EMAIL }).warnings.join('\n')).toContain('falta CRON_SECRET');
     expect(parseConfig({ CRON_SECRET: SECRETO }).warnings.join('\n')).not.toContain(SECRETO);
+  });
+});
+
+describe('avisos push (VAPID)', () => {
+  const par = generarClavesVapid();
+  const VAPID = { VAPID_PUBLIC_KEY: par.publicKey, VAPID_PRIVATE_KEY: par.privateKey, VAPID_SUBJECT: 'mailto:dueno@mgdetailing.com.ar' };
+
+  it('por defecto: apagados y sin avisos de configuración', () => {
+    const config = parseConfig({});
+    expect(config.push).toBeUndefined();
+    expect(config.warnings).toEqual([]);
+  });
+
+  it('con las tres variables queda activado (mailto: o https:)', () => {
+    expect(parseConfig(VAPID).push).toEqual({
+      publicKey: par.publicKey,
+      privateKey: par.privateKey,
+      subject: 'mailto:dueno@mgdetailing.com.ar',
+    });
+    expect(parseConfig({ ...VAPID, VAPID_SUBJECT: 'https://mgdetailing.com.ar' }).push?.subject).toBe('https://mgdetailing.com.ar');
+  });
+
+  it('las tres juntas o ninguna: con una o dos falla (también en desarrollo) y no repite la clave privada', () => {
+    for (const parcial of [
+      { VAPID_PUBLIC_KEY: VAPID.VAPID_PUBLIC_KEY },
+      { VAPID_PRIVATE_KEY: VAPID.VAPID_PRIVATE_KEY },
+      { VAPID_SUBJECT: VAPID.VAPID_SUBJECT },
+      { VAPID_PUBLIC_KEY: VAPID.VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY: VAPID.VAPID_PRIVATE_KEY },
+    ]) {
+      const message = problemsOf(parcial);
+      expect(message, JSON.stringify(Object.keys(parcial))).toMatch(/VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY y VAPID_SUBJECT: van las tres juntas o ninguna/);
+      expect(message).not.toContain(par.privateKey);
+    }
+    expect(problemsOf({ ...PRODUCTION, VAPID_SUBJECT: VAPID.VAPID_SUBJECT })).toMatch(/van las tres juntas/);
+  });
+
+  it('valida el formato de cada una sin repetir el valor', () => {
+    expect(problemsOf({ ...VAPID, VAPID_PUBLIC_KEY: 'no-es-una-clave' })).toMatch(/VAPID_PUBLIC_KEY: no parece una clave pública VAPID/);
+    // 87 caracteres, pero no empieza con el byte 0x04 de un punto sin comprimir.
+    expect(problemsOf({ ...VAPID, VAPID_PUBLIC_KEY: 'A'.repeat(87) })).toMatch(/VAPID_PUBLIC_KEY: no parece/);
+    const mala = `${par.privateKey}!`;
+    const message = problemsOf({ ...VAPID, VAPID_PRIVATE_KEY: mala });
+    expect(message).toMatch(/VAPID_PRIVATE_KEY: no parece una clave privada VAPID/);
+    expect(message).not.toContain(mala);
+    for (const subject of ['dueno@mgdetailing.com.ar', 'http://mgdetailing.com.ar', 'mailto:sin-arroba', 'https://', 'mailto:a@b.com c']) {
+      expect(problemsOf({ ...VAPID, VAPID_SUBJECT: subject }), subject).toMatch(/VAPID_SUBJECT: tiene que ser mailto:/);
+    }
   });
 });

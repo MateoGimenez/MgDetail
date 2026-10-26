@@ -17,6 +17,8 @@
     "lint": "eslint .",
     "clave-db": "node dist/scripts/clave-db.js",
     "clave-db:dev": "tsx src/scripts/clave-db.ts",
+    "vapid": "node dist/scripts/vapid.js",
+    "vapid:dev": "tsx src/scripts/vapid.ts",
     "normalizar-telefonos": "node dist/scripts/normalizar-telefonos.js",
     "normalizar-telefonos:dev": "tsx src/scripts/normalizar-telefonos.ts"
   },
@@ -30,6 +32,7 @@
     "jose": "^6.2.12",
     "libphonenumber-js": "^1.13.15",
     "pg": "^8.23.1",
+    "web-push": "^3.6.7",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -41,6 +44,7 @@
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
+    "@types/web-push": "^3.6.4",
     "eslint": "^10.13.0",
     "supertest": "^7.3.1",
     "tsx": "^4.23.15",

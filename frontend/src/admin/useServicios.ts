@@ -3,6 +3,7 @@ import { actualizarServicio, crearServicio, listarServiciosPanel, ordenarServici
 import { ApiError, esAbortado } from '../api/client';
 import { CODIGO_SERVICIO_EXISTE, type CambiosServicio, type NuevoServicio, type ServicioPanel } from '../api/contract-panel';
 import { esSesionPerdida } from '../api/sesion';
+import { useAvisos } from './toast/contexto';
 import type { Problema } from './useUsuarios';
 
 type Resultado = { clave: number; servicios: ServicioPanel[] } | { clave: number; error: string };
@@ -56,8 +57,8 @@ export function useServicios(alVencerSesion: (mensaje: string) => void) {
   const [errores, setErrores] = useState<Readonly<Record<string, string>>>({});
   const [ordenando, setOrdenando] = useState(false);
   const [errorOrden, setErrorOrden] = useState<string | null>(null);
-  /** Último cambio hecho desde la lista, para la región en vivo ("Pulido subió al puesto 2 de 5."). */
-  const [aviso, setAviso] = useState('');
+  /** Lo hecho con éxito se avisa con un toast ("Pulido subió al puesto 2 de 5."). */
+  const avisos = useAvisos();
 
   useEffect(() => {
     const control = new AbortController();
@@ -110,7 +111,7 @@ export function useServicios(alVencerSesion: (mensaje: string) => void) {
     try {
       const creado = await crearServicio(datos);
       cambiarLista((servicios) => conServicio([...servicios.filter((s) => s.id !== creado.id), creado], creado));
-      setAviso(`Se creó ${creado.nombre}.`);
+      avisos.exito(`Se creó ${creado.nombre}.`);
       return null;
     } catch (error) {
       return problemaDe(error, 'No se pudo crear el servicio.');
@@ -123,7 +124,7 @@ export function useServicios(alVencerSesion: (mensaje: string) => void) {
       const actualizado = await actualizarServicio(servicio.id, cambios);
       cambiarLista((servicios) => conServicio(servicios, actualizado));
       setErrores((previos) => sinClave(previos, servicio.id));
-      setAviso(`Se guardaron los cambios de ${actualizado.nombre}.`);
+      avisos.exito(`Se guardaron los cambios de ${actualizado.nombre}.`);
       return null;
     } catch (error) {
       return problemaDe(error, 'No se pudieron guardar los cambios.');
@@ -137,7 +138,7 @@ export function useServicios(alVencerSesion: (mensaje: string) => void) {
     try {
       const actualizado = await actualizarServicio(servicio.id, cambios);
       cambiarLista((servicios) => conServicio(servicios, actualizado));
-      setAviso(hecho);
+      avisos.exito(hecho);
     } catch (error) {
       const problema = problemaDe(error, 'No se pudo guardar el cambio.');
       if (problema) setErrores((previos) => ({ ...previos, [servicio.id]: problema.mensaje }));
@@ -162,7 +163,7 @@ export function useServicios(alVencerSesion: (mensaje: string) => void) {
       const guardados = await ordenarServicios(nuevos.map((s) => s.id));
       cambiarLista(() => guardados);
       const puesto = guardados.findIndex((s) => s.id === servicio.id) + 1;
-      setAviso(`${servicio.nombre} ${delta < 0 ? 'subió' : 'bajó'} al puesto ${String(puesto)} de ${String(guardados.length)}.`);
+      avisos.exito(`${servicio.nombre} ${delta < 0 ? 'subió' : 'bajó'} al puesto ${String(puesto)} de ${String(guardados.length)}.`);
     } catch (error) {
       cambiarLista(() => actuales);
       if (esSesionPerdida(error)) {
@@ -191,7 +192,6 @@ export function useServicios(alVencerSesion: (mensaje: string) => void) {
     errores,
     ordenando,
     errorOrden,
-    aviso,
     crear,
     guardar,
     cambiar,

@@ -4,6 +4,7 @@ import { createApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
 import { createPostgresCheck } from '../src/db/postgres.js';
 import type { BookingNotifier } from '../src/domain/notifier.js';
+import type { PushSender } from '../src/domain/push.js';
 import type { Rol } from '../src/domain/perfil.js';
 import type { Logger } from '../src/lib/logger.js';
 import { createPostgresRepositories } from '../src/repositories/index.js';
@@ -50,6 +51,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     rateLimits: { api: NO_LIMIT, bookings: NO_LIMIT, loginFailures: NO_LIMIT, seguimiento: NO_LIMIT },
     whatsapp: { provider: 'none' },
     recordatorios: { cronSecret: undefined, email: undefined, whatsapp: undefined },
+    push: undefined,
     publicUrl: undefined,
     warnings: [],
     ...overrides,
@@ -112,6 +114,8 @@ export async function createTestContext(
     disponibilidad?: DisponibilidadInicial;
     /** fetch de los avisos y recordatorios (los tests nunca tocan la red). */
     fetch?: typeof fetch;
+    /** Cliente de envío push (los tests nunca tocan la red). */
+    pushSender?: PushSender;
   } = {},
 ): Promise<TestContext> {
   const db = await createPgliteDatabase();
@@ -134,6 +138,7 @@ export async function createTestContext(
     jwks: TEST_JWKS,
     ...(options.notifier && { notifier: options.notifier }),
     ...(options.fetch && { fetch: options.fetch }),
+    ...(options.pushSender && { pushSender: options.pushSender }),
   });
   } catch (error) {
     await db.close();

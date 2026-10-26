@@ -3,6 +3,7 @@ import { guardarDiaEspecial, guardarHorarioSemanal, quitarDiaEspecial, verDispon
 import { ApiError, esAbortado } from '../api/client';
 import type { CambioDiaEspecial, DiaEspecial, HorarioDia } from '../api/contract-panel';
 import { esSesionPerdida } from '../api/sesion';
+import { useAvisos } from './toast/contexto';
 import type { Problema } from './useUsuarios';
 
 interface Datos {
@@ -24,8 +25,8 @@ export function conDiaEspecial(dias: readonly DiaEspecial[], dia: DiaEspecial): 
 export function useDisponibilidadPanel(alVencerSesion: (mensaje: string) => void) {
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
-  /** Último cambio guardado, para la región en vivo. */
-  const [aviso, setAviso] = useState('');
+  /** Lo guardado se avisa con un toast. */
+  const avisos = useAvisos();
 
   useEffect(() => {
     const control = new AbortController();
@@ -66,19 +67,19 @@ export function useDisponibilidadPanel(alVencerSesion: (mensaje: string) => void
     try {
       const horarioSemanal = await guardarHorarioSemanal(dias);
       cambiarDatos((datos) => ({ ...datos, horarioSemanal }));
-      setAviso('Se guardó el horario habitual.');
+      avisos.exito('Se guardó el horario habitual.');
       return null;
     } catch (error) {
       return problemaDe(error, 'No se pudo guardar el horario.');
     }
   };
 
-  /** `aviso`: lo que dice la región en vivo si sale bien (vacío = no cambia; la selección de varios días avisa al final). */
+  /** `aviso`: el toast si sale bien (vacío = no avisa; la selección de varios días avisa al final). */
   const guardarDia = async (fecha: string, cambio: CambioDiaEspecial, aviso = 'Se guardó el día.'): Promise<Problema | null> => {
     try {
       const dia = await guardarDiaEspecial(fecha, cambio);
       cambiarDatos((datos) => ({ ...datos, diasEspeciales: conDiaEspecial(datos.diasEspeciales, dia) }));
-      if (aviso) setAviso(aviso);
+      if (aviso) avisos.exito(aviso);
       return null;
     } catch (error) {
       return problemaDe(error, 'No se pudo guardar el día.');
@@ -96,7 +97,7 @@ export function useDisponibilidadPanel(alVencerSesion: (mensaje: string) => void
       if (!(error instanceof ApiError && error.status === 404)) return problemaDe(error, 'No se pudo quitar el día.');
     }
     cambiarDatos((datos) => ({ ...datos, diasEspeciales: datos.diasEspeciales.filter((d) => d.fecha !== fecha) }));
-    if (aviso) setAviso(aviso);
+    if (aviso) avisos.exito(aviso);
     return null;
   };
 
@@ -106,11 +107,9 @@ export function useDisponibilidadPanel(alVencerSesion: (mensaje: string) => void
     cargando: vigente === null,
     datos: vigente && 'horarioSemanal' in vigente ? vigente : null,
     error: vigente && 'error' in vigente ? vigente.error : null,
-    aviso,
     guardarHorario,
     guardarDia,
     quitarDia,
-    avisar: setAviso,
     recargar: () => {
       setRecarga((r) => r + 1);
     },

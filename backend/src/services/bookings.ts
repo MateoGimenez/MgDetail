@@ -6,6 +6,7 @@ import {
   verificarLugar,
 } from '../domain/disponibilidad.js';
 import { type BookingNotifier, NotifyError } from '../domain/notifier.js';
+import type { BookingPushNotifier } from '../domain/push.js';
 import type { Servicio, ServicioRepository } from '../domain/servicios.js';
 import { AppError } from '../lib/errors.js';
 import type { Logger } from '../lib/logger.js';
@@ -20,6 +21,8 @@ export interface BookingServiceDeps {
   logger: Logger;
   /** Aviso al dueño por cada turno nuevo. Sin notificador, no se avisa. */
   notifier?: BookingNotifier;
+  /** Aviso push al celular de quienes lo activaron. Sin él, no se manda push. */
+  push?: BookingPushNotifier;
 }
 
 /** 400 en fechaPreferida: el día está cerrado (horario semanal o día especial). */
@@ -84,6 +87,7 @@ export class BookingService {
 
     // Fire-and-forget: el aviso nunca demora ni hace fallar la respuesta al cliente.
     void this.notify(saved, servicio.nombre);
+    void this.pushear(saved, servicio.nombre);
 
     // Respuesta pública mínima: nada de datos personales ni timestamps.
     return {
@@ -94,6 +98,17 @@ export class BookingService {
       estado: 'pendiente',
       seguimientoUrl: seguimientoPath(saved.id),
     };
+  }
+
+  /** Nunca rechaza (el servicio de push ya atrapa sus errores; esto cubre un fallo síncrono). */
+  private async pushear(booking: Booking, servicioNombre: string): Promise<void> {
+    const { push, logger } = this.deps;
+    if (push === undefined) return;
+    try {
+      await push.avisarTurnoNuevo(booking, servicioNombre);
+    } catch {
+      logger.warn('Aviso push falló (error inesperado)');
+    }
   }
 
   /** Nunca rechaza. Solo se loguea el id del turno y el status: ni mensaje, ni datos personales, ni URL. */

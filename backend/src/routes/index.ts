@@ -12,12 +12,14 @@ import type { AgendaService } from '../services/agenda.js';
 import type { AuthService } from '../services/auth.js';
 import type { BookingService } from '../services/bookings.js';
 import type { DisponibilidadService } from '../services/disponibilidad.js';
+import type { PushService } from '../services/push.js';
 import type { RecordatorioService } from '../services/recordatorios.js';
 import type { ServicioService } from '../services/servicios.js';
 import type { UsuarioService } from '../services/usuarios.js';
 import { adminAgendaRouter } from './admin-agenda.js';
 import { adminBookingsRouter } from './admin-bookings.js';
 import { adminDisponibilidadRouter } from './admin-disponibilidad.js';
+import { adminPushRouter } from './admin-push.js';
 import { adminServiciosRouter } from './admin-servicios.js';
 import { adminUsuariosRouter } from './admin-usuarios.js';
 import { authRouter } from './auth.js';
@@ -39,6 +41,7 @@ export interface ApiDeps {
   agenda: AgendaService;
   disponibilidad: DisponibilidadService;
   recordatorios: RecordatorioService;
+  push: PushService;
   auth: AuthService;
   usuarios: UsuarioService;
   servicios: ServicioService;
@@ -58,6 +61,7 @@ export function createApiRouter(deps: ApiDeps): Router {
     agenda,
     disponibilidad,
     recordatorios,
+    push,
     auth,
     usuarios,
     servicios,
@@ -89,6 +93,7 @@ export function createApiRouter(deps: ApiDeps): Router {
   api.use('/admin/disponibilidad', adminDisponibilidadRouter({ disponibilidad }));
   api.use('/admin/usuarios', adminUsuariosRouter({ usuarios }));
   api.use('/admin/servicios', adminServiciosRouter({ servicios }));
+  api.use('/admin/push', adminPushRouter({ push }));
 
   api.use(notFoundHandler); // 404 JSON para rutas /api desconocidas
   return api;

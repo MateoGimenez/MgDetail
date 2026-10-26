@@ -38,6 +38,8 @@ const VACIO_POR_FILTRO: Readonly<Record<Filtro, string>> = {
 
 interface Props {
   rol: Rol;
+  /** Texto con el que arranca el buscador (el acceso directo de Hoy a un pendiente). */
+  busquedaInicial?: string;
   /** Nombre legible de un servicio (catálogo del panel, respaldo o el id tal cual). */
   nombreServicio: (id: string) => string;
   alVencerSesion: (mensaje: string) => void;
@@ -62,11 +64,11 @@ function useDemorado(valor: string, espera: number) {
 }
 
 /** Solicitudes de turno: buscador, pestañas por estado, tarjetas y paginación. */
-export function VistaTurnos({ rol, nombreServicio, alVencerSesion }: Props) {
+export function VistaTurnos({ rol, busquedaInicial = '', nombreServicio, alVencerSesion }: Props) {
   const id = useId();
   const [filtro, setFiltro] = useState<Filtro>('pendiente');
   const [pagina, setPagina] = useState(0);
-  const [texto, setTexto] = useState('');
+  const [texto, setTexto] = useState(busquedaInicial);
   const [demorado, aplicar] = useDemorado(texto, ESPERA_BUSQUEDA_MS);
   const busqueda = interpretarBusqueda(demorado);
   const q = consultaDe(busqueda);

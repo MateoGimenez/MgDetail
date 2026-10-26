@@ -45,8 +45,8 @@
   --error: var(--rojo-300);
   --exito: #86d9aa;
   --campo-fondo: #0f1214;
-  --campo-borde: #3a4047;
-  --campo-borde-hover: #59616a;
+  --campo-borde: #6f777f; /* >= 3:1 contra el campo (#0f1214: 4,14), la opcion y las superficies (peor caso #1f2327: 3,48) */
+  --campo-borde-hover: #9199a2;
   --opcion-fondo: #121518;
   --opcion-fondo-activa: #22161a;
   --texto-fuerte: #ffffff;

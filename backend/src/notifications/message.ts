@@ -13,6 +13,11 @@ function fechaArgentina(isoDate: string): string {
   return `${weekday} ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
 }
 
+/** "Lavado Premium · mar 20/10 · Mañana": lo único del turno que sale en un aviso push (sin datos personales). */
+export function descripcionTurno(servicioNombre: string, fecha: string, franja: Franja): string {
+  return `${recortar(servicioNombre)} · ${fechaArgentina(fecha)} · ${FRANJAS[franja]}`;
+}
+
 /** Una sola línea y, como mucho, ~200 caracteres. */
 function recortar(text: string): string {
   const flat = text.replace(/\s+/g, ' ').trim();
@@ -27,7 +32,7 @@ export function formatBookingMessage(booking: Booking, servicioNombre: string, p
   const vehiculo = [VEHICULOS[booking.vehiculoTipo], booking.vehiculoModelo].filter(Boolean).join(' ');
   const lines = [
     '🚗 Nuevo turno MgDetailing',
-    `${recortar(servicioNombre)} · ${fechaArgentina(booking.fechaPreferida)} · ${FRANJAS[booking.franja]}`,
+    descripcionTurno(servicioNombre, booking.fechaPreferida, booking.franja),
     `${recortar(booking.nombre)} · ${vehiculo}`,
     `Tel: ${recortar(booking.telefono)}`,
   ];

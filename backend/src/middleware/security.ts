@@ -41,6 +41,8 @@ export function securityHeaders(config: Pick<AppConfig, 'isProduction'>): Reques
         fontSrc: ["'self'"],
         imgSrc: ["'self'", 'data:'],
         mediaSrc: ["'self'"], // <video> mp4 propio servido desde /fotos/
+        workerSrc: ["'self'"], // service worker del panel (/admin/sw.js): solo el propio
+        manifestSrc: ["'self'"], // manifest del panel (/admin/manifest.webmanifest)
         connectSrc: ["'self'"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],

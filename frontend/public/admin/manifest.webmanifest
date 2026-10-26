@@ -1,0 +1,35 @@
+{
+  "id": "/admin",
+  "name": "MgDetailing · Panel",
+  "short_name": "MG Panel",
+  "description": "Panel de MgDetailing: turnos, agenda y disponibilidad.",
+  "lang": "es-AR",
+  "dir": "ltr",
+  "display": "standalone",
+  "start_url": "/admin",
+  "scope": "/admin",
+  "theme_color": "#14171a",
+  "background_color": "#14171a",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/marca/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/marca/app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/marca/app-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Hoy",
+      "short_name": "Hoy",
+      "description": "Lo que hay para hoy y los turnos pendientes",
+      "url": "/admin?vista=hoy",
+      "icons": [{ "src": "/marca/app-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Agenda",
+      "short_name": "Agenda",
+      "description": "Los turnos confirmados por día",
+      "url": "/admin?vista=agenda",
+      "icons": [{ "src": "/marca/app-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

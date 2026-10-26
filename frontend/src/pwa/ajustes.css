@@ -1,0 +1,174 @@
+/* Ajustes de la app (campana del encabezado y su diálogo). Usa la paleta clara del panel: el diálogo se dibuja
+   dentro de .panel, no en el riel oscuro. */
+
+.ajustes__abrir {
+  --boton-alto: 44px;
+  width: 44px;
+  min-width: 44px;
+  padding-inline: 0;
+}
+
+.ajustes {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ajustes__seccion {
+  display: grid;
+  gap: var(--e-3);
+  margin-top: var(--e-5);
+  padding-top: var(--e-4);
+  border-top: 1px solid var(--borde);
+}
+
+.ajustes__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.ajustes__texto {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.ajustes__texto p + p,
+.ajustes__texto p + ul {
+  margin-top: var(--e-2);
+}
+
+.ajustes__texto strong,
+.ajustes__pasos strong {
+  color: var(--texto);
+  font-weight: 650;
+}
+
+.ajustes__pasos {
+  display: grid;
+  gap: var(--e-2);
+  padding-left: 1.25rem;
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.ajustes__pasos--lista {
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+
+.ajustes__accion {
+  justify-self: start;
+}
+
+.ajustes__nota {
+  margin-top: var(--e-3);
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.ajustes__nota:empty {
+  display: none;
+}
+
+.ajustes__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-3);
+  padding: var(--e-3);
+  border: 1px solid var(--error);
+  border-radius: var(--radio-2, 6px);
+  color: var(--error);
+  font-size: 0.9375rem;
+}
+
+.ajustes__error span {
+  flex: 1 1 12rem;
+}
+
+/* Interruptor: toda la fila es el botón (objetivo grande). Apagado: pista con borde de 6:1; prendido: rojo. */
+.ajustes__interruptor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  width: 100%;
+  min-height: 56px;
+  padding: 0 var(--e-3);
+  border: 1px solid var(--campo-borde);
+  border-radius: var(--radio-2, 6px);
+  background: var(--campo-fondo);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ajustes__interruptor:hover:not(:disabled) {
+  border-color: var(--campo-borde-hover);
+}
+
+.ajustes__interruptor:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.ajustes__pista {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  width: 52px;
+  height: 30px;
+  padding: 3px;
+  border: 2px solid var(--texto-3);
+  border-radius: 999px;
+  background: var(--fondo);
+}
+
+.ajustes__perilla {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--texto-3);
+  color: transparent;
+}
+
+.ajustes__interruptor[aria-checked='true'] .ajustes__pista {
+  border-color: var(--rojo-600);
+  background: var(--rojo-600);
+}
+
+.ajustes__interruptor[aria-checked='true'] .ajustes__perilla {
+  transform: translateX(22px);
+  background: #ffffff;
+  color: var(--rojo-600);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ajustes__pista {
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .ajustes__perilla {
+    transition:
+      transform 0.15s ease,
+      background-color 0.15s ease;
+  }
+}
+
+@media (forced-colors: active) {
+  .ajustes__interruptor[aria-checked='true'] .ajustes__pista {
+    background: Highlight;
+  }
+
+  .ajustes__perilla {
+    background: ButtonText;
+  }
+}

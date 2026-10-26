@@ -930,10 +930,6 @@
   color: #a3221b;
 }
 
-.servicios-panel__aviso {
-  color: var(--texto-2);
-}
-
 .servicios-panel__error-orden {
   margin-top: var(--e-3);
 }
@@ -3626,4 +3622,634 @@
   .turno__flecha {
     transition: transform var(--t-rapida) var(--ease-salida);
   }
+}
+
+/* =========================================================================
+   Objetivo 6, bloque B: pantalla Hoy, avisos (toasts) y esqueletos de carga.
+   Solo variables del panel; sin colores nuevos salvo el ámbar de aviso que ya usa .senal--borrador.
+   ========================================================================= */
+
+/* ---------- Hoy ---------- */
+
+.hoy__fecha {
+  margin-top: var(--e-1);
+  color: var(--texto-2);
+  font-size: 1.0625rem;
+}
+
+.hoy__avisos {
+  display: grid;
+  gap: var(--e-2);
+  margin-top: var(--e-4);
+}
+
+.hoy__aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+  padding: 10px 14px;
+  border: 1px solid rgb(138 82 0 / 0.35);
+  border-radius: var(--radio-2);
+  background: #fff4e0;
+  color: #8a5200;
+  font-weight: 600;
+}
+
+.hoy__aviso .icono {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Celular: una columna (pendientes, hoy, mañana). Desde 900 px: pendientes y mañana a la izquierda, hoy a la derecha. */
+.hoy__cuerpo {
+  display: grid;
+  gap: var(--e-4);
+  margin-top: var(--e-4);
+}
+
+@media (min-width: 900px) {
+  .hoy__cuerpo {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-areas:
+      'pendientes hoy'
+      'manana hoy';
+    align-items: start;
+  }
+
+  .hoy__pendientes,
+  .esq-hoy-pendientes {
+    grid-area: pendientes;
+  }
+
+  .hoy__hoy,
+  .esq-hoy-dia {
+    grid-area: hoy;
+  }
+
+  .hoy__manana,
+  .esq-hoy-manana {
+    grid-area: manana;
+  }
+}
+
+.hoy__tarjeta {
+  display: grid;
+  align-content: start;
+  gap: var(--e-3);
+  min-width: 0;
+  padding: clamp(16px, 2.4vw, 24px);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+  box-shadow: 0 1px 2px rgb(21 24 27 / 0.06), 0 6px 16px -12px rgb(21 24 27 / 0.25);
+}
+
+.hoy__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.4rem;
+  line-height: 1.15;
+}
+
+.hoy__subtitulo {
+  margin-top: var(--e-1);
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+/* El acceso grande a los pendientes: un solo botón con la cantidad como texto. */
+.hoy__pendientes-ir {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'cantidad flecha'
+    'ayuda flecha';
+  align-items: center;
+  column-gap: var(--e-3);
+  min-height: 72px;
+  padding: var(--e-3) var(--e-4);
+  border: 1px solid var(--campo-borde);
+  border-radius: var(--radio-2);
+  background: var(--fondo-hundido);
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--t-rapida),
+    background-color var(--t-rapida);
+}
+
+.hoy__pendientes-ir:hover {
+  border-color: var(--texto-3);
+  background: var(--superficie);
+}
+
+.hoy__pendientes-ir:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.hoy__pendientes-cantidad {
+  grid-area: cantidad;
+  color: var(--acento-texto);
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.9rem, 1.5rem + 1.6vw, 2.5rem);
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.hoy__pendientes-ayuda {
+  grid-area: ayuda;
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.hoy__pendientes-flecha {
+  grid-area: flecha;
+  color: var(--acento-texto);
+}
+
+.hoy__todo-al-dia {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+  color: var(--texto-2);
+}
+
+.hoy__todo-al-dia .icono {
+  flex: none;
+  color: #1d6b40;
+}
+
+.hoy__viejos,
+.hoy__turnos {
+  display: grid;
+}
+
+.hoy__viejo,
+.hoy__turno {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  padding-block: var(--e-3);
+  border-top: 1px solid var(--borde-suave);
+}
+
+.hoy__viejo:first-child,
+.hoy__turno:first-child {
+  border-top: 0;
+  padding-top: var(--e-1);
+}
+
+.hoy__turno-datos {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hoy__turno-nombre {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.hoy__turno-detalle {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.hoy__turno-hace {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+.hoy__franjas {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.hoy__franja-titulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e-3);
+  padding-bottom: var(--e-2);
+  border-bottom: 1px solid var(--borde);
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+
+.hoy__cupo {
+  color: var(--texto-3);
+  font-family: var(--f-texto);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.hoy__franja--llena .hoy__cupo {
+  color: var(--acento-texto);
+  font-weight: 750;
+}
+
+.hoy__libre,
+.hoy__vacio {
+  color: var(--texto-3);
+}
+
+.hoy__vacio {
+  padding-block: var(--e-3);
+  color: var(--texto-2);
+  font-weight: 600;
+}
+
+.hoy__manana-dia {
+  color: var(--texto-2);
+}
+
+.hoy__manana-resumen {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+
+.hoy__manana-franjas {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.hoy__ver {
+  justify-self: start;
+  margin-top: var(--e-1);
+}
+
+/* ---------- Avisos (toasts) ----------
+   Viven fuera de .panel, así que usan los tokens oscuros de la marca (texto claro sobre grafito, como el riel).
+   Celular: ancho completo, pegados abajo, arriba del área segura y de la barra fija de "Elegir varios días"
+   (el proveedor publica su alto en --toasts-barra). Desde 640 px, abajo a la derecha. */
+
+.toasts {
+  position: fixed;
+  inset-inline: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--toasts-barra, 0px) + var(--e-3));
+  z-index: 60;
+  display: grid;
+  gap: var(--e-2);
+  padding-inline: var(--e-3);
+  pointer-events: none;
+}
+
+.toasts:not(:has(.toast)) {
+  display: none;
+}
+
+.toasts__zona > ul {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.toast {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--e-3);
+  width: min(100%, 26rem);
+  min-height: 52px;
+  margin-inline: auto;
+  padding: 6px 6px 6px var(--e-4);
+  border: 1px solid var(--grafito-600);
+  border-radius: var(--radio-3);
+  background: var(--grafito-800);
+  color: var(--blanco);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25), 0 14px 28px -12px rgb(0 0 0 / 0.55);
+  pointer-events: auto;
+}
+
+.toast--exito .toast__icono {
+  color: var(--exito);
+}
+
+.toast--error {
+  border-color: var(--error-borde);
+}
+
+.toast--error .toast__icono {
+  color: var(--error);
+}
+
+.toast__texto {
+  padding-block: 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.toast__cerrar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radio-2);
+  background: transparent;
+  color: var(--gris-200);
+  cursor: pointer;
+}
+
+.toast__cerrar:hover {
+  background: var(--velo-hover-2);
+  color: #ffffff;
+}
+
+.toast__cerrar:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+}
+
+@media (min-width: 640px) {
+  .toasts {
+    inset-inline: auto var(--e-5);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--toasts-barra, 0px) + var(--e-5));
+    width: min(26rem, 100% - 2 * var(--e-5));
+    padding-inline: 0;
+  }
+
+  .toast {
+    margin-inline: 0;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: toast-entra 220ms var(--ease-salida);
+  }
+}
+
+@keyframes toast-entra {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+
+/* ---------- Esqueletos de carga ----------
+   Barras y bloques con el mismo alto y los mismos contenedores que el contenido real. El brillo (el mismo de
+   .turno--esqueleto) corre solo sin prefers-reduced-motion; con reducción queda quieto. */
+
+.esq,
+.esq-grilla__esquina,
+.esq-grilla__dia,
+.esq-grilla__franja {
+  --esq-base: var(--borde-suave);
+  --esq-brillo: var(--fondo-hundido);
+}
+
+.esq {
+  display: block;
+  height: 14px;
+  border-radius: var(--radio-1);
+  background: var(--esq-base);
+}
+
+.esq--xs {
+  width: 28%;
+}
+
+.esq--s {
+  width: 40%;
+}
+
+.esq--m {
+  width: 60%;
+}
+
+.esq--l {
+  width: 85%;
+}
+
+.esq--completo {
+  width: 100%;
+}
+
+.esq--titulo {
+  height: 22px;
+}
+
+.esq--boton {
+  height: 40px;
+  border-radius: var(--radio-2);
+}
+
+.esq--sello {
+  height: 26px;
+  border-radius: 999px;
+}
+
+.esq--puesto {
+  width: 40px;
+  height: 64px;
+}
+
+.esq--numero {
+  width: 38%;
+  height: 40px;
+}
+
+.esq--dia {
+  width: 100%;
+  height: 76px;
+  border-radius: var(--radio-2);
+}
+
+.esq--celda {
+  min-height: 66px;
+  height: auto;
+  aspect-ratio: auto;
+  border-radius: var(--radio-2);
+}
+
+.esq--bloque {
+  height: 84px;
+  border-radius: var(--radio-2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .esq {
+    background: linear-gradient(100deg, var(--esq-base) 30%, var(--esq-brillo) 50%, var(--esq-base) 70%);
+    background-size: 300% 100%;
+    animation: brillo 1.4s linear infinite;
+  }
+}
+
+.esq-tarjeta {
+  align-content: start;
+  min-height: 150px;
+}
+
+.esq-tarjeta.esq-servicio {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.esq-usuario {
+  min-height: 132px;
+}
+
+.esq-bloque {
+  display: grid;
+  gap: var(--e-3);
+  min-width: 0;
+}
+
+.esq-fila {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.esq-fila--entre {
+  justify-content: space-between;
+}
+
+.esq-fila--entre > .esq--m {
+  width: 50%;
+}
+
+/* Agenda: la tira de siete días y el día con Mañana y Tarde */
+.esq-tira {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(46px, 1fr));
+  gap: 4px;
+  margin-top: var(--e-2);
+  padding: 3px 3px 6px;
+  overflow: hidden;
+}
+
+.esq-dia {
+  display: grid;
+  gap: var(--e-4);
+  margin-top: var(--e-3);
+}
+
+.esq-franja {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+}
+
+.esq-franja .esq--titulo {
+  height: 64px;
+  border-radius: var(--radio-2);
+}
+
+/* Agenda ancha: grilla de 7 días × 2 franjas */
+.esq-grilla {
+  display: grid;
+  grid-template-columns: 84px repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  overflow: hidden;
+  background: var(--superficie);
+}
+
+.esq-grilla__esquina,
+.esq-grilla__dia {
+  display: block;
+  min-height: 54px;
+  padding: 18px 10px 8px;
+  background: var(--fondo-hundido);
+  border-bottom: 1px solid var(--borde);
+}
+
+.esq-grilla__fila {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  border-top: 1px solid var(--borde-suave);
+}
+
+.esq-grilla__franja {
+  display: block;
+  padding: 12px 10px;
+  background: var(--fondo-hundido);
+}
+
+.esq-grilla__celda {
+  display: block;
+  min-height: 150px;
+  padding: 8px;
+  border-left: 1px solid var(--borde-suave);
+}
+
+.esq-grilla__celda .esq--boton {
+  height: 64px;
+}
+
+/* Disponibilidad: el mes de seis semanas y el panel del día */
+.esq-calendario {
+  display: grid;
+  gap: var(--e-5);
+  margin-top: var(--e-2);
+}
+
+.esq-calendario--ancho {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+}
+
+.esq-mes {
+  display: grid;
+  gap: var(--e-3);
+  min-width: 0;
+}
+
+.esq-cal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  padding-top: 26px;
+}
+
+.esq-detalle {
+  display: grid;
+  gap: var(--e-4);
+  padding: var(--e-5);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+}
+
+/* Hoy: mismos contenedores que la pantalla real */
+.esq-hoy-pendientes .esq--numero {
+  height: 44px;
+}
+
+.esq-hoy-pendientes {
+  min-height: 190px;
+}
+
+.esq-hoy-dia {
+  min-height: 330px;
+}
+
+.esq-hoy-manana {
+  min-height: 150px;
+}
+
+/* Borde de los campos de texto, listas y áreas de texto del panel: #b9c0c7 daba 1,8:1 sobre blanco, por debajo del
+   3:1 de WCAG 1.4.11 (el borde es lo único que los delimita). Con #7b838c da 3,8:1 sobre blanco y 3,4:1 sobre
+   --fondo-hundido. Se cambia solo en los campos: los botones secundarios, las cajas punteadas y el calendario siguen con
+   el borde suave. El foco y el error usan otras variables y no se pisan. */
+.panel .entrada {
+  --campo-borde: #7b838c;
+  --campo-borde-hover: #4d545c;
 }

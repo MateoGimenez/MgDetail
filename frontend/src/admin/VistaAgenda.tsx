@@ -20,6 +20,7 @@ import { DialogoHistorial } from './DialogoHistorial';
 import { FichaAgenda } from './FichaAgenda';
 import { devolverFoco, selectorDeFicha } from './foco';
 import { TarjetaTurno } from './TarjetaTurno';
+import { EsqueletoAgenda } from './Esqueleto';
 import { useAgenda } from './useAgenda';
 import { esNueva } from './useTurnos';
 
@@ -192,7 +193,7 @@ export function VistaAgenda({ rol, nombreServicio, alVencerSesion }: Props) {
           )}
         </div>
 
-        {a.cargando && <div className="turno turno--esqueleto agenda__esqueleto" aria-hidden="true" />}
+        {a.cargando && <EsqueletoAgenda />}
 
         {a.error && (
           <div className="panel__error" role="alert">

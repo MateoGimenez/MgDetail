@@ -40,6 +40,12 @@ async function main(): Promise<void> {
       : `Recordatorios activados (${canalesRecordatorio.join(', ')})${config.recordatorios.cronSecret === undefined ? ', pero sin CRON_SECRET' : ''}`,
   );
 
+  logger.info(
+    config.push === undefined
+      ? 'Avisos push desactivados (sin claves VAPID)'
+      : 'Avisos push activados (el panel ofrece el interruptor de avisos)',
+  );
+
   logger.info(`Login del panel: Supabase Auth (${config.supabase.url})`);
 
   // 2) Base de datos: Postgres en Supabase (conecta y verifica que las migraciones estén aplicadas).

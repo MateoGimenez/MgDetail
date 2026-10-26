@@ -2,6 +2,7 @@ import express, { type Express } from 'express';
 import type { JWTVerifyGetKey } from 'jose';
 import type { AppConfig } from './config.js';
 import type { BookingNotifier } from './domain/notifier.js';
+import type { PushSender } from './domain/push.js';
 import { createAccessTokenVerifier, createSupabaseJwks } from './lib/access-token.js';
 import { SessionCookies } from './lib/cookies.js';
 import { type Logger, createLogger } from './lib/logger.js';
@@ -13,6 +14,7 @@ import { createRateLimiters } from './middleware/rate-limit.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security.js';
 import { NOTIFY_TIMEOUT_MS, createNotifier } from './notifications/index.js';
+import { createWebPushSender } from './notifications/push.js';
 import { createCanalesRecordatorio } from './notifications/recordatorio.js';
 import type { Repositories } from './repositories/index.js';
 import { createApiRouter } from './routes/index.js';
@@ -20,6 +22,7 @@ import { AgendaService } from './services/agenda.js';
 import { AuthService } from './services/auth.js';
 import { BookingService } from './services/bookings.js';
 import { DisponibilidadService } from './services/disponibilidad.js';
+import { PUSH_TIMEOUT_MS, PushService } from './services/push.js';
 import { RecordatorioService } from './services/recordatorios.js';
 import { ServicioService } from './services/servicios.js';
 import { UsuarioService } from './services/usuarios.js';
@@ -41,6 +44,8 @@ export interface AppDeps {
   jwks?: JWTVerifyGetKey;
   /** Pisa al notificador elegido por la config (tests). */
   notifier?: BookingNotifier;
+  /** Pisa al cliente de envío push (web-push) para que los tests no toquen la red. */
+  pushSender?: PushSender;
 }
 
 /**
@@ -52,13 +57,21 @@ export function createApp(deps: AppDeps): Express {
   const logger = deps.logger ?? createLogger();
   const now = deps.now ?? (() => new Date());
 
-  const { bookings, perfiles, servicios, disponibilidad } = deps.repositories;
+  const { bookings, perfiles, servicios, disponibilidad, push: pushRepo } = deps.repositories;
+  const push = new PushService({
+    repo: pushRepo,
+    config: config.push,
+    sender: deps.pushSender ?? (config.push === undefined ? undefined : createWebPushSender(config.push, PUSH_TIMEOUT_MS)),
+    logger,
+    now,
+  });
   const bookingService = new BookingService({
     bookings,
     servicios,
     disponibilidad,
     logger,
     notifier: deps.notifier ?? createNotifier(config.whatsapp, config.publicUrl, deps.fetch),
+    push,
   });
   const auth = new AuthService({
     supabase: new SupabaseAuthClient(config.supabase, deps.authFetch),
@@ -116,6 +129,7 @@ export function createApp(deps: AppDeps): Express {
       agenda,
       disponibilidad: disponibilidadService,
       recordatorios,
+      push,
       auth,
       usuarios,
       servicios: servicioService,

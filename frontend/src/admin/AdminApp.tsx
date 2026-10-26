@@ -3,8 +3,10 @@ import { sesionActual } from '../api/admin';
 import { esAbortado } from '../api/client';
 import type { UsuarioSesion } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
+import { useInstalablePanel } from '../pwa/useInstalablePanel';
 import { Login } from './Login';
 import { Panel } from './Panel';
+import { ProveedorToasts } from './toast/ProveedorToasts';
 import './admin.css';
 
 type Sesion =
@@ -16,6 +18,8 @@ type Sesion =
 export default function AdminApp() {
   const [sesion, setSesion] = useState<Sesion>({ estado: 'verificando' });
   const [intento, setIntento] = useState(0);
+  // Manifest, service worker e instalación: solo mientras está abierto /admin.
+  useInstalablePanel();
 
   // Título de la pestaña mientras se usa el panel (el de index.html es el de la landing).
   useEffect(() => {
@@ -91,13 +95,15 @@ export default function AdminApp() {
         />
       )}
       {sesion.estado === 'activa' && (
-        <Panel
-          usuario={sesion.usuario}
-          alSalir={() => {
-            setSesion({ estado: 'anonima' });
-          }}
-          alVencerSesion={alVencerSesion}
-        />
+        <ProveedorToasts>
+          <Panel
+            usuario={sesion.usuario}
+            alSalir={() => {
+              setSesion({ estado: 'anonima' });
+            }}
+            alVencerSesion={alVencerSesion}
+          />
+        </ProveedorToasts>
       )}
     </>
   );

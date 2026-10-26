@@ -168,7 +168,7 @@ Esquinas casi rectas, como una chapa pintada: 4px en paneles, 6px en botones y c
 - Radio nativo invisible sobre una chapa de 52px. Elegido: borde rojo, fondo #22161a y un filete corto que se dibuja de un trazo. Foco: contorno blanco de 2px.
 
 ### Inputs / Fields
-- Fondo #0f1214, borde #3a4047, radio 6px, 50px de alto. Foco: borde rojo + anillo rojo al 35%. Error: borde rojo claro, mensaje con ícono debajo, `aria-invalid` y `aria-describedby`.
+- Fondo #0f1214, borde #6f777f (4,1:1 contra el campo; ver "El borde de los campos en oscuro"), radio 6px, 50px de alto. Foco: borde rojo + anillo rojo al 35%. Error: borde rojo claro, mensaje con ícono debajo, `aria-invalid` y `aria-describedby`.
 
 ### Navigation
 - Cabecera pegajosa grafito al 96% sin desenfoque. Enlaces gris que se subrayan con un filete rojo al pasar. En móvil, menú desplegable con enlaces en romana y Escape para cerrar.
@@ -178,6 +178,73 @@ Esquinas casi rectas, como una chapa pintada: 4px en paneles, 6px en botones y c
 
 ### Comparador antes/después
 - `<input type="range">` nativo y transparente sobre las dos fotos; divisor de filete con manija medallón. Accesible con teclado.
+
+## Tema claro
+
+La web pública tiene dos temas. El oscuro (todo lo anterior) es el de la marca y el predeterminado. El claro redefine **las mismas variables semánticas** bajo `:root[data-tema='claro']` en `src/styles/base.css`: el mismo cartel pintado, pero sobre chapa esmaltada blanca. Los estilos nuevos usan solo estas variables y por eso andan en los dos temas. El panel `/admin` no recibe `data-tema`: define sus propios valores claros en `.panel` (`admin.css`).
+
+| Variable | Oscuro | Claro | Para qué |
+|---|---|---|---|
+| `--fondo` / `--fondo-hundido` | #14171a / #101215 | #f7f8f9 / #edf0f2 | página y zonas hundidas |
+| `--superficie` / `--superficie-2` | #191c20 / #1f2327 | #ffffff / #e6e9ec | paneles y tarjetas |
+| `--borde` | #30353b | #cfd4d9 | divisiones |
+| `--texto` / `--texto-2` / `--texto-3` | #f7f8f9 / #b6bdc4 / #8e969f | #15181b / #3f454c / #5b636c | principal, secundario, terciario |
+| `--acento` / `--acento-texto` | #e42c42 / #ff5d6e | #c8102e / #a50c26 | filete y selección / enlaces y sellos |
+| `--error` / `--exito` | #ff8b96 / #86d9aa | #b3261e / #1d7a46 | estados |
+| `--foco` | #ffffff | #14171a | anillo de foco |
+| `--campo-fondo` | #0f1214 | #ffffff | campos |
+| `--campo-borde` / `--campo-borde-hover` | #6f777f / #9199a2 | #7b838c / #4d545c | borde de campos y opciones |
+
+Contrastes del tema claro (WCAG 2.1 AA, calculados; la tabla completa está en `README.md`):
+
+| Par | Colores | Contraste |
+|---|---|---|
+| Texto / fondo · superficie | #15181b / #f7f8f9 · #ffffff | 16,8 · 17,8 |
+| Texto 2 / fondo · hundido | #3f454c / #f7f8f9 · #edf0f2 | 9,1 · 8,5 |
+| Texto 3 / fondo · hundido · pie | #5b636c / #f7f8f9 · #edf0f2 · #e9ecef | 5,7 · 5,3 · 5,1 |
+| Acento texto / fondo · blanco | #a50c26 | 7,4 · 7,8 |
+| Acento y filete (gráfico) / fondo · blanco | #c8102e | 5,5 · 5,9 |
+| Error / blanco · fondo | #b3261e | 6,5 · 6,2 |
+| Éxito / blanco · fondo | #1d7a46 | 5,4 · 5,0 |
+| Borde de campo / blanco · hundido | #7b838c | 3,8 · 3,4 |
+| Foco / fondo · blanco | #14171a | 16,9 · 18,0 |
+
+### El borde de los campos en oscuro
+
+`--campo-borde` era #3a4047 sobre el fondo del campo #0f1214: **1,79:1**, por debajo del 3:1 que pide WCAG 1.4.11 para el borde de un control. Ahora es **#6f777f** y el hover **#9199a2**. Es lo único del tema oscuro que cambió; el claro no se tocó.
+
+| Borde #6f777f contra | Color | Contraste |
+|---|---|---|
+| Fondo del campo | #0f1214 | 4,14:1 |
+| Fondo de las opciones (chips, radios, filas elegibles) | #121518 | 4,03:1 |
+| Fondo de página | #14171a | 3,96:1 |
+| Superficie (paneles, formulario) | #191c20 | 3,76:1 |
+| Caja del ingreso al panel | #1c1f23 | 3,64:1 |
+| Superficie 2 (el peor caso) | #1f2327 | 3,48:1 |
+
+El hover #9199a2 da 6,52:1 contra el campo. Como `--campo-borde` lo usan también los selectores de vehículo y franja, el calendario de la reserva y las filas elegibles (todos sobre `--opcion-fondo`), quedan corregidos de una vez. El interruptor de tema usa el hover como borde en reposo. Lo elegido sigue marcándose con el rojo.
+
+## Componentes del panel
+
+Viven en `src/admin/`, usan las variables del panel y no agregan colores (salvo el ámbar de aviso que ya usaban los sellos de borrador).
+
+### Tarjeta de Hoy
+- Pantalla por defecto del panel (`VistaHoy.tsx`). Un título con saludo y nombre ("Buen día, Mateo"), la fecha y tres tarjetas planas: **Pendientes**, **Turnos de hoy** y **Mañana**. Nada va anidado: dentro de cada tarjeta los renglones se separan con una línea fina.
+- Celular: una columna en ese orden. Desde 900 px: pendientes y mañana a la izquierda, hoy a la derecha.
+- Pendientes: el acceso grande es **un solo botón** con la cantidad en el display ("4 pendientes", en rojo acento) y la flecha; debajo, los 3 que más esperan con "Llegó hace 3 días" y **Abrir**, que lleva a Turnos con ese nombre ya buscado. Sin pendientes: tilde verde y "Está todo al día".
+- Hoy: Mañana y Tarde con el cupo ("1/2", en rojo y negrita cuando está completa, "Cerrada" si no hay lugar) y los turnos con su sello de estado. Sin turnos: "Hoy no hay turnos.". Si el día figura cerrado o una franja está llena, un aviso ámbar arriba, con ícono y texto (nunca solo color).
+- Empleado: ve lo mismo; Hoy no tiene controles de edición (confirmar y reprogramar viven en Turnos y Agenda).
+
+### Aviso (toast)
+- Grafito del riel (#1f2327, borde #3f454c) con texto blanco, ícono de tilde en `--exito` o de alerta en `--error` y un cerrar de 44 px. Va fuera de `.panel`, con los tokens oscuros.
+- El éxito se cierra solo a los 4 s (se pausa con el mouse o el foco encima); el **error queda hasta cerrarlo**. Máximo 3: al pasar se descarta el éxito más viejo. El mismo texto repetido no se apila.
+- Dos regiones siempre presentes: `role="status"` (éxitos) y `role="alert"` (errores).
+- Celular: ancho completo, **arriba de la barra fija** `.varios-barra` (el proveedor mide su alto y lo publica en `--toasts-barra`) y del área segura (`env(safe-area-inset-bottom)`). Desde 640 px, abajo a la derecha. Entra con un desplazamiento corto solo sin `prefers-reduced-motion`.
+- Reemplazan los mensajes de éxito fijos de Servicios, Disponibilidad, Usuarios, Turnos y Agenda. Los errores por campo siguen en el campo.
+
+### Esqueleto de carga
+- Barras y bloques de gris suave (`--borde-suave` con brillo `--fondo-hundido`) dentro de **los mismos contenedores y con las mismas alturas mínimas** que el contenido real: Servicios, Usuarios, Agenda (tira de siete días y día en el celular, grilla 7 × 2 desde 900 px), Disponibilidad (mes de seis semanas y panel del día) y Hoy. Al llegar los datos no hay saltos.
+- Decorativos (`aria-hidden`); el "Cargando…" lo anuncia la región en vivo de cada vista. El brillo corre solo sin `prefers-reduced-motion`; con reducción queda quieto.
 
 ## Do's and Don'ts
 

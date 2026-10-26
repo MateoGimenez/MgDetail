@@ -53,4 +53,9 @@ export default defineConfig([
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },
+  {
+    // Service worker del panel: corre en el navegador, en un worker.
+    files: ['public/admin/sw.js'],
+    languageOptions: { globals: globals.serviceworker },
+  },
 ]);

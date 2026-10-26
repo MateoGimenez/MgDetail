@@ -28,7 +28,7 @@ async function pglite(): Promise<PgliteDatabase> {
   return database;
 }
 
-const TABLES = ['bookings', 'dias_especiales', 'horario_semanal', 'perfiles', 'roles', 'servicios'];
+const TABLES = ['bookings', 'dias_especiales', 'horario_semanal', 'perfiles', 'push_suscripciones', 'roles', 'servicios'];
 
 describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGlite)', () => {
   it('RLS activo en todas las tablas, sin admins/sessions, y anon/authenticated/service_role sin ningún privilegio', async () => {
@@ -42,7 +42,7 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
 
     const grants = await pg.query<{ grants: number }>(
       `SELECT count(*)::int AS grants FROM unnest(ARRAY['anon', 'authenticated', 'service_role']) AS r(role)
-       CROSS JOIN unnest(ARRAY['servicios', 'bookings', 'roles', 'perfiles', 'horario_semanal', 'dias_especiales']) AS t(name)
+       CROSS JOIN unnest(ARRAY['servicios', 'bookings', 'roles', 'perfiles', 'horario_semanal', 'dias_especiales', 'push_suscripciones']) AS t(name)
        WHERE has_table_privilege(r.role, 'mgdetailing.' || t.name, 'SELECT, INSERT, UPDATE, DELETE')
           OR has_schema_privilege(r.role, 'mgdetailing', 'USAGE')
           OR has_schema_privilege(r.role, 'mgdetailing_private', 'USAGE')
@@ -335,6 +335,14 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     await pg.exec('DROP FUNCTION mgdetailing.texto_busqueda(text)');
     await expect(verifyPostgresSchema(sql)).rejects.toThrow(
       /\(notas_internas, función texto_busqueda\).*notas_telefono_cliente/,
+    );
+  });
+
+  it('verifyPostgresSchema avisa si falta la migración de los avisos push', async () => {
+    const { pg, sql } = await pglite();
+    await pg.exec('DROP TABLE mgdetailing.push_suscripciones');
+    await expect(verifyPostgresSchema(sql)).rejects.toThrow(
+      /avisos push.*push_suscripciones: perfil_id.*migración push_suscripciones/,
     );
   });
 });
