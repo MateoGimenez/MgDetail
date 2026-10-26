@@ -1,0 +1,99 @@
+/* ---------- Revelar al entrar en pantalla ----------
+   Contrato: useRevelar.ts. El contenido se ve siempre; solo lo que está debajo de la pantalla al cargar recibe
+   data-revelar="pendiente" y pasa a "visto" al entrar. Se anima SOLO transform y opacity (el filete se dibuja
+   con stroke-dashoffset, como el resto del filete de la marca: pintura, no layout). Sin movimiento reducido. */
+
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    --rev-dist: 20px;
+    --rev-dur: 640ms;
+    --rev-paso: 80ms;
+  }
+
+  /* El elemento mismo (.revelar) o lo que tiene adentro (.revelar-hijo, con retraso escalonado --i) */
+  .revelar[data-revelar],
+  [data-revelar] .revelar-hijo {
+    transition:
+      opacity var(--rev-dur) var(--ease-salida) calc(var(--i, 0) * var(--rev-paso)),
+      transform var(--rev-dur) var(--ease-salida) calc(var(--i, 0) * var(--rev-paso));
+  }
+
+  .revelar[data-revelar='pendiente'],
+  [data-revelar='pendiente'] .revelar-hijo {
+    opacity: 0;
+    transform: translateY(var(--rev-dist));
+  }
+
+  /* Más sutil: las secciones que acompañan (proceso, beneficios, trabajos, preguntas, contacto) */
+  .revelar--sutil {
+    --rev-dist: 12px;
+    --rev-dur: 520ms;
+  }
+
+  /* Cards: entran un poco más abajo y con un paso más marcado */
+  .revelar--tarjeta {
+    --rev-dist: 28px;
+    --rev-dur: 700ms;
+    --rev-paso: 90ms;
+  }
+
+  /* El filete del encabezado se dibuja cuando el encabezado entra */
+  [data-revelar] .seccion__filete .subrayado__trazo {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 800ms var(--ease-pincel) 220ms;
+  }
+
+  [data-revelar='pendiente'] .seccion__filete .subrayado__trazo {
+    stroke-dashoffset: 1;
+  }
+
+  /* Tabla de la comparativa: cada ✓ aparece creciendo, fila por fila */
+  [data-revelar] .revelar-marca {
+    transition:
+      opacity 420ms var(--ease-salida) calc(var(--i, 0) * 55ms + 120ms),
+      transform 420ms var(--ease-salida) calc(var(--i, 0) * 55ms + 120ms);
+  }
+
+  [data-revelar='pendiente'] .revelar-marca {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  /* Carrusel del celular: la lista entera sube (solo en vertical); las cards que quedan a la derecha no se ocultan.
+     Desde 700 px es al revés: cada card entra sola y la lista no se anima. */
+  @media (max-width: 699px) {
+    .tarjetas__celda.revelar[data-revelar] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+
+  @media (min-width: 700px) {
+    .tarjetas-vista.revelar[data-revelar] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+
+  /* Escalonado por columna de la grilla: se escribe una vez para cada cantidad de columnas */
+  .escalonado > :nth-child(3n + 2) {
+    --i: 1;
+  }
+
+  .escalonado > :nth-child(3n + 3) {
+    --i: 2;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (min-width: 700px) and (max-width: 1059px) {
+  .escalonado > :nth-child(n) {
+    --i: 0;
+  }
+
+  .escalonado > :nth-child(2n) {
+    --i: 1;
+  }
+}

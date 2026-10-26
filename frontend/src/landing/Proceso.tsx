@@ -1,4 +1,6 @@
 import { whatsappUrl } from '../config/enlaces';
+import { CabeceraSeccion } from './CabeceraSeccion';
+import { revelar } from './useRevelar';
 
 export function Proceso() {
   const conWhatsapp = whatsappUrl() !== null;
@@ -32,17 +34,14 @@ export function Proceso() {
   return (
     <section id="como-trabajamos" className="seccion proceso" aria-labelledby="proceso-titulo">
       <div className="contenedor proceso__grilla">
-        <header className="seccion__cabecera proceso__cabecera">
-          <h2 id="proceso-titulo" className="seccion__titulo">
-            Cómo trabajamos
-          </h2>
+        <CabeceraSeccion id="proceso-titulo" titulo="Cómo trabajamos" className="proceso__cabecera">
           <p className="seccion__bajada">
             Del pedido a la entrega, sin sorpresas: siempre sabés qué le vamos a hacer a tu vehículo y por qué.
           </p>
-        </header>
+        </CabeceraSeccion>
         <ol className="pasos" role="list">
           {pasos.map((paso, indice) => (
-            <li key={paso.titulo} className="paso">
+            <li key={paso.titulo} ref={revelar} className="paso revelar revelar--sutil">
               <span className="paso__numero" aria-hidden="true">
                 {indice + 1}
               </span>

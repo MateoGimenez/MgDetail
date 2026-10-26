@@ -151,7 +151,7 @@ Profundidad por capas tonales (grafito 925/900/850/800) más dos sombras con des
 
 ### Shadow Vocabulary
 - **sombra-1** (`0 1px 2px rgb(0 0 0 / .4), 0 8px 18px -10px rgb(0 0 0 / .75)`): elementos chicos.
-- **sombra-2** (`0 2px 6px rgb(0 0 0 / .35), 0 30px 60px -30px rgb(0 0 0 / .9)`): paneles (cartel, plancha destacada, formulario).
+- **sombra-2** (`0 2px 6px rgb(0 0 0 / .35), 0 30px 60px -30px rgb(0 0 0 / .9)`): paneles (cartel, card destacada, formulario).
 
 ## Shapes
 
@@ -175,6 +175,23 @@ Esquinas casi rectas, como una chapa pintada: 4px en paneles, 6px en botones y c
 
 ### Marco fileteado (componente firma)
 - Esquinas con volutas (espiral de semicírculos), rombo hueco y bolitas; franjas con sombra, rojo, brillo y luz. En el hero y en el éxito del turno se dibuja al aparecer (solo sin `prefers-reduced-motion`).
+
+### Card de servicio
+- **Celular (< 700 px): carrusel horizontal** (`ListaTarjetas.tsx`): cada card mide `min(84vw, 340px)` y la siguiente se asoma; `scroll-snap-type: x mandatory`, `overscroll-behavior-x: contain` y la lista llega hasta los bordes de la pantalla, así que solo ella se desplaza de costado, no la página. La región tiene `aria-label` y `tabindex="0"` (flechas del teclado) y un indicador "2 de 5" (`aria-live="polite"`) que sigue al scroll. Desde 700 px, grilla de 2 columnas y desde 1060 px de 3. Cada card (`TarjetaServicio.tsx`, `servicios.css`) lleva sello (solo el destacado), nombre en Barlow, resumen, chapa de datos (precio y duración, siempre en el mismo lugar), las 3 primeras cosas de "Incluye" con rombos, "Ver qué incluye" y el botón de reservar. Plegada, en el celular apunta a ~380 px de alto.
+- "Ver qué incluye" es un botón real con `aria-expanded` y `aria-controls`. Lo que despliega (descripción completa, "Incluye" completo y "En palabras simples") no se desmonta: la grilla va de `0fr` a `1fr` en 280 ms (`--t-media`, `--ease-salida`) y plegado queda `inert` y `visibility: hidden`. Al abrir, las 3 cosas de la vista previa se pliegan para no repetirse. Con una card abierta las demás no se estiran (`:has`).
+- La destacada usa `--destacada-fondo` y `--destacada-borde`, un filete rojo sobre el borde superior, `--sombra-2`, el sello "Recomendado por el taller" y el botón primario; desde 1060 px se eleva 12 px (`translate`, independiente del transform del revelado).
+- Precio cargando: brillo de `--esqueleto` en el mismo lugar. Catálogo vacío: `SinTurnosOnline`. Respaldo: "Consultá".
+
+### Comparativa "¿Cuál te conviene?"
+- Debajo de las cards (`Comparativa.tsx`, lógica pura en `src/lib/comparativa.ts`). Dos `<select>` (por defecto el primer servicio y el destacado; si se elige el del otro lado se intercambian). No se muestra con menos de dos servicios ni sin destacado. Desde 900 px es de dos columnas: título, selectores y resumen a la izquierda (5fr) y la tabla a la derecha (7fr); en el celular todo va apilado.
+- Resumen con filete rojo a la izquierda, en una o dos líneas: "Por $ X más, el … suma N cosas." (la cifra en Barlow y `--acento-texto`). Solo con los dos precios cargados y diferencia positiva; si no, "Sumás N cosas con el …. Consultá el precio de cada uno." Nunca se estima un precio. Los extras no se listan acá: ya están en la tabla.
+- `<table>` real: `caption`, `th scope`, precio y duración lado a lado y una fila por cosa que DISTINGUE a un servicio del otro. Lo que incluyen los dos se junta en una fila desplegable ("Incluyen los dos · 6 cosas", botón con `aria-expanded` y `aria-controls`, `<tbody hidden>` cerrado); sin ítems en común no hay fila. ✓ (ícono) y — (guion) con texto "Incluido" / "No incluido": se distinguen por forma, no solo por color; el ✓ de un extra va en `--acento-texto`. Tres columnas legibles a 390 px (`table-layout: fixed`); la fila de nombres es `position: sticky` bajo la cabecera, con filete rojo. Debajo de cada columna, "Elegir …" (reserva con el servicio preseleccionado).
+- Convención "Todo lo del <nombre>" en "Incluye": se expande a la lista del otro servicio (sin importar mayúsculas ni acentos).
+
+### Revelado al hacer scroll
+- `useRevelar.ts` + `revelar.css`. Solo se anima lo que está fuera de pantalla al montar (`data-revelar="pendiente"` y luego `"visto"`, una sola vez, con `IntersectionObserver`); lo demás nunca se oculta. Sin `IntersectionObserver` o sin JS no queda nada oculto. Todo dentro de `prefers-reduced-motion: no-preference`. Anima solo `transform` y `opacity`; el filete se dibuja con `stroke-dashoffset`, como el resto del filete de la marca.
+- Tiempos (`--ease-salida`, salvo el filete): el encabezado de sección sube 20 px en 640 ms y su filete se dibuja en 800 ms (`--ease-pincel`, 220 ms de demora); la card sube 28 px en 700 ms con 90 ms de paso por columna (`--i`); las secciones que acompañan (pasos, beneficios, trabajos, preguntas, contacto) usan `revelar--sutil`: 12 px en 520 ms; en la comparativa cada ✓ crece de 0,5 a 1 en 420 ms, fila por fila (55 ms por fila, hasta la 8.ª), y el resumen entra al final. El hero no se anima.
+- Dónde: `CabeceraSeccion.tsx` (todos los encabezados), `.revelar` en cada ítem, `.revelar-hijo` y `.revelar-marca` para lo que escalona dentro de un contenedor revelado. En el celular la lista del carrusel sube como un bloque (solo en vertical, así ninguna card queda oculta a la derecha); desde 700 px entra cada card sola.
 
 ### Comparador antes/después
 - `<input type="range">` nativo y transparente sobre las dos fotos; divisor de filete con manija medallón. Accesible con teclado.

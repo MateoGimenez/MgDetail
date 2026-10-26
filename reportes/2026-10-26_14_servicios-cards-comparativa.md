@@ -39,6 +39,10 @@ La sección "Qué le hacemos a tu vehículo" muestra cada servicio como un bloqu
 
 - Una línea de ayuda en el diálogo de edición de servicios, bajo "Incluye": *Si incluye todo lo de otro servicio, escribí "Todo lo del <nombre>" y la comparativa de la web lo cuenta.*
 
+### Ajustes tras la revisión en pantalla
+
+- Celular: las cards van en un carrusel horizontal con scroll-snap e indicador "N de M"; la comparativa muestra solo precio, duración y lo que distingue a cada servicio, con una fila desplegable "Incluyen los dos"; el resumen queda en una frase. Pantalla ancha: la comparativa en dos columnas.
+
 ## Sin cambios de backend
 
 Todo sale del catálogo que ya devuelve `GET /api/servicios` (con el respaldo sin precios). **Los precios hoy están sin cargar** (todos "Consultá"): la frase "Por $ 20.000 más" aparece sola cuando el dueño carga los dos precios en Panel → Servicios.
@@ -50,7 +54,7 @@ Todo sale del catálogo que ya devuelve `GET /api/servicios` (con el respaldo si
 
 ## Estado
 
-- [ ] Cards de servicios, con detalle desplegable.
-- [ ] Comparativa con tabla, resumen de la diferencia y botones de reserva.
-- [ ] Revelado al hacer scroll en la landing, con `prefers-reduced-motion`.
-- [ ] Verificación: tipos, lint, tests, build, y capturas en celular y pantalla ancha, en claro y oscuro.
+- [x] Cards de servicios, con detalle desplegable.
+- [x] Comparativa con tabla, resumen de la diferencia y botones de reserva.
+- [x] Revelado al hacer scroll en la landing, con `prefers-reduced-motion`.
+- [x] Verificación: tipos, lint, tests y build en verde, y revisión visual en Edge a 390 y 1280 px, en claro y oscuro (2026-10-26). En el celular, Servicios + comparativa pasaron de 4289 px a 2042 px (cards en carrusel, comparativa con lo común plegado); sin desborde horizontal ni errores de consola; con movimiento reducido no queda nada oculto.

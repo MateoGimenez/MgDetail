@@ -1,3 +1,4 @@
+import { SubrayadoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import {
   direccionDelTaller,
@@ -10,6 +11,7 @@ import {
 import { negocio } from '../config/sitio';
 import { useCatalogo } from './catalogo-contexto';
 import { useReserva } from './reserva-contexto';
+import { revelar } from './useRevelar';
 
 export function Contacto() {
   const { reservar } = useReserva();
@@ -24,10 +26,11 @@ export function Contacto() {
   return (
     <section id="contacto" className="seccion contacto" aria-labelledby="contacto-titulo">
       <div className="contenedor contacto__grilla">
-        <div className="contacto__lugar">
+        <div ref={revelar} className="contacto__lugar revelar revelar--sutil">
           <h2 id="contacto-titulo" className="seccion__titulo">
             Dónde estamos
           </h2>
+          <SubrayadoFilete className="seccion__filete" />
           <p className="contacto__ciudad">
             {negocio.ciudad}, {negocio.pais}
           </p>
@@ -45,7 +48,7 @@ export function Contacto() {
           )}
         </div>
 
-        <div className="contacto__canales">
+        <div ref={revelar} className="contacto__canales revelar revelar--sutil">
           {horarios.length > 0 && (
             <div className="contacto__bloque">
               <h3 className="contacto__subtitulo">

@@ -74,6 +74,14 @@ Contrato: `reportes/2026-10-22_07_catalogo-editable.md`.
 - **Panel → Servicios:** lista en el orden de la web con precio, duración, destacado y activo/inactivo. Superadmin y admin crean (el identificador se sugiere desde el nombre y queda fijo al crear), editan todos los campos en un diálogo (listas editables para "Incluye" y "En palabras simples"), destacan (a lo sumo uno: el anterior se desmarca; un inactivo no se puede destacar), activan o desactivan (no se borran: hay turnos que los usan; desactivar el destacado lo desmarca) y suben o bajan el orden (`PUT /api/admin/servicios/orden`). El empleado ve la lista sin controles. Las validaciones (`admin/validacionServicio.ts`) son las del contrato y usan las mismas claves de error que el backend (`incluye.2`, `glosario.0.termino`).
 - Turnos muestra el nombre del servicio con el catálogo del panel (o el del respaldo, o el id tal cual si ya no existe).
 
+## Servicios como cards, comparativa y revelado al scroll
+
+Contrato: `reportes/2026-10-26_14_servicios-cards-comparativa.md`. Estilos en `landing/servicios.css` y `landing/revelar.css`; solo variables semánticas (andan en los dos temas).
+
+- **Cards:** `landing/Servicios.tsx` arma las `TarjetaServicio.tsx` dentro de `ListaTarjetas.tsx` (carrusel con scroll-snap y "1 de 5" en el celular; grilla de 2 y 3 columnas desde 700 px) y, debajo, `Comparativa.tsx` (en dos columnas desde 900 px). "Ver qué incluye" despliega la descripción, el "Incluye" completo y el glosario sin desmontar nada (`inert` plegado).
+- **Comparativa:** la lógica está en `src/lib/comparativa.ts` (con tests): expande `Todo lo del <nombre>` en "Incluye" (sin distinguir mayúsculas ni acentos, sin bucles si dos servicios se referencian), arma la matriz de filas, la separa en comunes y distintas (`dividirFilas`: la tabla muestra las distintas y junta las comunes en una fila desplegable), calcula los extras, la diferencia de precio (solo con los dos precios y > 0) y el par por defecto (primer servicio + destacado). La línea de ayuda del panel (Servicios → Incluye) explica la convención.
+- **Revelado:** `landing/useRevelar.ts` (ref callback; `useRevelar()` lo devuelve para un elemento suelto y `revelar` sirve en listas) marca `data-revelar` solo en lo que está debajo de la pantalla al montar. Para animar algo nuevo: `ref={revelar}` y la clase `revelar` (más `revelar--sutil` o `revelar--tarjeta`); para escalonar hijos, `revelar-hijo` con `--i`. `CabeceraSeccion` dibuja el filete de cada encabezado. Sin librerías; solo `transform` y `opacity`, y solo con `prefers-reduced-motion: no-preference`. Detalle de tiempos en `DESIGN.md`.
+
 ## Agenda
 
 Contrato: `reportes/2026-10-22_08_agenda.md`.

@@ -2,8 +2,10 @@ import { MarcoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { instagramArroba, instagramUrl } from '../config/enlaces';
 import { antesDespues, fotos } from '../data/galeria';
+import { CabeceraSeccion } from './CabeceraSeccion';
 import { Comparador } from './Comparador';
 import { Galeria } from './Galeria';
+import { revelar } from './useRevelar';
 
 function TrabajosVacio() {
   const instagram = instagramUrl();
@@ -41,18 +43,15 @@ export function Trabajos() {
   return (
     <section id="trabajos" className="seccion trabajos" aria-labelledby="trabajos-titulo">
       <div className="contenedor">
-        <header className="seccion__cabecera">
-          <h2 id="trabajos-titulo" className="seccion__titulo">
-            Trabajos reales
-          </h2>
+        <CabeceraSeccion id="trabajos-titulo" titulo="Trabajos reales">
           <p className="seccion__bajada">
             {hayFotos
               ? 'Antes y después de vehículos que pasaron por el taller. Deslizá la manija para comparar.'
               : 'Recién abrimos. Acá vas a ver fotos de nuestros trabajos, antes y después, a medida que los hagamos.'}
           </p>
-        </header>
+        </CabeceraSeccion>
         {hayFotos ? (
-          <div className="trabajos__contenido">
+          <div ref={revelar} className="trabajos__contenido revelar revelar--sutil">
             {antesDespues.length > 0 && (
               <div className="trabajos__comparadores">
                 {antesDespues.map((par) => (

@@ -7,6 +7,7 @@ import { CalendarioCargando, ElegirDia, ElegirFranja } from './ElegirDia';
 import { ExitoTurno } from './ExitoTurno';
 import { ID_SECCION_RESERVA } from './reserva-contexto';
 import { ResumenPedido } from './ResumenPedido';
+import { CabeceraSeccion } from './CabeceraSeccion';
 import { SinTurnosOnline } from './SinTurnosOnline';
 import { useFormularioTurno } from './useFormularioTurno';
 import './disponibilidad.css';
@@ -44,17 +45,14 @@ export function Reserva() {
   return (
     <section id={ID_SECCION_RESERVA} className="seccion reserva" aria-labelledby="reserva-titulo">
       <div className="contenedor">
-        <header className="seccion__cabecera reserva__cabecera">
-          <h2 id="reserva-titulo" className="seccion__titulo">
-            Reservá tu turno
-          </h2>
+        <CabeceraSeccion id="reserva-titulo" titulo="Reservá tu turno" className="reserva__cabecera">
           {estado !== 'vacio' && (
             <p className="seccion__bajada">
               Elegí el servicio y el día que te queda bien. Te contactamos para confirmar el turno: lleva menos de un
               minuto.
             </p>
           )}
-        </header>
+        </CabeceraSeccion>
 
         <div className="reserva__panel">
           <MarcoFilete tamano="mediano" trazar={envio.fase === 'exito'} key={envio.fase === 'exito' ? 'sello' : 'marco'} />

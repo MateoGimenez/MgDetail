@@ -1,0 +1,593 @@
+/* ==========================================================================
+   Servicios: las cards y la comparativa "¿Cuál te conviene?"
+   Contrato: reportes/2026-10-26_14_servicios-cards-comparativa.md. Mobile-first, solo variables semánticas
+   (andan igual en el tema oscuro y en el claro). El revelado al hacer scroll vive en revelar.css.
+   ========================================================================== */
+
+/* ---------- Cards ---------- */
+
+/* Celular: carrusel horizontal. Solo esta lista se desplaza de costado (la página no), con la card siguiente
+   asomando. Llega hasta los bordes de la pantalla y la primera card queda alineada con el margen. */
+.tarjetas-vista {
+  margin-inline: calc(-1 * var(--margen));
+  padding: var(--e-2) var(--margen) var(--e-4);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--margen);
+  scrollbar-width: none;
+}
+
+.tarjetas-vista::-webkit-scrollbar {
+  display: none;
+}
+
+.tarjetas-vista:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: -2px;
+}
+
+.tarjetas {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-4);
+  width: max-content;
+}
+
+.tarjetas__celda {
+  flex: none;
+  width: min(84vw, 340px);
+  scroll-snap-align: start;
+}
+
+.tarjetas__indicador {
+  margin-top: var(--e-2);
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-2);
+}
+
+/* Desde 700 px: grilla. Si hay una card abierta, las demás no se estiran con ella */
+.tarjetas:has(.tarjeta[data-abierta='true']) {
+  align-items: start;
+}
+
+.tarjetas__celda {
+  display: grid;
+}
+
+.tarjeta {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+  box-shadow: var(--sombra-1);
+}
+
+.tarjeta--destacada {
+  border-color: var(--destacada-borde);
+  background: var(--destacada-fondo);
+  box-shadow: var(--sombra-2);
+}
+
+/* Filete rojo sobre el borde superior de la destacada */
+.tarjeta--destacada::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 20px;
+  right: 20px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--filete);
+}
+
+.tarjeta__sello {
+  align-self: flex-start;
+  margin-bottom: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--acento);
+  border-radius: 999px;
+  color: var(--sello-texto);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.tarjeta__nombre {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.75rem, 1.45rem + 1vw, 2.1rem);
+  line-height: 1.05;
+  letter-spacing: var(--display-tracking);
+  text-wrap: balance;
+}
+
+.tarjeta__resumen {
+  margin-top: 6px;
+  color: var(--texto-2);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+/* Precio y duración siempre en el mismo lugar, en una chapa de datos */
+.tarjeta__datos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--fondo-hundido);
+}
+
+.tarjeta__dato {
+  padding: 8px 12px;
+}
+
+.tarjeta__dato + .tarjeta__dato {
+  border-left: 1px solid var(--borde);
+}
+
+.tarjeta__dato dt {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--texto-3);
+}
+
+.tarjeta__dato dd {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Precio esperando al catálogo: ocupa su lugar para que no salte nada cuando llega */
+.tarjeta__precio-cargando {
+  display: inline-block;
+  width: 7.5ch;
+  height: 0.8em;
+  border-radius: var(--radio-1);
+  vertical-align: -0.05em;
+  background: linear-gradient(100deg, var(--esqueleto) 30%, var(--esqueleto-brillo) 50%, var(--esqueleto) 70%);
+  background-size: 300% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tarjeta__precio-cargando {
+    animation: precio-brillo 1.4s linear infinite;
+  }
+}
+
+@keyframes precio-brillo {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+.tarjeta__incluye {
+  display: grid;
+  gap: 6px;
+  padding-top: 14px;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.tarjeta__incluye li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.tarjeta__incluye .rombo {
+  translate: 0 -0.05em;
+}
+
+/* Lo que se despliega: se pliega sin desmontarse (la grilla va de 0fr a 1fr) y, cerrado, queda inert */
+.plegable {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.plegable[data-abierto='false'] {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+
+.plegable__interior {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .plegable {
+    transition:
+      grid-template-rows var(--t-media) var(--ease-salida),
+      visibility 0s;
+  }
+
+  /* Al cerrar, se oculta recién cuando terminó de plegarse */
+  .plegable[data-abierto='false'] {
+    transition:
+      grid-template-rows var(--t-media) var(--ease-salida),
+      visibility 0s var(--t-media);
+  }
+}
+
+.tarjeta__detalle {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.tarjeta__descripcion {
+  color: var(--texto-2);
+}
+
+.tarjeta__subtitulo {
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--texto-3);
+}
+
+.tarjeta__detalle .tarjeta__incluye {
+  padding-top: 0;
+}
+
+.glosario {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radio-2);
+  background: var(--velo-suave);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.glosario__item dt,
+.glosario__item dd {
+  display: inline;
+}
+
+.glosario__item dt {
+  font-weight: 650;
+  color: var(--texto);
+}
+
+.glosario__item dd {
+  color: var(--texto-2);
+}
+
+.tarjeta__acciones {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.tarjeta__ver {
+  justify-self: start;
+  margin-left: -16px; /* alinea el texto con el resto de la card */
+}
+
+.tarjeta__chevron {
+  translate: 0 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tarjeta__chevron {
+    transition: transform var(--t-media) var(--ease-salida);
+  }
+}
+
+.tarjeta__ver[aria-expanded='true'] .tarjeta__chevron {
+  transform: rotate(180deg);
+}
+
+@media (min-width: 700px) {
+  .tarjetas-vista {
+    margin-inline: 0;
+    padding: var(--e-2) 0 0;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+
+  .tarjetas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: var(--e-5);
+    width: auto;
+  }
+
+  .tarjetas:has(.tarjeta[data-abierta='true']) {
+    align-items: start;
+  }
+
+  .tarjetas__celda {
+    display: grid;
+    width: auto;
+  }
+}
+
+@media (min-width: 1060px) {
+  .tarjetas {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--e-6);
+    padding-top: var(--e-4);
+  }
+
+  .tarjeta {
+    padding: 24px;
+  }
+
+  .tarjeta--destacada {
+    translate: 0 -12px;
+  }
+
+  .tarjeta--destacada::before {
+    left: 24px;
+    right: 24px;
+  }
+}
+
+/* ---------- Comparativa ---------- */
+
+.comparativa {
+  margin-top: clamp(64px, 9vw, 112px);
+}
+
+.comparativa__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(2rem, 1.5rem + 2.2vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: var(--display-tracking);
+}
+
+.comparativa__bajada {
+  margin-top: 10px;
+  color: var(--texto-2);
+}
+
+.comparativa__selectores {
+  display: grid;
+  gap: var(--e-3);
+  max-width: 42rem;
+  margin-top: var(--e-5);
+}
+
+@media (min-width: 600px) {
+  .comparativa__selectores {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--e-5);
+  }
+}
+
+/* El resumen: la respuesta a "¿me conviene?" */
+.comparativa__resumen {
+  max-width: 48rem;
+  margin-block: var(--e-4);
+  padding: 16px 18px;
+  border-left: 3px solid var(--filete);
+  border-radius: 0 var(--radio-2) var(--radio-2) 0;
+  background: var(--velo-suave);
+}
+
+.comparativa__frase {
+  font-size: 1.0625rem;
+  line-height: 1.45;
+}
+
+.comparativa__monto {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.45rem;
+  line-height: 1.1;
+  color: var(--acento-texto);
+}
+
+/* La tabla: concepto + dos servicios, legible a 390 px; la fila de nombres queda fija al recorrerla */
+.tabla-comparativa {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9375rem;
+}
+
+.tabla-comparativa thead th {
+  position: sticky;
+  top: var(--cabecera-alto);
+  z-index: 2;
+  padding: 12px 6px;
+  border-bottom: 2px solid var(--filete);
+  background: var(--fondo);
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  line-height: 1.1;
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.tabla-comparativa thead th:first-child {
+  width: 46%;
+}
+
+.tabla-comparativa tbody th,
+.tabla-comparativa tbody td {
+  padding: 11px 6px;
+  border-bottom: 1px solid var(--borde-suave);
+  vertical-align: middle;
+}
+
+.tabla-comparativa tbody th {
+  padding-left: 0;
+  font-weight: 450;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.tabla-comparativa tbody td {
+  text-align: center;
+}
+
+.tabla-comparativa__dato th {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--texto-3);
+}
+
+.tabla-comparativa__dato td {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.1rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Fila desplegable con lo que incluyen los dos */
+.tabla-comparativa__comunes td {
+  padding: 0;
+  border-bottom: 1px solid var(--borde-suave);
+}
+
+.tabla-comparativa__ver {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 6px 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--texto);
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tabla-comparativa__ver:hover {
+  color: var(--acento-texto);
+}
+
+.tabla-comparativa__ver:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.tabla-comparativa__ver[aria-expanded='true'] .tabla-comparativa__chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tabla-comparativa__chevron {
+    transition: transform var(--t-media) var(--ease-salida);
+  }
+}
+
+.tabla-comparativa tfoot td {
+  padding: 16px 4px 0;
+  vertical-align: top;
+}
+
+.tabla-comparativa tfoot .boton {
+  width: 100%;
+  padding-inline: 6px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+/* ✓ y — : dos formas distintas, no solo dos colores */
+.marca {
+  display: inline-grid;
+  place-items: center;
+  min-height: 24px;
+}
+
+.marca--si {
+  color: var(--texto);
+}
+
+.marca--extra {
+  color: var(--acento-texto);
+}
+
+.marca--no {
+  color: var(--texto-3);
+}
+
+@media (min-width: 600px) {
+  .tabla-comparativa {
+    font-size: 1rem;
+  }
+
+  .tabla-comparativa thead th {
+    font-size: 1.4rem;
+  }
+
+  .tabla-comparativa tbody th,
+  .tabla-comparativa tbody td {
+    padding-block: 13px;
+  }
+}
+
+/* Pantalla ancha: texto y selectores a la izquierda, la tabla ocupa el resto */
+@media (min-width: 900px) {
+  .comparativa {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-areas:
+      'cabeza tabla'
+      'selectores tabla'
+      'resumen tabla'
+      '. tabla';
+    grid-template-rows: auto auto auto 1fr;
+    column-gap: clamp(40px, 5vw, 80px);
+    align-items: start;
+  }
+
+  .comparativa__cabeza {
+    grid-area: cabeza;
+  }
+
+  .comparativa__selectores {
+    grid-area: selectores;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .comparativa__resumen {
+    grid-area: resumen;
+    margin-block: var(--e-5) 0;
+  }
+
+  .comparativa__tabla {
+    grid-area: tabla;
+  }
+
+  .tabla-comparativa thead th:first-child {
+    width: 40%;
+  }
+}

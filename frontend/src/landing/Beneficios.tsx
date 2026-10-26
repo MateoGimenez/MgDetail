@@ -2,6 +2,8 @@ import { Rombo, SeparadorFilete } from '../components/Filete';
 import { MonogramaGiratorio } from './MonogramaGiratorio';
 import { whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
+import { CabeceraSeccion } from './CabeceraSeccion';
+import { revelar } from './useRevelar';
 
 export function Beneficios() {
   const conWhatsapp = whatsappUrl() !== null;
@@ -38,18 +40,15 @@ export function Beneficios() {
   return (
     <section className="seccion beneficios" aria-labelledby="beneficios-titulo">
       <div className="contenedor">
-        <header className="seccion__cabecera">
-          <h2 id="beneficios-titulo" className="seccion__titulo">
-            Por qué elegirnos
-          </h2>
+        <CabeceraSeccion id="beneficios-titulo" titulo="Por qué elegirnos">
           <p className="seccion__bajada">
             Somos un taller nuevo y lo decimos de frente: todavía no tenemos cifras para mostrarte. Tenemos un método y
             la costumbre de explicar cada paso.
           </p>
-        </header>
+        </CabeceraSeccion>
         <ul className="beneficios__lista" role="list">
           {beneficios.map((beneficio) => (
-            <li key={beneficio.titulo} className="beneficio">
+            <li key={beneficio.titulo} ref={revelar} className="beneficio revelar revelar--sutil">
               <Rombo className="beneficio__marca" />
               <div>
                 <h3 className="beneficio__titulo">{beneficio.titulo}</h3>

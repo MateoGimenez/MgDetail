@@ -12,6 +12,8 @@ import { ReservaProvider } from './ReservaProvider';
 import { Servicios } from './Servicios';
 import { Trabajos } from './Trabajos';
 import './landing.css';
+import './servicios.css';
+import './revelar.css';
 
 export function Landing() {
   return (
