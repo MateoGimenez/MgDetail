@@ -223,6 +223,43 @@ export function VistaDisponibilidad({ editable, alVencerSesion }: Props) {
       />
     );
 
+  const botonesAplicar = (
+    <>
+      <button
+        type="button"
+        className="boton boton--primario boton--chico"
+        disabled={elegidas.length === 0 || aplicando}
+        onClick={() => {
+          void aplicarVarios('cerrar');
+        }}
+      >
+        <Icono nombre="cerrado" tamano={18} />
+        Cerrar {elegidas.length > 0 ? dias(elegidas.length) : 'los días'}
+      </button>
+      <button
+        type="button"
+        className="boton boton--secundario boton--chico"
+        disabled={elegidas.length === 0 || aplicando}
+        onClick={() => {
+          void aplicarVarios('abrir');
+        }}
+      >
+        Abrir {elegidas.length > 0 ? dias(elegidas.length) : 'los días'}
+      </button>
+    </>
+  );
+
+  // Celular: la sección de "Elegir varios días" queda debajo del calendario; para no tener que bajar después de marcar
+  // los días, la cantidad elegida y Cerrar/Abrir van en una barra fija abajo mientras se elige.
+  const barraVarios = (
+    <div className="varios-barra" role="region" aria-label="Días elegidos">
+      <p className="varios-barra__cuenta">
+        {elegidas.length === 0 ? 'Ningún día elegido' : `${dias(elegidas.length)} elegido${elegidas.length === 1 ? '' : 's'}`}
+      </p>
+      <div className="varios-barra__acciones">{botonesAplicar}</div>
+    </div>
+  );
+
   const panelVarios = (
     <section className="varios" aria-labelledby={`${idMes}-varios`}>
       <h2 id={`${idMes}-varios`} className="varios__titulo">
@@ -294,27 +331,8 @@ export function VistaDisponibilidad({ editable, alVencerSesion }: Props) {
       )}
 
       <div className="varios__acciones">
-        <button
-          type="button"
-          className="boton boton--primario boton--chico"
-          disabled={elegidas.length === 0 || aplicando}
-          onClick={() => {
-            void aplicarVarios('cerrar');
-          }}
-        >
-          <Icono nombre="cerrado" tamano={18} />
-          Cerrar {elegidas.length > 0 ? dias(elegidas.length) : 'los días'}
-        </button>
-        <button
-          type="button"
-          className="boton boton--secundario boton--chico"
-          disabled={elegidas.length === 0 || aplicando}
-          onClick={() => {
-            void aplicarVarios('abrir');
-          }}
-        >
-          Abrir {elegidas.length > 0 ? dias(elegidas.length) : 'los días'}
-        </button>
+        {/* En el celular, Cerrar y Abrir van en la barra fija de abajo (ver barraVarios). */}
+        {ancha && botonesAplicar}
         <button
           type="button"
           className="boton boton--fantasma boton--chico"
@@ -515,6 +533,7 @@ export function VistaDisponibilidad({ editable, alVencerSesion }: Props) {
               </aside>
             )}
             {!ancha && varios && panelVarios}
+            {!ancha && varios && editable && barraVarios}
           </div>
 
           <details className="plegable">

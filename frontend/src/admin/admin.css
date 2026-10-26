@@ -3181,6 +3181,38 @@
   gap: var(--e-2);
 }
 
+/* Celular: barra fija abajo con la cantidad elegida y Cerrar/Abrir, para no tener que bajar después de marcar. */
+.varios-barra {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  padding: var(--e-3) var(--margen) calc(var(--e-3) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--borde);
+  background: var(--superficie);
+  box-shadow: 0 -6px 18px rgb(0 0 0 / 0.08);
+}
+
+.varios-barra__cuenta {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.varios-barra__acciones {
+  display: flex;
+  gap: var(--e-2);
+}
+
+/* Que la barra no tape el final de la página mientras se eligen días. */
+.panel__trabajo:has(.varios-barra) {
+  padding-bottom: calc(var(--e-8) + 88px);
+}
+
 .varios__progreso {
   display: grid;
   gap: 8px;
