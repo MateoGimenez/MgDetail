@@ -1,0 +1,812 @@
+/* =========================================================================
+   Estadísticas del panel. Solo variables del panel claro (admin.css / base.css).
+   Marcas: tinta grafito para el dato, rojo para el énfasis (lo mejor del período),
+   hairlines recesivas. Los estados reusan los tonos de los sellos del panel.
+   ========================================================================= */
+
+.est {
+  --est-barra: var(--texto-3);
+  --est-enfasis: var(--acento);
+  --est-activa: var(--texto);
+  --est-grilla: var(--borde-suave);
+  --est-eje: var(--borde);
+  --est-pista: var(--fondo-hundido);
+  --est-total: var(--borde);
+  --est-pendiente: #8a5200;
+  --est-confirmado: #1d6b40;
+  --est-completado: #3f464e;
+  --est-cancelado: #a3221b;
+  --est-sube: #1d6b40;
+  --est-baja: #a3221b;
+  gap: var(--e-4);
+}
+
+.est > * + * {
+  margin-top: var(--e-4);
+}
+
+.est-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.est-contenido {
+  display: grid;
+  gap: var(--e-4);
+  transition: opacity 0.2s;
+}
+
+.est-contenido--obsoleto {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ---------- Tarjetas Hoy / Este mes / Este año ---------- */
+
+.est-kpis {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.est-kpi {
+  display: grid;
+  align-content: start;
+  gap: var(--e-1);
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+}
+
+.est-kpi--esqueleto {
+  gap: var(--e-3);
+  min-height: 150px;
+}
+
+.est-kpi__titulo {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.est-kpi__valor {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(2rem, 1.6rem + 1.6vw, 2.6rem);
+  line-height: 1.05;
+}
+
+.est-kpi__sub {
+  color: var(--texto-3);
+  font-size: 0.9375rem;
+}
+
+.est-kpi__cambios {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--e-2);
+  padding-top: var(--e-2);
+  border-top: 1px solid var(--borde-suave);
+}
+
+.est-cambio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--e-2);
+  font-size: 0.875rem;
+}
+
+.est-cambio__que {
+  min-width: 4.5rem;
+  color: var(--texto-3);
+}
+
+.est-cambio__texto {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 650;
+  color: var(--texto-2);
+}
+
+.est-cambio--sube .est-cambio__texto .icono {
+  color: var(--est-sube);
+}
+
+.est-cambio--baja .est-cambio__texto .icono {
+  color: var(--est-baja);
+}
+
+.est-kpis__nota {
+  margin-top: var(--e-2);
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  max-width: 62ch;
+}
+
+@media (min-width: 640px) {
+  .est-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Período ---------- */
+
+.est-rango {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.est-rango__titulo {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.est-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.est-chip {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--campo-borde);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.est-chip:hover {
+  border-color: var(--texto-3);
+}
+
+.est-chip:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.est-chip[aria-pressed='true'] {
+  border-color: var(--texto);
+  background: var(--texto);
+  color: #ffffff;
+}
+
+.est-rango__texto {
+  color: var(--texto-2);
+}
+
+.est-rango__form {
+  display: grid;
+  gap: var(--e-3);
+  max-width: 460px;
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+}
+
+.est-rango__ver {
+  justify-self: start;
+}
+
+@media (min-width: 520px) {
+  .est-rango__form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .est-rango__ver,
+  .est-rango__ayuda {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- Avisos, vacío ---------- */
+
+.est-avisos {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.est-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-3);
+  padding: var(--e-4);
+  border: 1px solid #e3c48f;
+  border-radius: var(--radio-3);
+  background: #fff4e0;
+  color: #5c3700;
+}
+
+.est-aviso > div {
+  display: grid;
+  justify-items: start;
+  gap: var(--e-2);
+}
+
+.est-aviso__titulo {
+  font-weight: 700;
+}
+
+.est-vacio,
+.est-vacio-chico {
+  padding: var(--e-6) var(--e-4);
+  border: 1px dashed var(--campo-borde);
+  border-radius: var(--radio-3);
+  background: var(--fondo-hundido);
+  color: var(--texto-2);
+  text-align: center;
+}
+
+.est-vacio-chico {
+  padding: var(--e-4);
+  text-align: left;
+}
+
+/* ---------- Tarjetas de resumen y de gráficos ---------- */
+
+.est-tarjeta {
+  display: grid;
+  align-content: start;
+  gap: var(--e-3);
+  min-width: 0;
+  padding: clamp(16px, 2.4vw, 24px);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+  box-shadow: 0 1px 2px rgb(21 24 27 / 0.06), 0 6px 16px -12px rgb(21 24 27 / 0.25);
+}
+
+.est-tarjeta__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.4rem;
+  line-height: 1.15;
+}
+
+.est-tarjeta__ayuda {
+  color: var(--texto-3);
+  font-size: 0.9375rem;
+}
+
+.est-cifras {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--e-4) var(--e-3);
+}
+
+.est-cifra {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+}
+
+.est-cifra--grande {
+  grid-column: 1 / -1;
+}
+
+.est-cifra__nombre {
+  color: var(--texto-2);
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.est-cifra__valor {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.7rem;
+  line-height: 1.1;
+}
+
+.est-cifra--grande .est-cifra__valor {
+  font-size: 2.4rem;
+}
+
+.est-cifra__nota {
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+}
+
+@media (min-width: 720px) {
+  .est-cifras {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .est-cifra--grande {
+    grid-column: auto;
+  }
+
+  .est-cifra--grande .est-cifra__valor {
+    font-size: 1.7rem;
+  }
+}
+
+.est-graficos {
+  display: grid;
+  gap: var(--e-4);
+}
+
+@media (min-width: 900px) {
+  .est-graficos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .est-graficos__ancho {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- SVG: texto y marcas ---------- */
+
+.est-svg {
+  display: block;
+  max-width: 100%;
+  touch-action: pan-y;
+  overflow: visible;
+}
+
+.est-svg--calor {
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+}
+
+.est-texto-eje {
+  fill: var(--texto-3);
+  font: 400 12px/1 Archivo, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.est-texto-eje--fuerte {
+  fill: var(--texto-2);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.est-texto-dato {
+  fill: var(--texto);
+  font: 700 12px/1 Archivo, system-ui, sans-serif;
+}
+
+.est-grilla {
+  stroke: var(--est-grilla);
+  stroke-width: 1;
+}
+
+.est-eje {
+  stroke: var(--est-eje);
+  stroke-width: 1;
+}
+
+.est-casillero-activo {
+  fill: var(--fondo-hundido);
+}
+
+.est-barra {
+  fill: var(--est-barra);
+}
+
+.est-barra--maxima {
+  fill: var(--est-enfasis);
+}
+
+.est-barra--activa {
+  fill: var(--est-activa);
+}
+
+.est-barra--sin {
+  fill: var(--campo-borde-hover);
+}
+
+.est-barra-total {
+  fill: var(--est-total);
+}
+
+.est-barra-rayas {
+  fill: none;
+}
+
+.est-raya {
+  fill: var(--est-barra);
+}
+
+.est-pista {
+  fill: var(--est-pista);
+}
+
+.est-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.est-enfocable {
+  border-radius: var(--radio-2);
+}
+
+.est-enfocable:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.est-columnas {
+  min-width: 0;
+}
+
+/* Línea fija con el dato elegido: sirve en el celular, donde no hay hover. */
+.est-lectura {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--e-1) var(--e-3);
+  min-height: 44px;
+  margin-top: var(--e-2);
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--radio-2);
+  background: var(--fondo-hundido);
+}
+
+.est-lectura__titulo {
+  color: var(--texto-2);
+}
+
+.est-lectura__dato {
+  color: var(--texto);
+  font-size: 1.0625rem;
+}
+
+.est-lectura__ayuda {
+  color: var(--texto-3);
+  font-size: 0.9375rem;
+}
+
+.est-nota {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin-top: var(--e-2);
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.est-nota__marca {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.est-nota__marca--enfasis {
+  background: var(--est-enfasis);
+}
+
+.est-nota__marca--calor {
+  background: color-mix(in srgb, var(--acento) 88%, #ffffff);
+}
+
+/* ---------- Ranking de barras ---------- */
+
+.est-ranking {
+  position: relative;
+  display: grid;
+  gap: var(--e-3);
+}
+
+.est-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2) var(--e-4);
+  color: var(--texto-2);
+  font-size: 0.875rem;
+}
+
+.est-leyenda li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.est-leyenda__muestra {
+  flex: none;
+}
+
+.est-filas {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.est-fila {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.est-fila__cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e-3);
+}
+
+.est-fila__nombre {
+  min-width: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.est-fila__valor {
+  flex: none;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.est-fila__barra {
+  display: block;
+  width: 100%;
+  height: 14px;
+}
+
+.est-fila__detalle {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+.est-ranking__mas {
+  justify-self: start;
+}
+
+/* ---------- Mapa de calor: un tono, cuatro niveles con contraste de texto asegurado ---------- */
+
+.est-calor--n0 {
+  fill: var(--fondo-hundido);
+  background: var(--fondo-hundido);
+}
+
+.est-calor--n1 {
+  fill: color-mix(in srgb, var(--acento) 14%, #ffffff);
+  background: color-mix(in srgb, var(--acento) 14%, #ffffff);
+}
+
+.est-calor--n2 {
+  fill: color-mix(in srgb, var(--acento) 32%, #ffffff);
+  background: color-mix(in srgb, var(--acento) 32%, #ffffff);
+}
+
+.est-calor--n3 {
+  fill: color-mix(in srgb, var(--acento) 52%, #ffffff);
+  background: color-mix(in srgb, var(--acento) 52%, #ffffff);
+}
+
+.est-calor--n4 {
+  fill: color-mix(in srgb, var(--acento) 88%, #ffffff);
+  background: color-mix(in srgb, var(--acento) 88%, #ffffff);
+}
+
+.est-celda {
+  stroke: var(--borde-suave);
+  stroke-width: 1;
+}
+
+.est-celda-activa {
+  fill: none;
+  stroke: var(--texto);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.est-celda-numero {
+  fill: var(--texto);
+  font: 700 15px/1 Archivo, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.est-celda-numero--claro {
+  fill: #ffffff;
+}
+
+.est-escala {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--e-2);
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+}
+
+.est-escala__celda {
+  width: 22px;
+  height: 12px;
+  border: 1px solid var(--borde-suave);
+  border-radius: 2px;
+}
+
+.est-escala span:first-child {
+  margin-right: 4px;
+}
+
+.est-escala span:last-child {
+  margin-left: 4px;
+}
+
+/* ---------- Estado de los turnos ---------- */
+
+.est-estado--pendiente {
+  fill: var(--est-pendiente);
+}
+
+.est-estado--confirmado {
+  fill: var(--est-confirmado);
+}
+
+.est-estado--completado {
+  fill: var(--est-completado);
+}
+
+.est-estado--cancelado {
+  fill: var(--est-cancelado);
+}
+
+.est-trama {
+  fill: rgb(255 255 255 / 0.4);
+}
+
+.est-estado-numero {
+  fill: #ffffff;
+  font: 700 13px/1 Archivo, system-ui, sans-serif;
+  paint-order: stroke;
+  stroke: rgb(0 0 0 / 0.55);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.est-estados__leyenda {
+  display: grid;
+  gap: var(--e-2);
+  margin-top: var(--e-3);
+}
+
+.est-estados__fila {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto 4.5rem;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.est-estados__cantidad,
+.est-estados__pct {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.est-estados__cantidad {
+  font-weight: 750;
+}
+
+.est-estados__pct {
+  color: var(--texto-3);
+}
+
+/* ---------- Tabla alternativa ---------- */
+
+.est-tabla {
+  border-top: 1px solid var(--borde-suave);
+  padding-top: var(--e-2);
+}
+
+.est-tabla__resumen {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--acento-texto);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.est-tabla__resumen:focus-visible,
+.est-tabla__scroll:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.est-tabla__scroll {
+  max-height: 320px;
+  overflow: auto;
+  margin-top: var(--e-2);
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--radio-2);
+}
+
+.est-tabla__tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.est-tabla__tabla th,
+.est-tabla__tabla td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--borde-suave);
+  text-align: left;
+  font-weight: 400;
+}
+
+.est-tabla__tabla thead th {
+  position: sticky;
+  top: 0;
+  background: var(--fondo-hundido);
+  color: var(--texto-2);
+  font-weight: 650;
+}
+
+.est-tabla__tabla tbody th {
+  font-weight: 600;
+}
+
+.est-tabla__tabla .est-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.est-tabla__vacia {
+  color: var(--texto-3);
+}
+
+/* ---------- Esqueleto ---------- */
+
+.est-esqueleto {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.est-esqueleto__grafico {
+  height: 200px;
+}
+
+.est-esqueleto__fila {
+  height: 28px;
+}
+
+/* ---------- Movimiento: solo si la persona no lo pidió reducido ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .est-barra,
+  .est-barra--maxima,
+  .est-barra--activa {
+    transform-box: fill-box;
+    transform-origin: bottom;
+    animation: est-crecer 0.5s var(--ease-salida, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  }
+
+  .est-fila__barra .est-barra,
+  .est-fila__barra .est-barra-total,
+  .est-fila__barra .est-barra-rayas {
+    animation: none;
+  }
+}
+
+@keyframes est-crecer {
+  from {
+    transform: scaleY(0);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@media (forced-colors: active) {
+  .est-barra,
+  .est-barra--maxima,
+  .est-barra--activa {
+    fill: CanvasText;
+  }
+}

@@ -22,6 +22,7 @@ import { AgendaService } from './services/agenda.js';
 import { AuthService } from './services/auth.js';
 import { BookingService } from './services/bookings.js';
 import { DisponibilidadService } from './services/disponibilidad.js';
+import { EstadisticasService } from './services/estadisticas.js';
 import { PUSH_TIMEOUT_MS, PushService } from './services/push.js';
 import { RecordatorioService } from './services/recordatorios.js';
 import { ServicioService } from './services/servicios.js';
@@ -57,7 +58,7 @@ export function createApp(deps: AppDeps): Express {
   const logger = deps.logger ?? createLogger();
   const now = deps.now ?? (() => new Date());
 
-  const { bookings, perfiles, servicios, disponibilidad, push: pushRepo } = deps.repositories;
+  const { bookings, perfiles, servicios, disponibilidad, push: pushRepo, estadisticas: estadisticasRepo } = deps.repositories;
   const push = new PushService({
     repo: pushRepo,
     config: config.push,
@@ -93,7 +94,8 @@ export function createApp(deps: AppDeps): Express {
     logger,
     now,
   });
-  const agenda = new AgendaService({ bookings, logger, now });
+  const agenda = new AgendaService({ bookings, perfiles, logger, now });
+  const estadisticas = new EstadisticasService({ estadisticas: estadisticasRepo, now });
   const servicioService = new ServicioService({ servicios, logger, now });
   const disponibilidadService = new DisponibilidadService({ disponibilidad, logger, now });
   const recordatorios = new RecordatorioService({
@@ -125,6 +127,8 @@ export function createApp(deps: AppDeps): Express {
       now,
       checkDatabase,
       bookings,
+      perfiles,
+      estadisticas,
       bookingService,
       agenda,
       disponibilidad: disponibilidadService,

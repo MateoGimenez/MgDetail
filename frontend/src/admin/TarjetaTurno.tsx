@@ -14,8 +14,10 @@ import { Icono } from '../components/Icono';
 import { seguimientoPublicoUrl, whatsappClienteUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 import { lugarEnAgenda, mensajeParaCliente, textoPidio } from '../lib/agenda';
+import { faltaCobro, lineaDeCobro } from '../lib/cobro';
 import { diaCortoConMes, fechaCorta, momentoEnLaRioja } from '../lib/fechas';
 import { referenciaDeTurno, selloDeCliente } from '../lib/turnos';
+import { FormularioCobro } from './cobro/FormularioCobro';
 import { ElegirFecha, type ModoFecha } from './ElegirFecha';
 import { NotaInterna } from './NotaInterna';
 import {
@@ -24,6 +26,7 @@ import {
   muestraSelectorDeEstado,
   puedeBorrarTurnos,
   puedeEditarNotas,
+  puedeRegistrarCobro,
   puedeReprogramar,
 } from './permisos';
 import type { Problema } from './useUsuarios';
@@ -83,13 +86,15 @@ export function TarjetaTurno({
   const tituloId = idTitulo ?? `${id}-nombre`;
   const cuerpoId = `${id}-cuerpo`;
   const tarjetaRef = useRef<HTMLElement>(null);
-  const [formulario, setFormulario] = useState<ModoFecha | null>(null);
+  // Qué formulario está abierto en la tarjeta: elegir fecha, completar con cobro, o editar el cobro de un completado.
+  const [formulario, setFormulario] = useState<ModoFecha | 'completar' | 'cobro' | null>(null);
   const [editandoNota, setEditandoNota] = useState(false);
   const Titulo = nivelTitulo === 2 ? 'h2' : 'h3';
 
   const servicio = nombreServicio;
   const lugar = lugarEnAgenda(turno);
   const reprograma = puedeReprogramar(rol);
+  const registraCobro = puedeRegistrarCobro(rol);
   // El mensaje usa la fecha de agenda (la confirmada si existe, si no la que pidió) y, si la web tiene URL
   // pública, el enlace de seguimiento.
   const whatsapp = whatsappClienteUrl(
@@ -105,7 +110,14 @@ export function TarjetaTurno({
       ? turno.estado === 'pendiente'
       : formulario === 'reprogramar'
         ? admiteNuevaFecha(turno.estado)
-        : false;
+        : formulario === 'completar'
+          ? turno.estado !== 'completado'
+          : formulario === 'cobro'
+            ? turno.estado === 'completado'
+            : false;
+
+  // Un formulario que ya no corresponde (el turno cambió por otro lado o recién se guardó) no queda armado para después.
+  if (formulario !== null && !abierto) setFormulario(null);
 
   // Algo a medio escribir: la vista no lo pliega con "Plegar todas" (y plegar a mano solo lo oculta, no lo borra).
   const borrador = (abierto && formulario !== null) || editandoNota;
@@ -130,8 +142,10 @@ export function TarjetaTurno({
     requestAnimationFrame(() => {
       // El foco vuelve al botón que abrió el formulario; si ya no está (se confirmó), a la primera acción.
       const tarjeta = tarjetaRef.current;
+      // Al completar, el foco va a "Editar cobro" (no a Eliminar, que es la primera acción que queda).
       const boton =
         tarjeta?.querySelector<HTMLElement>(`[data-abre="${modo ?? ''}"]`) ??
+        (modo === 'completar' ? tarjeta?.querySelector<HTMLElement>('[data-abre="cobro"]') : null) ??
         tarjeta?.querySelector<HTMLElement>('.turno__acciones button, .turno__acciones a');
       boton?.focus();
     });
@@ -141,6 +155,11 @@ export function TarjetaTurno({
     // Desde "pendiente", confirmar pregunta para cuándo (si el rol puede elegir otra fecha).
     if (estado === 'confirmado' && reprograma && turno.estado === 'pendiente') {
       setFormulario('confirmar');
+      return;
+    }
+    // Completar pregunta cuánto se cobró y quién lo hizo (el empleado completa directo: no maneja plata).
+    if (estado === 'completado' && registraCobro) {
+      setFormulario('completar');
       return;
     }
     void alCambiar({ estado });
@@ -233,6 +252,24 @@ export function TarjetaTurno({
         </div>
       )}
 
+      {turno.estado === 'completado' &&
+        (abierto && formulario === 'cobro' ? (
+          <FormularioCobro turno={turno} modo="editar" alEnviar={alCambiar} alTerminar={cerrarFormulario} />
+        ) : (
+          <CobroDelTurno
+            turno={turno}
+            verImportes={registraCobro}
+            ocupada={ocupada}
+            alEditar={
+              registraCobro
+                ? () => {
+                    setFormulario('cobro');
+                  }
+                : undefined
+            }
+          />
+        ))}
+
       {puedeEditarNotas(rol) ? (
         <NotaInterna
           nota={turno.notasInternas}
@@ -265,8 +302,10 @@ export function TarjetaTurno({
         </p>
       )}
 
-      {abierto && formulario ? (
+      {abierto && (formulario === 'confirmar' || formulario === 'reprogramar') ? (
         <ElegirFecha turno={turno} modo={formulario} alEnviar={alCambiar} alTerminar={cerrarFormulario} />
+      ) : abierto && formulario === 'completar' ? (
+        <FormularioCobro turno={turno} modo="completar" alEnviar={alCambiar} alTerminar={cerrarFormulario} />
       ) : (
         <div className="turno__acciones">
           {accionesDeEstado(rol, turno.estado).map((transicion) => (
@@ -275,7 +314,7 @@ export function TarjetaTurno({
               type="button"
               className={transicion.principal ? 'boton boton--primario boton--chico' : 'boton boton--secundario boton--chico'}
               disabled={ocupada}
-              data-abre={transicion.a === 'confirmado' ? 'confirmar' : undefined}
+              data-abre={transicion.a === 'confirmado' ? 'confirmar' : transicion.a === 'completado' ? 'completar' : undefined}
               onClick={() => {
                 aplicar(transicion.a);
               }}
@@ -380,7 +419,8 @@ export function TarjetaTurno({
   // Señales de la fila plegada: lo que conviene saber sin abrirla.
   const frecuente = cliente?.conHistorial === true;
   const conNota = Boolean(turno.notasInternas);
-  const senales = !expandida && (frecuente || conNota || borrador || Boolean(error));
+  const sinCobro = registraCobro && faltaCobro(turno);
+  const senales = !expandida && (frecuente || conNota || borrador || sinCobro || Boolean(error));
 
   return (
     <article
@@ -433,6 +473,12 @@ export function TarjetaTurno({
                       Sin terminar
                     </span>
                   )}
+                  {sinCobro && (
+                    <span className="senal senal--sincobro">
+                      <Icono nombre="alerta" tamano={14} />
+                      Sin cobro
+                    </span>
+                  )}
                   {frecuente && (
                     <span className="senal senal--frecuente">
                       <Icono nombre="estrella" tamano={14} />
@@ -458,5 +504,48 @@ export function TarjetaTurno({
         </div>
       </div>
     </article>
+  );
+}
+
+/**
+ * Cobro de un turno completado: "Cobrado $ 60.000 · Lucas" o "Sin cobro cargado", con el botón para cargarlo o
+ * corregirlo (solo admin y superadmin). El empleado ve solo quién lo hizo: nunca recibe importes.
+ */
+function CobroDelTurno({
+  turno,
+  verImportes,
+  ocupada,
+  alEditar,
+}: {
+  turno: Turno;
+  verImportes: boolean;
+  ocupada: boolean;
+  alEditar: (() => void) | undefined;
+}) {
+  const linea = lineaDeCobro(turno, verImportes);
+  if (!linea) return null;
+  const falta = verImportes && faltaCobro(turno);
+  return (
+    <div className={falta ? 'cobro-resumen cobro-resumen--falta' : 'cobro-resumen'}>
+      <p className="cobro-resumen__texto">
+        <span className="cobro-resumen__titulo">
+          Cobro
+        </span>
+        {falta && <Icono nombre="alerta" tamano={16} />}
+        <span>{linea}</span>
+      </p>
+      {alEditar && (
+        <button
+          type="button"
+          className="boton boton--fantasma boton--chico"
+          disabled={ocupada}
+          data-abre="cobro"
+          onClick={alEditar}
+        >
+          <Icono nombre={falta ? 'mas' : 'lapiz'} tamano={18} />
+          {turno.monto === null ? 'Cargar cobro' : 'Editar cobro'}
+        </button>
+      )}
+    </div>
   );
 }

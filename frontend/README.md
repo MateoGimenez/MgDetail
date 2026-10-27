@@ -57,14 +57,23 @@ El ingreso usa Supabase Auth a través del backend (modo BFF): el navegador solo
 - **Sesión:** si un pedido a `/api/admin/*` responde `401 SESSION_EXPIRED`, `src/api/sesion.ts` llama una sola vez a `POST /api/auth/refresh` (aunque fallen varios pedidos a la vez) y reintenta. Si el refresh falla, vuelve al ingreso con el mensaje. Un `403 FORBIDDEN` (rol sin permiso) muestra el mensaje y la sesión sigue; un `403 NO_ACCESS` (usuario desactivado) vuelve al ingreso, sin pedidos extra.
 - **Roles** (la regla real la aplica el backend; el panel solo esconde lo que no se puede hacer):
 
-| Rol | Ver, buscar e historial | Cambiar estado | Reprogramar | Notas internas | Borrar | Usuarios | Servicios |
-|---|---|---|---|---|---|---|---|
-| Superadmin | sí | a cualquier estado | sí | sí | sí | sí | ver y editar |
-| Admin | sí | a cualquier estado | sí | sí | sí | no | ver y editar |
-| Empleado | sí | solo "Marcar completado" | no | sí | no | no | solo ver |
+| Rol | Ver, buscar e historial | Cambiar estado | Reprogramar | Notas internas | Cobro y trabajador | Borrar | Usuarios | Servicios |
+|---|---|---|---|---|---|---|---|---|
+| Superadmin | sí | a cualquier estado | sí | sí | carga y corrige monto y trabajador | sí | sí | ver y editar |
+| Admin | sí | a cualquier estado | sí | sí | carga y corrige monto y trabajador | sí | no | ver y editar |
+| Empleado | sí | solo "Marcar completado" | no | sí | no carga monto: al completar queda él como trabajador | no | no | solo ver |
 
 - **Usuarios** (solo superadmin, sección "Usuarios" del panel): lista con email, nombre, rol, estado y fecha de alta. Se puede cambiar el rol, activar o desactivar (con confirmación) y editar el nombre. Los inactivos aparecen arriba, en "Pendientes de activación", con el botón "Activar". Sobre tu propio usuario no podés cambiarte el rol ni desactivarte.
 - **Usuarios (solo superadmin):** se crean, editan (rol, nombre, email, contraseña, activo) y eliminan desde *Usuarios*. Si el backend no tiene `SUPABASE_SECRET_KEY` (`gestionCuentas: false`), el alta, la baja y el cambio de email o contraseña se ocultan. La contraseña olvidada la repone el superadmin con *Cambiar contraseña*; el login solo lo explica. Los pasos completos están en `backend/README.md`.
+
+## Cobro, trabajador y permisos por rol
+
+Contrato: `reportes/2026-10-26_15_estadisticas-y-permisos.md`. El Turno trae `monto` (entero o null; para el empleado siempre null) y `trabajador` (`{ id, nombre }` o null), validados estrictos; solo un completado puede tenerlos. `CambiosTurno` suma `monto` y `trabajadorId`. Lógica pura en `lib/cobro.ts` (leer "$ 25.000", formato en pesos, "falta cobro") y `lib/permisosRol.ts` (agrupar la matriz, armar "Podés / No podés"), con tests.
+
+- **Completar con cobro** (`admin/cobro/FormularioCobro.tsx`, `useTrabajadores.ts`, `contextoCobro.ts`): "Marcar completado" (y elegir Completado en el selector) abre en la misma tarjeta **¿Cuánto cobraste?** (opcional; un botón sugiere el "Desde" del servicio si está cargado, no lo escribe solo) y **¿Quién lo hizo?** (`GET /api/admin/trabajadores`, por defecto quien está logueado). Un `fields.monto` o `fields.trabajadorId` del backend va en su campo, con el foco en él, y lo escrito no se pierde. Si la lista de personas falla, ofrece Reintentar y al guardar queda a nombre de quien completa. El empleado completa directo. Un formulario abierto cuenta como "Sin terminar" para "Plegar todas". Vale igual en Turnos y en el detalle de la Agenda.
+- **Turno completado:** "Cobrado $ 60.000 · Lucas" o "Sin cobro cargado" y, para admin y superadmin, **Cargar cobro** / **Editar cobro** (los mismos campos). El empleado solo ve "Lo hizo Lucas". La fila plegada lleva la señal "Sin cobro".
+- **Hoy:** admin y superadmin ven "N trabajos completados sin cobro cargado" con **Cargar cobros**, que abre Turnos > Completadas. N se cuenta con el listado (`GET /api/admin/bookings?estado=completado`, de a 100, hasta 500 trabajos); si hay más, dice "Al menos N".
+- **Permisos** (`admin/permisos/`): todo sale de `GET /api/admin/permisos` (única fuente). Usuarios > **Permisos por rol**: tabla con capacidades agrupadas y una columna por rol desde 720 px, y apilada por rol en el celular; Sí / No / Parcial con icono y palabra, y el matiz en texto. Al elegir el rol en **Nuevo usuario** (y en el desplegable "Qué puede hacer…" de cada fila) se ve "Va a poder / No va a poder". En el encabezado, el rol es un botón que abre **Tu rol: Empleado** con "Podés / No podés" para cualquier persona. Las funciones `puede*` de `admin/permisos.ts` (incluida `puedeRegistrarCobro`) solo esconden botones.
 
 ## Catálogo de servicios
 
@@ -120,6 +129,14 @@ Contrato: `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md` (
 - **Agenda:** con los `cupos` de `GET /api/admin/agenda` cada franja muestra "ocupados/cupo" ("2/3", en rojo cuando está completa; "Cerrada" con fondo rayado si el día está cerrado o el cupo es 0) y los días cerrados llevan el sello "Cerrado". Los ocupados se cuentan con los turnos que muestra la agenda, así que siguen al día después de confirmar, reprogramar o cancelar. Con cupos, la grilla se ve aunque la semana no tenga turnos. Si el backend no manda cupos, la agenda se ve como antes.
 - **Aviso al confirmar o reprogramar** (`admin/useCupoDelDia.ts`): al elegir el día y la franja (o "Para lo que pidió"), el panel pide la agenda de ese día y, si la franja está llena o cerrada, avisa ("Esa franja ya tiene 2 de 2. Podés agendarlo igual.") sin bloquear. El turno que ya ocupa ese lugar no se cuenta dos veces.
 - **WhatsApp al cliente** desde la tarjeta: con `sitio.url` cargada, el mensaje suma "Podés ver cómo va acá: <sitio.url>/turno/<id>" (`seguimientoPublicoUrl` en `config/enlaces.ts`). Sin URL pública no se manda el enlace.
+
+## Estadísticas
+
+Contrato: `reportes/2026-10-26_15_estadisticas-y-permisos.md`. Sección "Estadísticas" del panel (entre Hoy y Turnos), cargada con `React.lazy` desde `Panel.tsx`: no engorda el panel de quien no la abre.
+
+- **Admin y superadmin** (`puedeVerEstadisticas`): selector de período (Hoy, 7 días, 30 días, Este mes por defecto, Mes pasado, Este año, Personalizado hasta 366 días, con la fecha de La Rioja), tarjetas Hoy / Este mes / Este año con la variación contra el período anterior equivalente ("—" sin base), resumen del período, avisos de "N trabajos sin cobro cargado" y "sin trabajador asignado", y cinco gráficos: ingresos en el tiempo, servicios, equipo, cuándo vienen (mapa de calor) y estado de los turnos. **Descargar CSV** arma el archivo en el navegador (`;`, BOM UTF-8, CRLF; los textos que empiezan con `=`, `+`, `-` o `@` llevan `'` delante).
+- **Empleado:** "Mis trabajos" (`GET /api/admin/estadisticas/mias`): cantidad por día y por servicio, sin importes.
+- **Dónde está cada cosa:** `src/api/estadisticas.ts` (esquemas estrictos y llamadas); la lógica pura en `src/lib/estadisticas.ts` (formato es-AR, abreviados, ticks lindos, escalas, variación, estados, mapa de calor), `rangosEstadisticas.ts` (períodos y validación) y `tablasEstadisticas.ts` (tablas "Ver los números" y CSV), todas con tests; los componentes en `src/admin/estadisticas/` y `graficos/`. Los datos de muestra de las pruebas están en `src/lib/muestraEstadisticas.ts` (ningún componente lo usa, no entra al build). Reglas de los gráficos: `DESIGN.md`.
 
 ## Panel: Hoy, avisos y esqueletos
 

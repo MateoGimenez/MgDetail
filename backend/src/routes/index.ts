@@ -12,6 +12,8 @@ import type { AgendaService } from '../services/agenda.js';
 import type { AuthService } from '../services/auth.js';
 import type { BookingService } from '../services/bookings.js';
 import type { DisponibilidadService } from '../services/disponibilidad.js';
+import type { EstadisticasService } from '../services/estadisticas.js';
+import type { PerfilRepository } from '../domain/perfil.js';
 import type { PushService } from '../services/push.js';
 import type { RecordatorioService } from '../services/recordatorios.js';
 import type { ServicioService } from '../services/servicios.js';
@@ -20,7 +22,10 @@ import { adminAgendaRouter } from './admin-agenda.js';
 import { adminBookingsRouter } from './admin-bookings.js';
 import { adminDisponibilidadRouter } from './admin-disponibilidad.js';
 import { adminPushRouter } from './admin-push.js';
+import { adminPermisosRouter } from './admin-permisos.js';
 import { adminServiciosRouter } from './admin-servicios.js';
+import { adminTrabajadoresRouter } from './admin-trabajadores.js';
+import { adminEstadisticasRouter } from './admin-estadisticas.js';
 import { adminUsuariosRouter } from './admin-usuarios.js';
 import { authRouter } from './auth.js';
 import { publicBookingsRouter } from './bookings.js';
@@ -37,6 +42,8 @@ export interface ApiDeps {
   /** Resuelve si la base responde; se rechaza si no (ver db/postgres.ts). */
   checkDatabase: () => Promise<void>;
   bookings: BookingRepository;
+  perfiles: PerfilRepository;
+  estadisticas: EstadisticasService;
   bookingService: BookingService;
   agenda: AgendaService;
   disponibilidad: DisponibilidadService;
@@ -57,6 +64,8 @@ export function createApiRouter(deps: ApiDeps): Router {
     now,
     checkDatabase,
     bookings,
+    perfiles,
+    estadisticas,
     bookingService,
     agenda,
     disponibilidad,
@@ -88,11 +97,14 @@ export function createApiRouter(deps: ApiDeps): Router {
   api.use('/auth', authRouter({ auth, cookies, loginLimiter: limiters.loginFailures, requireSession: withSession }));
   // Todo lo que cuelga de /admin exige sesión, existan o no las rutas (así no se revela cuáles existen).
   api.use('/admin', withSession);
-  api.use('/admin/bookings', adminBookingsRouter({ bookings, agenda, now }));
+  api.use('/admin/bookings', adminBookingsRouter({ bookings, agenda }));
   api.use('/admin/agenda', adminAgendaRouter({ agenda, disponibilidad }));
   api.use('/admin/disponibilidad', adminDisponibilidadRouter({ disponibilidad }));
   api.use('/admin/usuarios', adminUsuariosRouter({ usuarios }));
   api.use('/admin/servicios', adminServiciosRouter({ servicios }));
+  api.use('/admin/trabajadores', adminTrabajadoresRouter({ perfiles }));
+  api.use('/admin/estadisticas', adminEstadisticasRouter({ estadisticas }));
+  api.use('/admin/permisos', adminPermisosRouter({ perfiles }));
   api.use('/admin/push', adminPushRouter({ push }));
 
   api.use(notFoundHandler); // 404 JSON para rutas /api desconocidas

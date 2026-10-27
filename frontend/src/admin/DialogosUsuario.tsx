@@ -8,13 +8,17 @@ import {
   ROLES,
   esRol,
   type NuevoUsuario,
+  type Permisos,
   type Rol,
   type UsuarioPanel,
 } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
+import { frasePorRol, rolDe } from '../lib/permisosRol';
 import { CampoPassword } from './CampoPassword';
 import { bloquearEscape, useMontado } from './dialogo';
 import { ErrorCampo, ErrorGeneral } from './ErroresFormulario';
+import { ResumenDeRol } from './permisos/ResumenDeRol';
+import type { EstadoPermisos } from './permisos/usePermisos';
 import type { Problema } from './useUsuarios';
 import { errorEmail, errorNombre, errorPassword, normalizarEmail, soloErrores, type ErroresCampos } from './validacionUsuario';
 
@@ -34,10 +38,12 @@ interface PropsNuevo {
   dialogoRef: RefObject<HTMLDialogElement | null>;
   /** null si se creó; si no, el problema para mostrar. */
   alCrear: (datos: NuevoUsuario) => Promise<Problema | null>;
+  /** La matriz de permisos: al elegir el rol se explica qué va a poder y qué no. */
+  permisos: EstadoPermisos;
 }
 
 /** Alta de un usuario del panel en un <dialog> modal. Al cerrarse, el formulario vuelve a empezar vacío. */
-export function DialogoNuevoUsuario({ dialogoRef, alCrear }: PropsNuevo) {
+export function DialogoNuevoUsuario({ dialogoRef, alCrear, permisos }: PropsNuevo) {
   const [vuelta, setVuelta] = useState(0);
   const [ocupado, setOcupado] = useState(false);
   return (
@@ -53,6 +59,7 @@ export function DialogoNuevoUsuario({ dialogoRef, alCrear }: PropsNuevo) {
       <FormularioNuevo
         key={vuelta}
         alCrear={alCrear}
+        permisos={permisos}
         alCambiarOcupado={setOcupado}
         alTerminar={() => dialogoRef.current?.close()}
       />
@@ -62,10 +69,12 @@ export function DialogoNuevoUsuario({ dialogoRef, alCrear }: PropsNuevo) {
 
 function FormularioNuevo({
   alCrear,
+  permisos,
   alCambiarOcupado,
   alTerminar,
 }: {
   alCrear: PropsNuevo['alCrear'];
+  permisos: EstadoPermisos;
   alCambiarOcupado: (ocupado: boolean) => void;
   alTerminar: () => void;
 }) {
@@ -199,6 +208,7 @@ function FormularioNuevo({
           </select>
           <Icono nombre="abajo" tamano={18} className="desplegable__icono" />
         </div>
+        <RolElegido rol={rol} permisos={permisos} />
       </div>
 
       <label className="casilla">
@@ -447,5 +457,32 @@ export function DialogoEliminarUsuario({ dialogoRef, usuario, alConfirmar, alCer
         </button>
       </div>
     </dialog>
+  );
+}
+
+/** Lo que va a poder y no va a poder quien tenga el rol elegido, de la matriz del backend. Se anuncia al cambiar de rol. */
+function RolElegido({ rol, permisos }: { rol: Rol; permisos: EstadoPermisos }) {
+  const matriz: Permisos | null = permisos.permisos;
+  return (
+    <div className="rol-elegido">
+      {permisos.cargando && <p className="campo__ayuda">Cargando lo que puede hacer cada rol…</p>}
+      {permisos.error && (
+        <p className="campo__ayuda cobro__falla" role="alert">
+          <span>No pudimos cargar los permisos. {permisos.error}</span>
+          <button type="button" className="boton boton--fantasma boton--chico" onClick={permisos.reintentar}>
+            Reintentar
+          </button>
+        </p>
+      )}
+      {matriz && (
+        <>
+          <p className="visualmente-oculto" role="status">
+            {frasePorRol(matriz, rol)}
+          </p>
+          <p className="rol-elegido__descripcion">{rolDe(matriz, rol)?.descripcion}</p>
+          <ResumenDeRol permisos={matriz} rol={rol} persona="otra" nivel={4} />
+        </>
+      )}
+    </div>
   );
 }

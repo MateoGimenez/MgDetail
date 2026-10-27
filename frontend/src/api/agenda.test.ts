@@ -25,6 +25,8 @@ const turno = {
   updatedAt: '2026-10-22T15:00:00.000Z',
   notasInternas: null,
   turnosDelCliente: 1,
+  monto: null,
+  trabajador: null,
 };
 
 function simular(respuesta: () => Response) {

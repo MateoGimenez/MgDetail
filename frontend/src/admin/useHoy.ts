@@ -3,11 +3,22 @@ import { listarAgenda, listarTurnos } from '../api/admin';
 import { esAbortado } from '../api/client';
 import type { CupoDia, Turno } from '../api/contract';
 import { esSesionPerdida } from '../api/sesion';
+import { contarSinCobro } from '../lib/cobro';
 import { hoyEnLaRioja, sumarDias } from '../lib/fechas';
 import { masViejos } from '../lib/hoy';
 
 /** Cuántos pendientes se destacan en Hoy: los que más esperan. */
 export const PENDIENTES_DESTACADOS = 3;
+
+/** Los completados se revisan de a 100 (el máximo del backend), hasta 5 páginas: 500 trabajos, los más nuevos primero. */
+const POR_PAGINA_COBRO = 100;
+const PAGINAS_COBRO = 5;
+
+export interface SinCobro {
+  cantidad: number;
+  /** Hay más completados de los que se revisaron: la cantidad real puede ser mayor. */
+  aproximado: boolean;
+}
 
 interface Datos {
   ahora: Date;
@@ -20,6 +31,8 @@ interface Datos {
   pendientes: number;
   /** Los que llegaron primero, el más viejo arriba. */
   viejos: Turno[];
+  /** Solo para quien registra cobros; null si no se pidió o no se pudo contar (es un extra del resumen). */
+  sinCobro: SinCobro | null;
 }
 
 type Resultado = ({ clave: number } & Datos) | { clave: number; error: string };
@@ -29,7 +42,7 @@ type Resultado = ({ clave: number } & Datos) | { clave: number; error: string };
  * pendientes (`GET /admin/bookings?estado=pendiente`, que viene del más nuevo al más viejo: una consulta de a 3
  * para el total y otra, si hacen falta, para los 3 del final).
  */
-export function useHoy(alVencerSesion: (mensaje: string) => void) {
+export function useHoy(alVencerSesion: (mensaje: string) => void, contarCobros = false) {
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
 
@@ -49,8 +62,30 @@ export function useHoy(alVencerSesion: (mensaje: string) => void) {
       return { total: primera.total, turnos: ultimos.turnos };
     };
 
-    Promise.all([listarAgenda(hoy, manana, control.signal), pendientes()])
-      .then(([agenda, pend]) => {
+    /*
+     * Trabajos completados sin cobro cargado: el listado ya trae el monto de cada turno, así que se cuentan los de
+     * las páginas más nuevas. Si hay más de las que se revisan, se avisa "al menos N". Si falla, el aviso no sale.
+     */
+    const sinCobro = async (): Promise<SinCobro | null> => {
+      if (!contarCobros) return null;
+      try {
+        let cantidad = 0;
+        for (let pagina = 0; pagina < PAGINAS_COBRO; pagina++) {
+          const { turnos, total } = await listarTurnos(
+            { estado: 'completado', limit: POR_PAGINA_COBRO, offset: pagina * POR_PAGINA_COBRO },
+            control.signal,
+          );
+          cantidad += contarSinCobro(turnos);
+          if ((pagina + 1) * POR_PAGINA_COBRO >= total) return { cantidad, aproximado: false };
+        }
+        return { cantidad, aproximado: true };
+      } catch {
+        return null;
+      }
+    };
+
+    Promise.all([listarAgenda(hoy, manana, control.signal), pendientes(), sinCobro()])
+      .then(([agenda, pend, cobro]) => {
         setResultado({
           clave: recarga,
           ahora,
@@ -60,6 +95,7 @@ export function useHoy(alVencerSesion: (mensaje: string) => void) {
           cupos: new Map((agenda.cupos ?? []).map((c) => [c.fecha, c] as const)),
           pendientes: pend.total,
           viejos: masViejos(pend.turnos, PENDIENTES_DESTACADOS),
+          sinCobro: cobro,
         });
       })
       .catch((error: unknown) => {
@@ -73,7 +109,7 @@ export function useHoy(alVencerSesion: (mensaje: string) => void) {
     return () => {
       control.abort();
     };
-  }, [recarga, alVencerSesion]);
+  }, [recarga, alVencerSesion, contarCobros]);
 
   const vigente = resultado?.clave === recarga ? resultado : null;
 

@@ -192,6 +192,9 @@ export type CampoTurno = keyof TurnoNuevo;
 
 /* ---------- Respuestas (estrictas: el contrato es fijo) ---------- */
 
+/** Tope del cobro de un trabajo, en pesos (mismo que el backend). */
+export const MONTO_MAXIMO = 99_999_999;
+
 export const turnoSchema = z.object({
   id: z.string(),
   nombre: z.string(),
@@ -225,6 +228,13 @@ export const turnoSchema = z.object({
    * (backend/src/domain/booking.ts) no se cuenta hasta correr `npm run normalizar-telefonos`; ahí no hay sello.
    */
   turnosDelCliente: z.nullable(z.int().check(z.gte(1))),
+  /**
+   * Cobro y trabajador (reportes/2026-10-26_15_estadisticas-y-permisos.md). Solo un turno completado los tiene.
+   * `monto`: pesos enteros; solo admin y superadmin lo reciben con valor (para el empleado siempre es null).
+   * `trabajador`: quien lo hizo; null = sin asignar.
+   */
+  monto: z.nullable(z.int().check(z.gte(0), z.lte(MONTO_MAXIMO))),
+  trabajador: z.nullable(z.strictObject({ id: z.string(), nombre: z.string() })),
 }).check(
   z.refine(
     (t) => (t.fechaConfirmada === null) === (t.franjaConfirmada === null),
@@ -233,6 +243,10 @@ export const turnoSchema = z.object({
   z.refine(
     (t) => t.telefonoWhatsapp !== null || t.turnosDelCliente === null,
     'Sin teléfono de WhatsApp no hay historial.',
+  ),
+  z.refine(
+    (t) => t.estado === 'completado' || (t.monto === null && t.trabajador === null),
+    'Solo un turno completado tiene cobro y trabajador.',
   ),
 );
 export type Turno = z.output<typeof turnoSchema>;
@@ -248,7 +262,7 @@ export type FechaConfirmada =
 type CambioEstado = { estado: Estado };
 /** Texto ya recortado, de hasta NOTA_MAXIMO caracteres, o null para borrarla. */
 type CambioNota = { notasInternas: string | null };
-export type CambiosTurno =
+type CambiosBase =
   | CambioEstado
   | FechaConfirmada
   | CambioNota
@@ -256,6 +270,17 @@ export type CambiosTurno =
   | (CambioEstado & CambioNota)
   | (FechaConfirmada & CambioNota)
   | (CambioEstado & FechaConfirmada & CambioNota);
+
+/**
+ * Cobro: `monto` (pesos enteros de 0 a MONTO_MAXIMO, o null para quitarlo) y/o `trabajadorId` (persona activa, o
+ * null para dejarlo sin asignar). Solo valen si el turno queda completado; los manda admin o superadmin (el
+ * empleado completa sin ellos y queda como trabajador). Se pueden sumar al estado `completado` en el mismo pedido.
+ */
+export type CambioCobro =
+  | { monto: number | null }
+  | { trabajadorId: string | null }
+  | { monto: number | null; trabajadorId: string | null };
+export type CambiosTurno = CambiosBase | CambioCobro | (CambiosBase & CambioCobro);
 
 /** Nota interna: hasta 1000 caracteres, con saltos de línea y tabulaciones. */
 export const NOTA_MAXIMO = 1000;

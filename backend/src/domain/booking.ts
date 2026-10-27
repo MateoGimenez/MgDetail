@@ -22,6 +22,15 @@ export interface NewBooking {
   comentario: string | null;
 }
 
+/** Tope del monto cobrado, en pesos (el mismo que el precio "desde" del catálogo). */
+export const MONTO_MAX = 99_999_999;
+
+/** Persona que hizo un trabajo: `nombre` es su nombre o, si no tiene, su email. */
+export interface Trabajador {
+  id: string;
+  nombre: string;
+}
+
 /** Turno tal como lo devuelve la API de administración (camelCase, fechas ISO 8601). */
 export interface Booking extends NewBooking {
   id: string;
@@ -45,6 +54,14 @@ export interface Booking extends NewBooking {
    * todos los estados (1 = primer turno). null si el turno no tiene teléfono normalizado guardado.
    */
   turnosDelCliente: number | null;
+  /**
+   * Pesos cobrados por el trabajo (entero 0 a MONTO_MAX). Solo en turnos completados; null = sin cobro cargado.
+   * Es plata: SOLO admin y superadmin lo reciben con valor (para el empleado siempre es null; ver
+   * domain/permisos.ts, vistaDeTurno) y nunca sale por la API pública.
+   */
+  monto: number | null;
+  /** Quién hizo el trabajo; solo en completados. null = sin asignar (o la persona se borró). */
+  trabajador: Trabajador | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -110,6 +127,12 @@ export const MIN_DIGITOS_BUSQUEDA = 4;
 export interface ActualizacionTurno {
   estado?: Estado;
   notasInternas?: string | null;
+  /**
+   * Cobro del trabajo (undefined = no se toca; null = borrarlo). Solo tiene efecto si el turno queda completado: si
+   * queda en otro estado, el repositorio los deja en null (la base lo exige: CHECK bookings_cobro_solo_completado).
+   */
+  monto?: number | null;
+  trabajadorId?: string | null;
 }
 
 /** Estados en los que un turno ya no se puede reprogramar. */
@@ -162,11 +185,15 @@ export interface BookingRepository {
    * lo marcó.
    */
   marcarRecordatorio(id: string, fecha: string, now: Date): Promise<boolean>;
+  /** Un turno por id. undefined si no existe (o el id no es un UUID). */
+  find(id: string): Promise<Booking | undefined>;
   /** Más nuevas primero. `total` es la cantidad que cumple el filtro, sin paginar. */
   list(options: ListBookingsOptions): Promise<{ bookings: Booking[]; total: number }>;
   /**
-   * Cambia el estado y/o la nota interna en una sola escritura (también en un turno cancelado o completado).
-   * undefined si el turno no existe.
+   * Cambia el estado, la nota interna y/o el cobro (monto y trabajador) en una sola escritura (también en un turno
+   * cancelado o completado). Si el turno queda en un estado distinto de completado, monto y trabajador quedan en
+   * null. updated_at solo cambia si cambia el estado o la nota: cargar o corregir el cobro no es un cambio para el
+   * cliente. undefined si el turno no existe.
    */
   actualizar(id: string, cambios: ActualizacionTurno, now: Date): Promise<Booking | undefined>;
   /** undefined si el turno no existe. */

@@ -5,7 +5,7 @@ import type { Rol } from '../api/contract-panel';
  * Qué muestra el panel según el rol. Espejo de backend/src/domain/permisos.ts:
  * la regla real la aplica el backend (403); acá solo se esconden botones.
  *
- * | Rol        | Cambiar estado      | Borrar turnos | Usuarios | Editar catálogo | Reprogramar | Notas internas |
+  * | Rol        | Cambiar estado      | Borrar turnos | Usuarios | Editar catálogo | Reprogramar | Notas internas |
  * |------------|---------------------|---------------|----------|-----------------|-------------|----------------|
  * | superadmin | a cualquier estado  | sí            | sí       | sí              | sí          | sí             |
  * | admin      | a cualquier estado  | sí            | no       | sí              | sí          | sí             |
@@ -92,5 +92,21 @@ export function accionesDeEstado(rol: Rol, estado: Estado): Accion[] {
  * Espejo de puedeEditarDisponibilidad en backend/src/domain/permisos.ts.
  */
 export function puedeEditarDisponibilidad(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
+}
+
+/**
+ * Cargar y corregir el cobro de un trabajo (monto y quién lo hizo), y ver los importes. El empleado completa un turno
+ * sin monto y queda él como trabajador; nunca recibe importes. Espejo del backend (reportes/2026-10-26_15).
+ */
+export function puedeRegistrarCobro(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
+}
+
+/**
+ * Estadísticas completas (con importes y de todo el equipo). El empleado ve solo "Mis trabajos" (sus cantidades,
+ * sin importes). Espejo del backend (reportes/2026-10-26_15).
+ */
+export function puedeVerEstadisticas(rol: Rol): boolean {
   return rol === 'superadmin' || rol === 'admin';
 }

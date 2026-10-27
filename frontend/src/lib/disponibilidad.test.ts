@@ -195,6 +195,8 @@ describe('seguimiento', () => {
       updatedAt: '2026-10-16T15:00:00.000Z',
       notasInternas: null,
       turnosDelCliente: 1,
+      monto: null,
+      trabajador: null,
     };
     const sinEnlace = mensajeParaCliente(turno, 'Pulido', 'MgDetailing');
     expect(sinEnlace.includes('turno/')).toBe(false);

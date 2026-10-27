@@ -184,3 +184,38 @@ export const respuestaDiaEspecialSchema = z.object({ dia: diaEspecialSchema });
 export type CambioDiaEspecial =
   | { abierto: false; motivo: string | null }
   | { abierto: true; cupoManana: number; cupoTarde: number; motivo: string | null };
+
+/* ---------- Cobro y permisos (reportes/2026-10-26_15_estadisticas-y-permisos.md) ---------- */
+
+/** Persona activa a la que se le puede asignar un trabajo (GET /api/admin/trabajadores). */
+export const trabajadorSchema = z.object({ id: z.string(), nombre: z.string(), rol: z.enum(ROLES) });
+export type Trabajador = z.output<typeof trabajadorSchema>;
+export const listaDeTrabajadoresSchema = z.object({ trabajadores: z.array(trabajadorSchema) });
+
+/** Qué tanto puede un rol con una capacidad: sí, no, o solo una parte (el matiz lo explica). */
+export const NIVELES_PERMISO = ['si', 'no', 'parcial'] as const;
+export type NivelPermiso = (typeof NIVELES_PERMISO)[number];
+const nivelPermiso = z.enum(NIVELES_PERMISO);
+
+export const capacidadSchema = z.object({
+  id: z.string(),
+  grupo: z.string(),
+  texto: z.string(),
+  roles: z.object({ superadmin: nivelPermiso, admin: nivelPermiso, empleado: nivelPermiso }),
+  matiz: z.optional(
+    z.object({
+      superadmin: z.optional(z.string()),
+      admin: z.optional(z.string()),
+      empleado: z.optional(z.string()),
+    }),
+  ),
+});
+export type Capacidad = z.output<typeof capacidadSchema>;
+
+/** GET /api/admin/permisos: la matriz de capacidades por rol, única fuente de verdad (la arma el backend). */
+export const permisosSchema = z.object({
+  roles: z.array(z.object({ id: z.enum(ROLES), nombre: z.string(), descripcion: z.string() })),
+  capacidades: z.array(capacidadSchema),
+  tuRol: z.enum(ROLES),
+});
+export type Permisos = z.output<typeof permisosSchema>;

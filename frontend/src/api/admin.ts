@@ -15,6 +15,8 @@ import {
 import {
   disponibilidadPanelSchema,
   listaDeServiciosSchema,
+  listaDeTrabajadoresSchema,
+  permisosSchema,
   respuestaDiaEspecialSchema,
   respuestaHorarioSchema,
   listaDeUsuariosSchema,
@@ -28,7 +30,9 @@ import {
   type CambiosUsuario,
   type NuevoServicio,
   type NuevoUsuario,
+  type Permisos,
   type ServicioPanel,
+  type Trabajador,
   type UsuarioPanel,
   type UsuarioSesion,
 } from './contract-panel';
@@ -124,7 +128,8 @@ export async function contarTurnos(estado: Estado, signal?: AbortSignal): Promis
 
 /**
  * PATCH /api/admin/bookings/:id → turno actualizado. Cambia el estado, la fecha/franja confirmadas o las dos
- * cosas en el mismo pedido ("confirmar con otra fecha"). 403 si el rol no puede reprogramar; 400 con
+ * cosas en el mismo pedido ("confirmar con otra fecha"), y el cobro (`monto`, `trabajadorId`) de un turno que queda
+ * completado. 403 si el rol no puede reprogramar; 400 con
  * `fields.fechaConfirmada` si la fecha está fuera de rango o el turno está cancelado o completado.
  */
 export async function actualizarTurno(id: string, cambios: CambiosTurno): Promise<Turno> {
@@ -134,6 +139,20 @@ export async function actualizarTurno(id: string, cambios: CambiosTurno): Promis
     schema: respuestaTurnoSchema,
   });
   return booking;
+}
+
+/**
+ * GET /api/admin/trabajadores (superadmin y admin) → personas activas de cualquier rol, por nombre. Es la lista del
+ * selector "¿Quién lo hizo?".
+ */
+export async function listarTrabajadores(signal?: AbortSignal): Promise<Trabajador[]> {
+  const { trabajadores } = await requestAdmin('/admin/trabajadores', { signal, schema: listaDeTrabajadoresSchema });
+  return trabajadores;
+}
+
+/** GET /api/admin/permisos (todos los roles) → la matriz de capacidades por rol y el rol de quien pregunta. */
+export async function obtenerPermisos(signal?: AbortSignal): Promise<Permisos> {
+  return requestAdmin('/admin/permisos', { signal, schema: permisosSchema });
 }
 
 /** PATCH /api/admin/bookings/:id con solo el estado. */

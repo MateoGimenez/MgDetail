@@ -41,6 +41,8 @@ const base: Turno = {
   updatedAt: '2026-10-16T15:00:00.000Z',
   notasInternas: null,
   turnosDelCliente: 1,
+  monto: null,
+  trabajador: null,
 };
 const turno = (cambios: Partial<Turno>): Turno => ({ ...base, ...cambios });
 

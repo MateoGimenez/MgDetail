@@ -1,0 +1,329 @@
+/* =========================================================================
+   Permisos por rol (reportes/2026-10-26_15_estadisticas-y-permisos.md): la tabla de Usuarios, el resumen al elegir
+   un rol y el diálogo "Tu rol". Solo variables del panel. Sí / No / Parcial se dicen con icono y palabra.
+   ========================================================================= */
+
+/* ---------- Sí / No / Parcial ---------- */
+
+.perm-nivel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px 1px 7px;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Sí: sólido y verde. No: apagado, gris. Parcial: ámbar y borde punteado. Las tres se distinguen sin color. */
+.perm-nivel--si {
+  border-color: rgb(29 122 70 / 0.4);
+  background: #eaf6ef;
+  color: #14603a;
+}
+
+.perm-nivel--no {
+  background: var(--fondo-hundido);
+  color: var(--texto-3);
+}
+
+.perm-nivel--parcial {
+  border-style: dashed;
+  border-color: #8a5200;
+  background: #fff4e0;
+  color: #8a5200;
+}
+
+.perm-matiz {
+  display: block;
+  margin-top: 4px;
+  color: var(--texto-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.perm-matiz::first-letter {
+  text-transform: uppercase;
+}
+
+/* ---------- Tabla (desde 720 px) y apilada por rol (celular) ---------- */
+
+.permisos {
+  margin-top: var(--e-4);
+}
+
+.perm-tabla-caja {
+  display: none;
+}
+
+@media (min-width: 720px) {
+  .perm-tabla-caja {
+    display: block;
+    overflow-x: auto;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-3);
+    background: var(--superficie);
+  }
+
+}
+
+.perm-tabla {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.perm-tabla th,
+.perm-tabla td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--borde-suave);
+  text-align: left;
+  vertical-align: top;
+}
+
+.perm-tabla thead th {
+  position: sticky;
+  top: 0;
+  background: var(--fondo-hundido);
+  color: var(--texto);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.perm-tabla tbody th[scope='row'] {
+  font-weight: 550;
+}
+
+.perm-tabla td {
+  width: 17%;
+  min-width: 9rem;
+}
+
+.perm-tabla__grupo {
+  padding-block: 8px;
+  background: var(--fondo-hundido);
+  color: var(--texto-3);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.perm-apilada {
+  display: grid;
+  gap: var(--e-4);
+}
+
+/* Desde 720 px se ve la tabla y las tarjetas por rol sobran. Va DESPUÉS de la regla de arriba: con la misma
+   especificidad, la que viene última gana (antes quedaba antes y las tarjetas se veían duplicadas junto a la tabla). */
+@media (min-width: 720px) {
+  .perm-apilada {
+    display: none;
+  }
+}
+
+.perm-rol {
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+}
+
+.perm-rol__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.perm-rol__descripcion {
+  margin-top: 4px;
+  color: var(--texto-2);
+}
+
+.perm-rol__grupo {
+  margin-top: var(--e-4);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--borde-suave);
+  color: var(--texto-3);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.perm-rol__item {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  align-items: start;
+  gap: 2px var(--e-3);
+  padding-block: 9px;
+  border-bottom: 1px solid var(--borde-suave);
+}
+
+.perm-rol__item .perm-nivel {
+  grid-area: 1 / 1;
+  justify-self: start;
+}
+
+.perm-rol__texto {
+  grid-area: 1 / 2;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.perm-rol__item .perm-matiz {
+  grid-area: 2 / 2;
+  margin-top: 0;
+}
+
+/* ---------- Resumen de un rol: Podés / No podés ---------- */
+
+.resumen-rol {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.resumen-rol__titulo {
+  color: var(--texto);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.resumen-rol__lista {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.resumen-rol__item {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: 0.9375rem;
+}
+
+.resumen-rol__marca {
+  margin-top: 3px;
+}
+
+.resumen-rol__item--si .resumen-rol__marca {
+  color: #14603a;
+}
+
+.resumen-rol__item--no {
+  color: var(--texto-2);
+}
+
+.resumen-rol__item--no .resumen-rol__marca {
+  color: var(--texto-3);
+}
+
+.resumen-rol__matiz {
+  display: block;
+  color: var(--texto-2);
+  font-size: 0.8125rem;
+}
+
+.resumen-rol__vacio {
+  margin-top: 6px;
+  color: var(--texto-3);
+  font-size: 0.9375rem;
+}
+
+/* Resumen al elegir el rol de un usuario */
+.rol-elegido {
+  padding: 12px 14px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--fondo-hundido);
+}
+
+.rol-elegido__descripcion {
+  margin-bottom: var(--e-3);
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+/* Detalle plegable del rol de cada fila de Usuarios */
+.rol-detalle {
+  margin-top: 2px;
+}
+
+.rol-detalle summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--acento-texto);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.rol-detalle summary:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.rol-detalle[open] summary {
+  margin-bottom: var(--e-2);
+}
+
+/* ---------- Tu rol (encabezado) ---------- */
+
+button.panel__rol {
+  min-height: 28px;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button.panel__rol:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+button.panel__rol:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* Alcance táctil de 44 px sin agrandar la píldora. */
+button.panel__rol {
+  position: relative;
+}
+
+button.panel__rol::after {
+  content: '';
+  position: absolute;
+  inset: -8px -6px;
+}
+
+.dialogo-rol {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.dialogo-rol__descripcion {
+  margin-top: var(--e-2);
+  color: var(--texto-2);
+}
+
+.dialogo-rol .resumen-rol {
+  margin-top: var(--e-4);
+}
+
+.dialogo-rol__estado {
+  margin-top: var(--e-3);
+  color: var(--texto-2);
+}
+
+/* Pestañas de Usuarios */
+.usuarios__ayuda-permisos {
+  margin-top: var(--e-3);
+  color: var(--texto-2);
+}

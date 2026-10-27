@@ -1,4 +1,5 @@
 import type { CambiosTurno, Turno } from '../api/contract';
+import { formatoPesos } from './cobro';
 
 /**
  * Lo que dice el aviso (toast) cuando se guarda un cambio de un turno, con voseo y el primer nombre del cliente.
@@ -11,7 +12,9 @@ export function avisoDeCambio(turno: Pick<Turno, 'nombre'>, cambios: CambiosTurn
       case 'confirmado':
         return `Confirmaste el turno de ${nombre}.`;
       case 'completado':
-        return `Marcaste como completado el turno de ${nombre}.`;
+        return 'monto' in cambios && cambios.monto !== null
+          ? `Marcaste como completado el turno de ${nombre}. Cobrado ${formatoPesos(cambios.monto)}.`
+          : `Marcaste como completado el turno de ${nombre}.`;
       case 'cancelado':
         return `Cancelaste el turno de ${nombre}.`;
       case 'pendiente':
@@ -19,7 +22,9 @@ export function avisoDeCambio(turno: Pick<Turno, 'nombre'>, cambios: CambiosTurn
     }
   }
   if ('fechaConfirmada' in cambios) return `Reprogramaste el turno de ${nombre}.`;
-  return cambios.notasInternas === null ? 'Nota borrada.' : 'Nota guardada.';
+  if ('notasInternas' in cambios) return cambios.notasInternas === null ? 'Nota borrada.' : 'Nota guardada.';
+  if ('monto' in cambios && cambios.monto === null) return `Quitaste el cobro del turno de ${nombre}.`;
+  return `Guardaste el cobro del turno de ${nombre}.`;
 }
 
 export const avisoDeEliminacion = (turno: Pick<Turno, 'nombre'>) => {

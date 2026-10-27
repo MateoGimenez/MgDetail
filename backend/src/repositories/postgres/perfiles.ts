@@ -4,6 +4,8 @@ import {
   type CambiosPerfil,
   type Perfil,
   type PerfilRepository,
+  type RolInfo,
+  type PersonaActiva,
   ROLES,
   SESION_MAX_SEGUNDOS,
   SinSuperadminError,
@@ -58,6 +60,26 @@ export class PostgresPerfilRepository implements PerfilRepository {
        ORDER BY created_at, id`,
     );
     return rows.map(toPerfil);
+  }
+
+  async trabajadores(): Promise<PersonaActiva[]> {
+    const { rows } = await this.sql.query(
+      `SELECT id::text AS id, coalesce(nullif(btrim(nombre), ''), email, 'Sin nombre') AS nombre, rol_id
+       FROM mgdetailing.perfiles
+       WHERE activo
+       ORDER BY lower(coalesce(nullif(btrim(nombre), ''), email, 'Sin nombre')), id`,
+    );
+    return rows.map((row) => ({ id: str(row, 'id'), nombre: str(row, 'nombre'), rol: oneOf(ROLES, row, 'rol_id') }));
+  }
+
+  async roles(): Promise<RolInfo[]> {
+    const { rows } = await this.sql.query('SELECT id, nombre, descripcion FROM mgdetailing.roles');
+    const roles = rows.map((row) => ({
+      id: oneOf(ROLES, row, 'id'),
+      nombre: str(row, 'nombre'),
+      descripcion: str(row, 'descripcion'),
+    }));
+    return roles.sort((a, b) => ROLES.indexOf(a.id) - ROLES.indexOf(b.id));
   }
 
   async findById(id: string): Promise<Perfil | undefined> {

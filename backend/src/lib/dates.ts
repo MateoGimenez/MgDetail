@@ -52,3 +52,58 @@ export function addDays(isoDate: string, days: number): string {
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days));
   return date.toISOString().slice(0, 10);
 }
+
+/** Cuántos días tiene el mes (1 a 12) de ese año; febrero cuenta el 29 en los años bisiestos. */
+export function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function parts(isoDate: string): { year: number; month: number; day: number } {
+  const match = ISO_DATE.exec(isoDate);
+  if (!match) throw new RangeError('Fecha inválida');
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
+const pad = (n: number, width: number): string => String(n).padStart(width, '0');
+
+/** Primer día del mes de una fecha YYYY-MM-DD válida. */
+export function startOfMonth(isoDate: string): string {
+  const { year, month } = parts(isoDate);
+  return `${pad(year, 4)}-${pad(month, 2)}-01`;
+}
+
+/**
+ * El mismo día del mes anterior, con tope en el último día de ese mes: 2026-03-31 => 2026-02-28; 2026-01-15 =>
+ * 2025-12-15.
+ */
+export function sameDayPreviousMonth(isoDate: string): string {
+  const { year, month, day } = parts(isoDate);
+  const [y, m] = month === 1 ? [year - 1, 12] : [year, month - 1];
+  return `${pad(y, 4)}-${pad(m, 2)}-${pad(Math.min(day, daysInMonth(y, m)), 2)}`;
+}
+
+/** El mismo día del año anterior, con tope en el último día de ese mes: 2028-02-29 => 2027-02-28. */
+export function sameDayPreviousYear(isoDate: string): string {
+  const { year, month, day } = parts(isoDate);
+  const y = year - 1;
+  return `${pad(y, 4)}-${pad(month, 2)}-${pad(Math.min(day, daysInMonth(y, month)), 2)}`;
+}
+
+/** Día de la semana de una fecha YYYY-MM-DD válida: 0 = domingo ... 6 = sábado. */
+export function weekday(isoDate: string): number {
+  const { year, month, day } = parts(isoDate);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
+/** Los meses (YYYY-MM) de `desde` a `hasta` (YYYY-MM-DD válidas), ambos inclusive. */
+export function monthKeysBetween(desde: string, hasta: string): string[] {
+  const start = parts(desde);
+  const end = parts(hasta);
+  const keys: string[] = [];
+  let [year, month] = [start.year, start.month];
+  while (year < end.year || (year === end.year && month <= end.month)) {
+    keys.push(`${pad(year, 4)}-${pad(month, 2)}`);
+    [year, month] = month === 12 ? [year + 1, 1] : [year, month + 1];
+  }
+  return keys;
+}

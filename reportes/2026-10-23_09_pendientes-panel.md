@@ -57,3 +57,12 @@ Detalles menores que encontraron los agentes de pruebas y que quedaron sin cambi
 ## Supabase
 
 - [ ] **Protección de contraseñas filtradas** desactivada en Supabase Auth (*Authentication > Sign In / Providers > Passwords*). Única alerta de seguridad de los advisors.
+
+## Estadísticas, cobro y permisos (objetivo 8)
+
+- [ ] **Cargar los cobros de los trabajos viejos:** los turnos completados antes de este objetivo quedan "sin cobro cargado" y no suman a los ingresos hasta que se cargue desde la tarjeta ("Cargar cobro").
+- [ ] **Rango de Estadísticas fijo al montar:** si el panel queda abierto pasada la medianoche, el rango elegido queda desfasado hasta recargar (las tarjetas Hoy / Este mes / Este año las calcula el backend y están bien).
+- [ ] **Tests de comportamiento sin DOM:** los arreglos de la vista de Estadísticas (respuesta vieja que pisa a la nueva, selector visible al fallar) no tienen test, por falta de jsdom/testing-library.
+- [ ] **Aviso del service worker en desarrollo:** al abrir `/admin` con `npm run dev`, la consola muestra que el alcance `/admin` no está permitido; es solo en desarrollo (Vite no manda el header `Service-Worker-Allowed`, el backend sí en producción) y el panel cae al alcance `/admin/`.
+- [ ] **Permisos sueltos por usuario:** hoy los roles son tres fijos; si hiciera falta que una persona tenga una capacidad puntual, sería un objetivo aparte.
+- [ ] **Estadísticas con servicios desactivados o precios sin cargar:** revisar cómo se ve con datos reales cuando haya historial de varios meses.

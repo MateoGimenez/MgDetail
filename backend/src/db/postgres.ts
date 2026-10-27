@@ -31,6 +31,8 @@ const PUSH_COLUMNS = ['perfil_id', 'endpoint', 'p256dh', 'auth', 'agente', 'ulti
 const CATALOGO_COLUMNS = ['resumen', 'descripcion', 'incluye', 'glosario', 'destacado'] as const;
 /** Columnas que agrega la migración agenda_fecha_confirmada (las que lee el repositorio de turnos). */
 const AGENDA_COLUMNS = ['fecha_confirmada', 'franja_confirmada'] as const;
+/** Columnas que agrega la migración estadisticas_cobro_trabajador (cobro de cada trabajo). */
+const COBRO_COLUMNS = ['monto', 'trabajador_id'] as const;
 /** Columnas que agrega la migración notas_telefono_cliente (las que lee el repositorio de turnos). */
 const NOTAS_COLUMNS = ['notas_internas', 'telefono_whatsapp'] as const;
 
@@ -236,6 +238,21 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     throw new Error(
       `Faltan objetos de la migración de disponibilidad en mgdetailing (${missingDisponibilidad.join(', ')}). ` +
         'Aplicá la migración disponibilidad_seguimiento de backend/supabase/migrations/ (ver README, "Migraciones").',
+    );
+  }
+
+  // Estadísticas y cobro (migración estadisticas_cobro_trabajador): monto y trabajador de cada turno completado.
+  const cobroColumns = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = 'bookings' AND column_name = ANY($2::text[])`,
+    [PG_SCHEMA, COBRO_COLUMNS],
+  );
+  const presentCobro = new Set(cobroColumns.rows.map((row) => row.column_name));
+  const missingCobro = COBRO_COLUMNS.filter((column) => !presentCobro.has(column));
+  if (missingCobro.length > 0) {
+    throw new Error(
+      `Faltan columnas en mgdetailing.bookings (${missingCobro.join(', ')}). ` +
+        'Aplicá la migración estadisticas_cobro_trabajador de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
   }
 

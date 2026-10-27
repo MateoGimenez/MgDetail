@@ -68,6 +68,8 @@ describe('turnos', () => {
       estado: 'pendiente',
       notasInternas: null,
       turnosDelCliente: 1,
+      monto: null,
+      trabajador: null,
       createdAt: '2026-10-16T15:00:00.000Z',
       updatedAt: '2026-10-16T15:00:00.000Z',
     });

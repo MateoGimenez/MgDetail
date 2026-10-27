@@ -10,7 +10,7 @@ import { ZONA_HORARIA } from './fechas';
 
 /* ---------- Vista inicial (?vista=) ---------- */
 
-export const VISTAS = ['hoy', 'turnos', 'agenda', 'disponibilidad', 'servicios', 'usuarios'] as const;
+export const VISTAS = ['hoy', 'estadisticas', 'turnos', 'agenda', 'disponibilidad', 'servicios', 'usuarios'] as const;
 export type Vista = (typeof VISTAS)[number];
 
 /**

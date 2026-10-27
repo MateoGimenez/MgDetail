@@ -349,6 +349,7 @@ describe('POST /api/bookings: logging', () => {
     const failing: BookingRepository = {
       create: () => Promise.reject(new Error('sin espacio')),
       reservar: () => Promise.reject(new Error('sin espacio')),
+      find: () => Promise.reject(new Error('x')),
       seguimiento: () => Promise.reject(new Error('x')),
       recordatoriosPendientes: () => Promise.reject(new Error('x')),
       marcarRecordatorio: () => Promise.reject(new Error('x')),

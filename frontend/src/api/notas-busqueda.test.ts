@@ -32,6 +32,8 @@ const turno = {
   updatedAt: '2026-10-22T15:00:00.000Z',
   notasInternas: 'Rayón en la puerta trasera.\nPidió que lo llamen antes.',
   turnosDelCliente: 3,
+  monto: null,
+  trabajador: null,
 };
 
 function simular(respuesta: () => Response) {

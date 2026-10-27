@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { type Confirmada, type Estado, ESTADOS, FRANJAS } from '../domain/booking.js';
+import { type Confirmada, type Estado, ESTADOS, FRANJAS, MONTO_MAX } from '../domain/booking.js';
 import { MAX_DIAS_AGENDA } from '../domain/booking-dates.js';
 import { daysBetween, isValidCalendarDate } from '../lib/dates.js';
 
@@ -94,10 +94,12 @@ export const agendaQuerySchema = z
     }
   });
 
+const MONTO_MSG = `El monto tiene que ser un número entero de pesos entre 0 y ${MONTO_MAX.toLocaleString('es-AR')}, o null.`;
+const TRABAJADOR_MSG = 'El trabajador tiene que ser el id de una persona del panel, o null.';
 const FECHA_CONFIRMADA_MSG = 'La fecha confirmada tiene que ser una fecha válida AAAA-MM-DD, o null.';
 const FRANJA_CONFIRMADA_MSG = 'La franja confirmada tiene que ser manana, tarde o null.';
 const JUNTAS_MSG = 'Mandá la fecha y la franja confirmadas juntas (las dos con valor o las dos en null).';
-const VACIO_MSG = 'Indicá el estado nuevo, la fecha y la franja confirmadas, o la nota interna.';
+const VACIO_MSG = 'Indicá el estado nuevo, la fecha y la franja confirmadas, la nota interna o el cobro.';
 
 export const MAX_NOTAS_INTERNAS = 1000;
 const NOTAS_MSG = `La nota interna tiene que ser un texto de hasta ${String(MAX_NOTAS_INTERNAS)} caracteres, o null.`;
@@ -132,17 +134,28 @@ export interface CambiosTurno {
   estado?: Estado;
   confirmada?: Confirmada | null;
   notasInternas?: string | null;
+  /** Pesos cobrados. undefined = no se toca; null = borrarlo. Solo vale si el turno queda completado. */
+  monto?: number | null;
+  /** Quién hizo el trabajo (id de perfil). undefined = no se toca; null = dejarlo sin asignar. */
+  trabajadorId?: string | null;
 }
 
 /**
- * PATCH /api/admin/bookings/:id { estado?, fechaConfirmada?, franjaConfirmada?, notasInternas? }. Estricto. Al
- * menos uno de `estado`, la pareja fecha + franja (juntas) o `notasInternas`. Acá solo el formato: el rango de
- * fechas (depende de "hoy"), los permisos y el estado del turno los verifica la ruta.
+ * PATCH /api/admin/bookings/:id { estado?, fechaConfirmada?, franjaConfirmada?, notasInternas?, monto?, trabajadorId? }.
+ * Estricto. Al menos uno de `estado`, la pareja fecha + franja (juntas), `notasInternas`, `monto` o
+ * `trabajadorId`. Acá solo el formato: el rango de fechas (depende de "hoy"), los permisos, el estado del turno y
+ * que la persona exista y esté activa los verifica el servicio (services/agenda.ts).
  */
 export const updateBookingSchema = z
   .strictObject({
     estado: z.enum(ESTADOS, { error: ESTADO_MSG }).optional(),
     notasInternas: notasInternasSchema.optional(),
+    monto: z.number({ error: MONTO_MSG }).int({ error: MONTO_MSG }).min(0, { error: MONTO_MSG }).max(MONTO_MAX, { error: MONTO_MSG }).nullable().optional(),
+    trabajadorId: z
+      .uuid({ error: TRABAJADOR_MSG })
+      .transform((id) => id.toLowerCase())
+      .nullable()
+      .optional(),
     fechaConfirmada: z
       .string({ error: FECHA_CONFIRMADA_MSG })
       .refine(isValidCalendarDate, { error: FECHA_CONFIRMADA_MSG })
@@ -150,8 +163,15 @@ export const updateBookingSchema = z
       .optional(),
     franjaConfirmada: z.enum(FRANJAS, { error: FRANJA_CONFIRMADA_MSG }).nullable().optional(),
   })
-  .superRefine(({ estado, fechaConfirmada: fecha, franjaConfirmada: franja, notasInternas }, ctx) => {
-    if (estado === undefined && fecha === undefined && franja === undefined && notasInternas === undefined) {
+  .superRefine(({ estado, fechaConfirmada: fecha, franjaConfirmada: franja, notasInternas, monto, trabajadorId }, ctx) => {
+    if (
+      estado === undefined &&
+      fecha === undefined &&
+      franja === undefined &&
+      notasInternas === undefined &&
+      monto === undefined &&
+      trabajadorId === undefined
+    ) {
       // Mismo campo que antes de la agenda: un body vacío sigue informando "estado".
       ctx.addIssue({ code: 'custom', path: ['estado'], message: VACIO_MSG });
       return;
@@ -167,10 +187,12 @@ export const updateBookingSchema = z
       ctx.addIssue({ code: 'custom', path: ['franjaConfirmada'], message: JUNTAS_MSG });
     }
   })
-  .transform(({ estado, fechaConfirmada: fecha, franjaConfirmada: franja, notasInternas }): CambiosTurno => {
+  .transform(({ estado, fechaConfirmada: fecha, franjaConfirmada: franja, notasInternas, monto, trabajadorId }): CambiosTurno => {
     const cambios: CambiosTurno = {};
     if (estado !== undefined) cambios.estado = estado;
     if (notasInternas !== undefined) cambios.notasInternas = notasInternas;
+    if (monto !== undefined) cambios.monto = monto;
+    if (trabajadorId !== undefined) cambios.trabajadorId = trabajadorId;
     if (fecha === null || franja === null) cambios.confirmada = null;
     else if (fecha !== undefined && franja !== undefined) cambios.confirmada = { fecha, franja };
     return cambios;
@@ -178,3 +200,22 @@ export const updateBookingSchema = z
 
 /** Los ids de turnos son UUID aleatorios. Cualquier otra cosa no puede existir => 404. */
 export const bookingIdSchema = z.uuid();
+
+/** Un parámetro de fecha de las estadísticas: opcional (el servicio pone el valor por omisión), YYYY-MM-DD y existente. */
+function fechaOpcionalParam(campo: 'desde' | 'hasta') {
+  const message = `Indicá "${campo}" como una fecha válida con formato AAAA-MM-DD.`;
+  return z.preprocess(
+    blankToUndefined,
+    z.string({ error: message }).refine(isValidCalendarDate, { error: message }).optional(),
+  );
+}
+
+/**
+ * GET /api/admin/estadisticas y /estadisticas/mias ?desde=&hasta= (inclusive; los parámetros desconocidos se
+ * ignoran). Acá solo el formato; que `hasta` no sea anterior a `desde` y el máximo de 366 días los verifica el
+ * servicio después de poner los valores por omisión (mes actual hasta hoy), en domain/estadisticas.ts.
+ */
+export const estadisticasQuerySchema = z.object({
+  desde: fechaOpcionalParam('desde'),
+  hasta: fechaOpcionalParam('hasta'),
+});

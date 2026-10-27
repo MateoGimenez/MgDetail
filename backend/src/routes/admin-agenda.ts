@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { vistaDeTurno } from '../domain/permisos.js';
+import { getUsuario } from '../middleware/require-session.js';
 import { agendaQuerySchema } from '../schemas/admin.js';
 import { parseOrThrow } from '../schemas/common.js';
 import type { AgendaService } from '../services/agenda.js';
@@ -16,7 +18,8 @@ export function adminAgendaRouter(deps: { agenda: AgendaService; disponibilidad:
   // franja de agenda y orden de llegada; cupos y ocupados de cada día del rango). Rango inclusivo de hasta 42 días.
   router.get('/', async (req, res) => {
     const { desde, hasta } = parseOrThrow(agendaQuerySchema, req.query);
-    const turnos = await agenda.agenda(desde, hasta);
+    const { rol } = getUsuario(res);
+    const turnos = (await agenda.agenda(desde, hasta)).map((turno) => vistaDeTurno(rol, turno));
     const cupos = await disponibilidad.cupos(desde, hasta);
     res.json({
       turnos,

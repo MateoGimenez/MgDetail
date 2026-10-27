@@ -23,6 +23,20 @@ export interface Perfil {
  */
 export const SESION_MAX_SEGUNDOS = 12 * 60 * 60;
 
+/** Una persona activa del panel, para elegir "quién hizo el trabajo". `nombre` es su nombre o, si no tiene, su email. */
+export interface PersonaActiva {
+  id: string;
+  nombre: string;
+  rol: Rol;
+}
+
+/** Un rol del panel tal como está en mgdetailing.roles. */
+export interface RolInfo {
+  id: Rol;
+  nombre: string;
+  descripcion: string;
+}
+
 /** Cambios que un superadmin puede hacer sobre un perfil. Lo que no viene, no cambia. */
 export interface CambiosPerfil {
   rol?: Rol;
@@ -51,6 +65,10 @@ export interface PerfilRepository {
   findForSession(userId: string, sessionId: string): Promise<{ perfil: Perfil; sesionVigente: boolean } | undefined>;
   /** Todos los perfiles, los más viejos primero. */
   list(): Promise<Perfil[]>;
+  /** Las personas ACTIVAS de cualquier rol, ordenadas por nombre (sin distinguir mayúsculas). */
+  trabajadores(): Promise<PersonaActiva[]>;
+  /** Los tres roles con su nombre y descripción, de más a menos permisos. */
+  roles(): Promise<RolInfo[]>;
   /** undefined si no existe. */
   findById(id: string): Promise<Perfil | undefined>;
   /** undefined si no existe. Lanza SinSuperadminError si dejaría el sistema sin superadmin activo. */

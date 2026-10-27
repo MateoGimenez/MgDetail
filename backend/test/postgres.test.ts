@@ -270,6 +270,14 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     );
   });
 
+  it('verifyPostgresSchema avisa si falta la migración de estadísticas y cobro', async () => {
+    const { pg, sql } = await pglite();
+    await pg.exec('ALTER TABLE mgdetailing.bookings DROP COLUMN monto CASCADE');
+    await expect(verifyPostgresSchema(sql)).rejects.toThrow(
+      /Faltan columnas en mgdetailing\.bookings \(monto\).*estadisticas_cobro_trabajador/,
+    );
+  });
+
   it('notas: CHECK de largo de la nota y de formato del teléfono normalizado; mgdetailing_app puede actualizarlos', async () => {
     const { pg } = await pglite();
     const insert = (columns: string, values: string) =>

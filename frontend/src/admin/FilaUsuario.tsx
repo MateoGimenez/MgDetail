@@ -1,7 +1,17 @@
 import { useId, useState } from 'react';
-import { ETIQUETA_ROL, LIMITE_NOMBRE_USUARIO, ROLES, esRol, type CambiosUsuario, type UsuarioPanel } from '../api/contract-panel';
+import {
+  ETIQUETA_ROL,
+  LIMITE_NOMBRE_USUARIO,
+  ROLES,
+  esRol,
+  type CambiosUsuario,
+  type Permisos,
+  type UsuarioPanel,
+} from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { momentoEnLaRioja } from '../lib/fechas';
+import { nombreDeRol } from '../lib/permisosRol';
+import { ResumenDeRol } from './permisos/ResumenDeRol';
 
 interface Props {
   usuario: UsuarioPanel;
@@ -10,6 +20,8 @@ interface Props {
   error: string | undefined;
   /** El servidor puede cambiar email y contraseña y eliminar cuentas. */
   gestionCuentas: boolean;
+  /** La matriz de permisos, para explicar qué puede hacer el rol de esta persona (null si todavía no cargó). */
+  permisos: Permisos | null;
   alCambiar: (cambios: CambiosUsuario) => void;
   alPedirDesactivar: () => void;
   alPedirEmail: () => void;
@@ -24,6 +36,7 @@ export function FilaUsuario({
   ocupado,
   error,
   gestionCuentas,
+  permisos,
   alCambiar,
   alPedirDesactivar,
   alPedirEmail,
@@ -111,6 +124,13 @@ export function FilaUsuario({
           </div>
         </div>
       </div>
+
+      {permisos && (
+        <details className="rol-detalle">
+          <summary>Qué puede hacer {nombreDeRol(permisos, usuario.rol)}</summary>
+          <ResumenDeRol permisos={permisos} rol={usuario.rol} persona="otra" nivel={4} />
+        </details>
+      )}
 
       {esPropio && (
         <p id={`${id}-propio`} className="usuario__nota">

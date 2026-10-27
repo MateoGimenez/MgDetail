@@ -1,0 +1,137 @@
+/* =========================================================================
+   Cobro y trabajador de un turno completado (reportes/2026-10-26_15_estadisticas-y-permisos.md).
+   Solo variables del panel. El formulario va en la misma tarjeta, como "Elegir fecha".
+   ========================================================================= */
+
+/* Resumen del cobro en un turno completado: lo cobrado, quién lo hizo y el botón para cargarlo o corregirlo. */
+.cobro-resumen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px var(--e-3);
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--fondo-hundido);
+}
+
+.cobro-resumen__texto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.cobro-resumen__titulo {
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* Sin cobro: se marca con palabras y con el borde, no solo con el color. */
+.cobro-resumen--falta {
+  border-style: dashed;
+  border-color: #8a5200;
+  background: #fff4e0;
+  color: #8a5200;
+}
+
+.cobro-resumen--falta .cobro-resumen__titulo {
+  color: #8a5200;
+}
+
+.cobro-resumen .boton {
+  margin-right: -8px;
+}
+
+/* Formulario */
+.cobro {
+  display: grid;
+  gap: var(--e-4);
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--fondo-hundido);
+}
+
+.cobro__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: var(--display-tracking);
+}
+
+.cobro__campos {
+  display: grid;
+  gap: var(--e-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cobro .entrada {
+  max-width: 17rem;
+  min-height: 48px;
+}
+
+.cobro .desplegable {
+  max-width: 17rem;
+}
+
+.cobro__monto {
+  font-variant-numeric: tabular-nums;
+}
+
+.cobro__sugerencia {
+  margin-top: 4px;
+  margin-left: -8px;
+  flex-wrap: wrap;
+  text-align: left;
+}
+
+.cobro__sugerencia-aclara {
+  color: var(--texto-3);
+  font-weight: 500;
+}
+
+.cobro__falla {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--e-2);
+  margin-top: 6px;
+}
+
+.cobro__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+/* Señal de la tarjeta plegada: "Sin cobro" (mismo ámbar que "Sin terminar"). */
+.senal--sincobro {
+  border-color: rgb(138 82 0 / 0.35);
+  background: #fff4e0;
+  color: #8a5200;
+}
+
+/* Aviso en Hoy: trabajos completados sin cobro cargado. */
+.hoy__aviso--cobro {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--e-2) var(--e-3);
+}
+
+.hoy__aviso-texto {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+  min-width: 0;
+}

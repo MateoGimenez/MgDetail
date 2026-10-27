@@ -121,6 +121,33 @@ navegador --/api (cookies httpOnly)--> backend --POST /auth/v1/token, /auth/v1/l
 
 **Notas internas, búsqueda e historial del cliente**: todos los roles, también `empleado` (es quien está con el auto). La nota se puede escribir y editar aunque el turno esté `cancelado` o `completado`.
 
+#### Matriz de permisos completa (fuente única: `CAPACIDADES`)
+
+La lista `CAPACIDADES` de `src/domain/permisos.ts` es la única fuente: de ahí salen las funciones `puede*` con las que la API decide y la tabla que ve el usuario (`GET /api/admin/permisos`). Un test (`test/permisos.test.ts`) verifica que coinciden para los tres roles. Valores: **sí**, **no** o **parcial** (con su matiz).
+
+| Grupo | Capacidad | superadmin | admin | empleado |
+|---|---|---|---|---|
+| Turnos | Ver los turnos y la agenda | sí | sí | sí |
+| Turnos | Cambiar el estado de un turno | sí | sí | parcial: solo a Completado |
+| Turnos | Cambiar la fecha y la franja de un turno | sí | sí | no |
+| Turnos | Borrar turnos | sí | sí | no |
+| Turnos | Escribir notas internas | sí | sí | sí |
+| Turnos | Buscar turnos y ver el historial de un cliente | sí | sí | sí |
+| Cobro | Registrar cuánto se cobró por un trabajo y quién lo hizo | sí | sí | parcial: al completar queda como quien lo hizo, sin cargar el monto |
+| Cobro | Corregir el monto y el trabajador de un turno ya completado | sí | sí | no |
+| Catálogo | Ver los servicios | sí | sí | sí |
+| Catálogo | Crear, editar y ordenar servicios | sí | sí | no |
+| Disponibilidad | Ver horario, días especiales y cupos | sí | sí | sí |
+| Disponibilidad | Cambiar horario semanal y días especiales | sí | sí | no |
+| Estadísticas | Estadísticas del taller, con importes y de todo el equipo | sí | sí | no |
+| Estadísticas | Ver los trabajos que uno mismo completó (sin importes) | sí | sí | sí |
+| Usuarios | Crear, editar y desactivar usuarios | sí | no | no |
+| Avisos | Activar los avisos de turnos nuevos en su dispositivo | sí | sí | sí |
+
+Funciones: `puedeCambiarEstado(rol, estado)`, `puedeReprogramar`, `puedeBorrarTurnos`, `puedeGestionarUsuarios`, `puedeEditarCatalogo`, `puedeEditarDisponibilidad`, `puedeVerEstadisticas` (también decide quién ve importes: `puedeVerImportes`), `puedeRegistrarCobro` (monto y elegir trabajador) y `puedeCorregirCobro`. Los textos de `mgdetailing.roles.descripcion` los actualiza la migración `estadisticas_cobro_trabajador` para que digan lo mismo.
+
+**El empleado nunca recibe importes**: `monto` es siempre `null` en cualquier respuesta con turnos (listado, agenda, PATCH; función `vistaDeTurno`), no puede pedir las estadísticas completas (`403`) y "mis trabajos" no lleva ningún importe (la consulta ni siquiera lee la columna). El seguimiento público tampoco devuelve `monto` ni `trabajador`.
+
 Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. Reglas de usuarios: nadie puede cambiarse su propio rol, ni desactivarse ni eliminarse a sí mismo (`409 CONFLICT`), y **nunca puede quedar el sistema sin un superadmin activo** (lo garantiza un trigger en la base, también ante dos cambios simultáneos; `409 CONFLICT`).
 
 ### Alta de usuarios (pasos del dueño)
@@ -155,6 +182,7 @@ Lo que no está permitido responde `403 FORBIDDEN` con un mensaje en español. R
 ```mermaid
 erDiagram
     servicios ||--o{ bookings : "servicio_id (FK, RESTRICT)"
+    perfiles ||--o{ bookings : "trabajador_id (FK, ON DELETE SET NULL)"
     auth_users ||--|| perfiles : "id (FK, ON DELETE CASCADE)"
     roles ||--o{ perfiles : "rol_id (FK, RESTRICT)"
     perfiles ||--o{ push_suscripciones : "perfil_id (FK, ON DELETE CASCADE)"
@@ -191,6 +219,8 @@ erDiagram
         text comentario "nullable"
         text estado "CHECK pendiente, confirmado, completado, cancelado"
         timestamptz recordatorio_enviado_at "nullable; recordatorio del día anterior"
+        integer monto "nullable; pesos cobrados, 0 a 99999999; solo si completado"
+        uuid trabajador_id FK "nullable; perfiles(id) ON DELETE SET NULL; solo si completado"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -298,6 +328,7 @@ Decisiones:
 - **`20261023180000_notas_telefono_cliente` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-23_10_notas-busqueda-historial.md`). Agrega `notas_internas` y `telefono_whatsapp` (nullable, con CHECK) a `bookings`, el índice parcial `bookings_telefono_whatsapp_idx`, la función `mgdetailing.texto_busqueda` (con `EXECUTE` solo para `mgdetailing_app`) y `GRANT UPDATE (notas_internas, telefono_whatsapp)` a `mgdetailing_app`. Columnas nullable sin default: no reescribe la tabla. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de notas"). Orden: aplicar la migración (después de `agenda_fecha_confirmada`), desplegar el backend, correr **`npm run normalizar-telefonos`** una vez (completa `telefono_whatsapp` en los turnos existentes; se puede repetir sin riesgo) y los advisors.
 - **`20261023200000_disponibilidad_seguimiento` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md`). Crea `horario_semanal` (7 filas) y `dias_especiales` (15 feriados) con RLS y policies solo para `mgdetailing_app`, agrega `bookings.recordatorio_enviado_at` (nullable, sin reescribir la tabla), hace que el trigger de `updated_at` de `bookings` no corra cuando cambia la marca del recordatorio (marcarlo no es un cambio del turno: el cliente ve "actualizado el") y da a `mgdetailing_app` `SELECT` en las dos tablas, `UPDATE (abierto, cupo_manana, cupo_tarde)` en el horario, `INSERT`/`UPDATE (abierto, cupos, motivo)`/`DELETE` en los días especiales y `UPDATE (recordatorio_enviado_at)` en `bookings`. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de disponibilidad"). Orden: después de `notas_telefono_cliente`, antes de desplegar; después, los advisors. **Al aplicarla, el formulario empieza a rechazar domingos, feriados y franjas con 2 turnos**: revisá antes el horario y los cupos con el dueño.
 - **`20261026120000_push_suscripciones` (2026-10-26): PENDIENTE de aplicar en Supabase, con aprobación del dueño** (contrato `reportes/2026-10-26_13_panel-pulido-y-app.md`, bloque A). Crea `push_suscripciones` (tabla nueva y vacía: no reescribe nada) con RLS, policies solo para `mgdetailing_app`, CHECK de formato y los GRANT de arriba. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de avisos push"). Orden: después de `disponibilidad_seguimiento`, antes de desplegar; después, los advisors (se espera el INFO *unused index* en `push_suscripciones_perfil_idx` hasta que haya dispositivos).
+- **`20261027100000_estadisticas_cobro_trabajador` (2026-10-27): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-26_15_estadisticas-y-permisos.md`). Agrega `bookings.monto` y `bookings.trabajador_id` (nullable, sin default: no reescribe la tabla) con sus CHECK y la FK `ON DELETE SET NULL`, los índices `bookings_trabajador_id_idx` (parcial) y `bookings_fecha_agenda_estado_idx` (fecha de agenda + estado, para las estadísticas, que cuentan también los cancelados), amplía la condición del trigger de `updated_at` (tampoco corre al cambiar `monto` o `trabajador_id`), da `GRANT UPDATE (monto, trabajador_id)` a `mgdetailing_app` y actualiza `roles.descripcion`. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan columnas en mgdetailing.bookings (monto, trabajador_id)"). Orden: después de `push_suscripciones`, antes de desplegar; después, los advisors. No aplicar sin pasar las pruebas.
 - Los servicios ya **no** se agregan por migración ni en el código: se crean desde el panel.
 
 ### Backups (Supabase)
@@ -313,6 +344,10 @@ Decisiones:
   Para restaurar: aplicá las migraciones en la base vacía (así quedan RLS, `REVOKE` y el catálogo) y después `pg_restore --dbname "<cadena>" --data-only --disable-triggers mgdetailing-2026-10-18.dump` (vaciá antes `mgdetailing.servicios` y `mgdetailing.roles`, que la migración ya sembró). Corré los advisors al terminar.
 - **Plan Pro**: backups diarios automáticos (7 días) en *Database > Backups*, y PITR como add-on. Igual conviene un `pg_dump` propio de vez en cuando.
 - Un proyecto Free **se pausa tras una semana sin actividad**. Con el sitio en uso no pasa, pero si el panel muestra el proyecto pausado, se reactiva desde ahí (mientras tanto `/api/health` da `503`).
+
+### Cobro y estadísticas
+
+Contrato: `reportes/2026-10-26_15_estadisticas-y-permisos.md`. Cada turno **completado** guarda `monto` (pesos enteros, 0 a 99.999.999, nullable) y `trabajador_id` (quién hizo el trabajo; `ON DELETE SET NULL`: si se borra a la persona, el turno queda "Sin asignar"). El CHECK `bookings_cobro_solo_completado` impide que tengan valor si el turno no está completado; el backend los borra al sacar un turno de `completado`. Los turnos viejos quedan "sin cobro cargado" hasta que un admin los complete. Cargar o corregir solo el cobro **no cambia `updated_at`** (el trigger tampoco corre: es el "actualizado el" del cliente). Las estadísticas cuentan solo lo registrado, nunca el precio "desde" del catálogo.
 
 ### Agenda
 
@@ -677,6 +712,8 @@ Los parámetros desconocidos se ignoran; uno inválido da `400` con `fields`. Re
       "estado": "pendiente",
       "notasInternas": null,
       "turnosDelCliente": 1,
+      "monto": null,
+      "trabajador": null,
       "createdAt": "2026-10-16T15:00:00.000Z",
       "updatedAt": "2026-10-16T15:00:00.000Z"
     }
@@ -684,6 +721,8 @@ Los parámetros desconocidos se ignoran; uno inválido da `400` con `fields`. Re
   "total": 1
 }
 ```
+
+**`monto`** (`integer | null`): pesos cobrados por el trabajo; solo en turnos `completado`. **Solo `admin` y `superadmin` lo reciben con valor: para `empleado` siempre es `null`.** **`trabajador`** (`{ "id", "nombre" } | null`): quién hizo el trabajo (`nombre` = el de la persona o, si no tiene, su email); `null` = sin asignar. Los dos aparecen en el listado, la agenda y la respuesta del PATCH; nunca en el seguimiento público.
 
 `email`, `vehiculoModelo` y `comentario` pueden ser `null`. Los filtros se combinan entre sí; el orden sigue siendo más nuevos primero y `total` cuenta lo filtrado.
 
@@ -697,7 +736,7 @@ Los parámetros desconocidos se ignoran; uno inválido da `400` con `fields`. Re
 
 ### `PATCH /api/admin/bookings/:id` (requiere sesión)
 
-Body estricto con **al menos uno** de: `estado`, la pareja `fechaConfirmada` + `franjaConfirmada` (**juntas**; `null` las dos = volver a la fecha pedida), o `notasInternas`.
+Body estricto con **al menos uno** de: `estado`, la pareja `fechaConfirmada` + `franjaConfirmada` (**juntas**; `null` las dos = volver a la fecha pedida), `notasInternas`, `monto` o `trabajadorId`.
 
 ```json
 { "estado": "confirmado", "fechaConfirmada": "2026-10-24", "franjaConfirmada": "tarde", "notasInternas": "Lo trae el hijo." }
@@ -709,6 +748,12 @@ Body estricto con **al menos uno** de: `estado`, la pareja `fechaConfirmada` + `
 
 - **Solo `estado`** (las reglas de siempre): `400` con `fields.estado` si es inválido. **`empleado` solo puede pasar a `completado`**: cualquier otro estado da `403 FORBIDDEN` (*"Con tu rol solo podés marcar los turnos como completados."*); `admin` y `superadmin`, a cualquiera. No toca la fecha confirmada.
 - **Con fecha y franja** (reprogramar; si viene `estado`, se cambia en la misma escritura): solo `admin` y `superadmin`; `empleado` => `403 FORBIDDEN` (*"Con tu rol no podés cambiar la fecha de un turno."*). El turno no puede estar `cancelado` ni `completado`, ni pasar a uno de esos en el mismo pedido => `400 VALIDATION_ERROR` sin `fields` (*"No se puede cambiar la fecha de un turno cancelado o completado."*). Fecha inexistente, con otro formato, anterior a hoy o posterior a hoy + 120 días (hora de La Rioja) => `400` con `fields.fechaConfirmada`. Franja inválida => `fields.franjaConfirmada`.
+- **Cobro** (`monto`: entero 0 a 99.999.999 o `null`; `trabajadorId`: uuid o `null`):
+  - Solo valen si el turno **queda** `completado` (en el mismo pedido o porque ya lo está); si no, `400` con `fields.monto` / `fields.trabajadorId`. Mandar `null` en un turno que no está completado no es error (no hay nada que borrar). Un pedido de reprogramar con cobro también da `400`.
+  - **`admin` y `superadmin`**: cargan el monto y eligen a cualquier persona **activa** (si no existe o está inactiva, `400` con `fields.trabajadorId`); pueden corregirlos en un turno ya completado. Completar sin monto es válido ("lo cargo después").
+  - **`empleado`**: al pasar un turno a `completado` queda **él mismo** como trabajador, sin que lo mande. `403` si manda cualquier `monto`, un `trabajadorId` de otra persona, o toca el cobro de un turno que ya estaba completado.
+  - Si el `estado` pasa a algo distinto de `completado`, `monto` y `trabajador` se borran.
+  - Todo se valida antes de guardar: o se guarda todo o nada. Cargar o corregir solo el cobro no cambia `updatedAt`.
 - Falta una de las dos, o una es `null` y la otra no => `400` en el campo que falta (o en el que es `null`). Body vacío => `400` con `fields.estado`.
 
 ### `GET /api/admin/agenda?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` (requiere sesión; todos los roles)
@@ -719,6 +764,48 @@ Body estricto con **al menos uno** de: `estado`, la pareja `fechaConfirmada` + `
 | `hasta` | Obligatorio. Fecha `YYYY-MM-DD` existente, `>= desde`, y el rango inclusivo abarca **a lo sumo 42 días** (`desde` + 41). |
 
 `200 { "turnos": Turno[], "cupos": CupoDia[] }`. `cupos` tiene un elemento por día del rango, en orden: `{ "fecha", "abierto", "cupoManana", "cupoTarde", "ocupadosManana", "ocupadosTarde" }` (un día cerrado trae los cupos en 0; los ocupados se informan igual, porque el panel puede haber puesto turnos ahí). `turnos` (el mismo objeto que `/api/admin/bookings`): los **no cancelados** cuya fecha de agenda (`fechaConfirmada ?? fechaPreferida`) cae en el rango, ordenados por fecha de agenda, franja de agenda (`manana` antes que `tarde`) y orden de llegada. Sin paginación. `400 VALIDATION_ERROR` con `fields.desde` / `fields.hasta` si faltan, tienen mal formato (también repetidos) o el rango es inválido (el error de rango va en `hasta`). Los parámetros desconocidos se ignoran, como en el listado.
+
+### `GET /api/admin/trabajadores` (solo `admin` y `superadmin`)
+
+`200 { "trabajadores": [{ "id", "nombre", "rol" }] }`: las personas **activas** de cualquier rol, ordenadas por nombre (sin distinguir mayúsculas; `nombre` = el nombre o, si no tiene, el email). Para el selector "¿Quién lo hizo?". `empleado` => `403`.
+
+### `GET /api/admin/estadisticas?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` (solo `admin` y `superadmin`)
+
+Todo se agrupa por la **fecha de agenda** del turno (la confirmada si existe, si no la pedida) en hora de La Rioja: un servidor en UTC no corre el día. **Pedidos** = turnos no cancelados; **completados** = vendidos; **ingresos** = suma de `monto` de los completados (solo lo registrado); **ticketPromedio** = ingresos / completados **con monto** (redondeado al entero); **tasaCancelacion** = cancelados / todos los turnos (4 decimales). Rango inclusivo, `hasta >= desde`, máximo **366 días** (`400` con `fields.desde` / `fields.hasta`). Sin `hasta`, hoy; sin `desde`, el primer día del mes de `hasta` (sin ninguno: el mes actual hasta hoy). Las agregaciones se hacen en SQL (no se traen las filas de los turnos).
+
+```json
+{
+  "rango": { "desde": "2026-10-01", "hasta": "2026-10-26" },
+  "granularidad": "dia",
+  "resumen": {
+    "hoy":  { "actual": { "completados": 3, "ingresos": 95000 }, "anterior": { "completados": 2, "ingresos": 60000 } },
+    "mes":  { "actual": {}, "anterior": {} },
+    "anio": { "actual": {}, "anterior": {} }
+  },
+  "periodo": { "turnos": 40, "pedidos": 36, "pendientes": 4, "confirmados": 6, "completados": 24, "cancelados": 4,
+               "ingresos": 1240000, "ticketPromedio": 59048, "completadosSinMonto": 3, "tasaCancelacion": 0.1 },
+  "serie": [ { "clave": "2026-10-01", "completados": 2, "ingresos": 80000 } ],
+  "porServicio": [ { "servicioId": "lavado-premium", "nombre": "Lavado Premium", "pedidos": 14, "completados": 10, "ingresos": 600000 } ],
+  "porTrabajador": [ { "id": "<uuid>", "nombre": "Lucas", "completados": 12, "ingresos": 560000 } ],
+  "porDiaSemana": [ { "dia": 1, "manana": 5, "tarde": 3 } ],
+  "completadosSinTrabajador": 2
+}
+```
+
+- `resumen`: tarjetas fijas, **siempre con la fecha de hoy** (no dependen del rango): hoy contra ayer; este mes hasta hoy contra el mes pasado hasta el mismo día (con tope en el último día del mes más corto: el 31/03 se compara con el 28/02); este año hasta hoy contra el año pasado hasta el mismo día (el 29/02 se compara con el 28/02; si el año pasado fue bisiesto, incluye su 29/02). Siempre son números (0 si no hubo nada): el cambio porcentual lo calcula el frontend y no existe si `anterior` es 0.
+- `serie`: **todos** los días (o meses, `YYYY-MM`) del rango, con ceros donde no hubo nada. `granularidad` = `dia` hasta 62 días, `mes` con más.
+- `porServicio`: por `pedidos` descendente; incluye servicios activos sin pedidos (con 0); uno desactivado solo si tuvo pedidos.
+- `porTrabajador`: por `completados` descendente; `id: null` y `nombre: "Sin asignar"` agrupa los completados sin trabajador (o cuya persona se borró). `completadosSinTrabajador` es esa misma cuenta.
+- `porDiaSemana`: siempre los 7 días (0 = domingo ... 6 = sábado), con los pedidos de mañana y tarde del rango.
+- `ticketPromedio` y `tasaCancelacion` son `null` si el denominador es 0.
+
+### `GET /api/admin/estadisticas/mias?desde&hasta` (todos los roles)
+
+Mismo rango y errores. `200 { "rango", "completados": N, "porServicio": [{ "servicioId", "nombre", "completados" }], "serie": [{ "clave", "completados" }] }` con los turnos que **esa persona** completó (por `trabajador_id`; la serie va por día hasta 62 días y por mes con más, con ceros). **Nunca lleva importes.**
+
+### `GET /api/admin/permisos` (requiere sesión; todos los roles)
+
+`200 { "roles": [{ "id", "nombre", "descripcion" }], "capacidades": [{ "id", "grupo", "texto", "roles": { "superadmin": "si", "admin": "si", "empleado": "parcial" }, "matiz": { "empleado": "..." } }], "tuRol": "empleado" }`. `roles` viene de `mgdetailing.roles` (superadmin, admin, empleado); `capacidades` es `CAPACIDADES` (tabla de arriba); `matiz` solo está en las capacidades con algún rol `parcial`.
 
 ### `GET /api/admin/disponibilidad` (requiere sesión; todos los roles)
 
@@ -1070,8 +1157,8 @@ backend/
     domain/             tipos del negocio, reglas (permisos por rol) e interfaces async de los repositorios
     repositories/       fábrica de repositorios
       postgres/         implementación Postgres (turnos, perfiles, servicios; SQL con $1...)
-    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno, agenda y reprogramación, catálogo, disponibilidad, recordatorios, avisos push)
-    routes/             rutas HTTP (health, bookings, servicios, auth, admin/bookings, admin/agenda, admin/usuarios, admin/servicios, disponibilidad, turnos (seguimiento), admin/disponibilidad, internal (recordatorios))
+    services/           casos de uso con lógica (sesiones con Supabase Auth, usuarios, alta de turno, agenda y reprogramación y cobro, estadísticas, catálogo, disponibilidad, recordatorios, avisos push)
+    routes/             rutas HTTP (health, bookings, servicios, auth, admin/bookings, admin/agenda, admin/estadisticas, admin/trabajadores, admin/permisos, admin/usuarios, admin/servicios, disponibilidad, turnos (seguimiento), admin/disponibilidad, internal (recordatorios))
     notifications/      avisos de WhatsApp al dueño (CallMeBot, Cloud API) y formato del mensaje; recordatorios a clientes (Resend, Cloud API)
     middleware/         seguridad, CSRF, rate limit, errores, logger, estáticos
     schemas/            validación de entrada con zod

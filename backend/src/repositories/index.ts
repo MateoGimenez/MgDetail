@@ -1,11 +1,13 @@
 import type { SqlClient } from '../db/postgres.js';
 import type { BookingRepository } from '../domain/booking.js';
 import type { DisponibilidadRepository } from '../domain/disponibilidad.js';
+import type { EstadisticasRepository } from '../domain/estadisticas.js';
 import type { PerfilRepository } from '../domain/perfil.js';
 import type { PushRepository } from '../domain/push.js';
 import type { ServicioRepository } from '../domain/servicios.js';
 import { PostgresBookingRepository } from './postgres/bookings.js';
 import { PostgresDisponibilidadRepository } from './postgres/disponibilidad.js';
+import { PostgresEstadisticasRepository } from './postgres/estadisticas.js';
 import { PostgresPerfilRepository } from './postgres/perfiles.js';
 import { PostgresPushRepository } from './postgres/push.js';
 import { PostgresServicioRepository } from './postgres/servicios.js';
@@ -16,6 +18,7 @@ export interface Repositories {
   servicios: ServicioRepository;
   disponibilidad: DisponibilidadRepository;
   push: PushRepository;
+  estadisticas: EstadisticasRepository;
 }
 
 /** Los repositorios sobre Postgres (esquema mgdetailing ya migrado; ver supabase/migrations/). */
@@ -26,5 +29,6 @@ export function createPostgresRepositories(sql: SqlClient): Repositories {
     servicios: new PostgresServicioRepository(sql),
     disponibilidad: new PostgresDisponibilidadRepository(sql),
     push: new PostgresPushRepository(sql),
+    estadisticas: new PostgresEstadisticasRepository(sql),
   };
 }

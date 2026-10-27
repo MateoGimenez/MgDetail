@@ -1,0 +1,1779 @@
+{
+  "patchAdminCompleta": {
+    "status": 200,
+    "body": {
+      "booking": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "nombre": "Cliente Largo Nombre",
+        "telefono": "12345678",
+        "telefonoWhatsapp": null,
+        "email": null,
+        "vehiculoTipo": "auto",
+        "vehiculoModelo": null,
+        "servicioId": "pulido",
+        "fechaPreferida": "2026-10-16",
+        "franja": "manana",
+        "fechaConfirmada": null,
+        "franjaConfirmada": null,
+        "comentario": null,
+        "estado": "completado",
+        "notasInternas": null,
+        "turnosDelCliente": null,
+        "monto": 60000,
+        "trabajador": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "nombre": "Ana"
+        },
+        "createdAt": "2026-10-16T15:00:00.000Z",
+        "updatedAt": "2026-10-16T15:00:00.000Z"
+      }
+    }
+  },
+  "patchEmpleadoCompleta": {
+    "status": 200,
+    "body": {
+      "booking": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "nombre": "Cliente Largo Nombre",
+        "telefono": "12345678",
+        "telefonoWhatsapp": null,
+        "email": null,
+        "vehiculoTipo": "auto",
+        "vehiculoModelo": null,
+        "servicioId": "encerado",
+        "fechaPreferida": "2026-10-16",
+        "franja": "manana",
+        "fechaConfirmada": null,
+        "franjaConfirmada": null,
+        "comentario": null,
+        "estado": "completado",
+        "notasInternas": null,
+        "turnosDelCliente": null,
+        "monto": null,
+        "trabajador": {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "nombre": "Beto"
+        },
+        "createdAt": "2026-10-16T15:00:00.000Z",
+        "updatedAt": "2026-10-16T15:00:00.000Z"
+      }
+    }
+  },
+  "patchAdminCompletaSinCobro": {
+    "status": 200,
+    "body": {
+      "booking": {
+        "id": "00000000-0000-4000-8000-000000000005",
+        "nombre": "Cliente Largo Nombre",
+        "telefono": "12345678",
+        "telefonoWhatsapp": null,
+        "email": null,
+        "vehiculoTipo": "auto",
+        "vehiculoModelo": null,
+        "servicioId": "pulido",
+        "fechaPreferida": "2026-09-20",
+        "franja": "manana",
+        "fechaConfirmada": null,
+        "franjaConfirmada": null,
+        "comentario": null,
+        "estado": "completado",
+        "notasInternas": null,
+        "turnosDelCliente": null,
+        "monto": null,
+        "trabajador": null,
+        "createdAt": "2026-10-16T15:00:00.000Z",
+        "updatedAt": "2026-10-16T15:00:00.000Z"
+      }
+    }
+  },
+  "error400Monto": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "Revisá los datos ingresados.",
+        "fields": {
+          "monto": "El cobro y quién hizo el trabajo solo se cargan en un turno completado."
+        }
+      }
+    }
+  },
+  "error400MontoRango": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "Revisá los datos ingresados.",
+        "fields": {
+          "monto": "El monto tiene que ser un número entero de pesos entre 0 y 99.999.999, o null."
+        }
+      }
+    }
+  },
+  "error400Trabajador": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "Revisá los datos ingresados.",
+        "fields": {
+          "trabajadorId": "El cobro y quién hizo el trabajo solo se cargan en un turno completado."
+        }
+      }
+    }
+  },
+  "error400TrabajadorInexistente": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "Revisá los datos ingresados.",
+        "fields": {
+          "trabajadorId": "Elegí una persona activa del panel."
+        }
+      }
+    }
+  },
+  "error403EmpleadoMonto": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "FORBIDDEN",
+        "message": "Con tu rol no podés cargar el monto cobrado: lo completa un administrador."
+      }
+    }
+  },
+  "error403EmpleadoCorrige": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "FORBIDDEN",
+        "message": "Con tu rol, quien hizo el trabajo sos vos: no podés elegir a otra persona."
+      }
+    }
+  },
+  "error403EstadisticasEmpleado": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "FORBIDDEN",
+        "message": "Con tu rol no podés ver las estadísticas completas."
+      }
+    }
+  },
+  "listaAdmin": {
+    "status": 200,
+    "body": {
+      "bookings": [
+        {
+          "id": "00000000-0000-4000-8000-000000000006",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-14",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "cancelado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": null,
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-09-20",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": null,
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-15",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "pendiente",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": null,
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "encerado",
+          "fechaPreferida": "2026-10-16",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": {
+            "id": "00000000-0000-4000-8000-000000000004",
+            "nombre": "Beto"
+          },
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-16",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": 60000,
+          "trabajador": {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "nombre": "Ana"
+          },
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        }
+      ],
+      "total": 5
+    }
+  },
+  "listaEmpleado": {
+    "status": 200,
+    "body": {
+      "bookings": [
+        {
+          "id": "00000000-0000-4000-8000-000000000006",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-14",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "cancelado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": null,
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-09-20",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": null,
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-15",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "pendiente",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": null,
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "encerado",
+          "fechaPreferida": "2026-10-16",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": {
+            "id": "00000000-0000-4000-8000-000000000004",
+            "nombre": "Beto"
+          },
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-16",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "nombre": "Ana"
+          },
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        }
+      ],
+      "total": 5
+    }
+  },
+  "agendaAdmin": {
+    "status": 200,
+    "body": {
+      "turnos": [
+        {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-15",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "pendiente",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": null,
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-16",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": 60000,
+          "trabajador": {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "nombre": "Ana"
+          },
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "encerado",
+          "fechaPreferida": "2026-10-16",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": {
+            "id": "00000000-0000-4000-8000-000000000004",
+            "nombre": "Beto"
+          },
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        }
+      ],
+      "cupos": [
+        {
+          "fecha": "2026-10-14",
+          "abierto": true,
+          "cupoManana": 20,
+          "cupoTarde": 20,
+          "ocupadosManana": 0,
+          "ocupadosTarde": 0
+        },
+        {
+          "fecha": "2026-10-15",
+          "abierto": true,
+          "cupoManana": 20,
+          "cupoTarde": 20,
+          "ocupadosManana": 1,
+          "ocupadosTarde": 0
+        },
+        {
+          "fecha": "2026-10-16",
+          "abierto": true,
+          "cupoManana": 20,
+          "cupoTarde": 20,
+          "ocupadosManana": 2,
+          "ocupadosTarde": 0
+        }
+      ]
+    }
+  },
+  "agendaEmpleado": {
+    "status": 200,
+    "body": {
+      "turnos": [
+        {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-15",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "pendiente",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": null,
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "pulido",
+          "fechaPreferida": "2026-10-16",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "nombre": "Ana"
+          },
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "nombre": "Cliente Largo Nombre",
+          "telefono": "12345678",
+          "telefonoWhatsapp": null,
+          "email": null,
+          "vehiculoTipo": "auto",
+          "vehiculoModelo": null,
+          "servicioId": "encerado",
+          "fechaPreferida": "2026-10-16",
+          "franja": "manana",
+          "fechaConfirmada": null,
+          "franjaConfirmada": null,
+          "comentario": null,
+          "estado": "completado",
+          "notasInternas": null,
+          "turnosDelCliente": null,
+          "monto": null,
+          "trabajador": {
+            "id": "00000000-0000-4000-8000-000000000004",
+            "nombre": "Beto"
+          },
+          "createdAt": "2026-10-16T15:00:00.000Z",
+          "updatedAt": "2026-10-16T15:00:00.000Z"
+        }
+      ],
+      "cupos": [
+        {
+          "fecha": "2026-10-14",
+          "abierto": true,
+          "cupoManana": 20,
+          "cupoTarde": 20,
+          "ocupadosManana": 0,
+          "ocupadosTarde": 0
+        },
+        {
+          "fecha": "2026-10-15",
+          "abierto": true,
+          "cupoManana": 20,
+          "cupoTarde": 20,
+          "ocupadosManana": 1,
+          "ocupadosTarde": 0
+        },
+        {
+          "fecha": "2026-10-16",
+          "abierto": true,
+          "cupoManana": 20,
+          "cupoTarde": 20,
+          "ocupadosManana": 2,
+          "ocupadosTarde": 0
+        }
+      ]
+    }
+  },
+  "trabajadores": {
+    "status": 200,
+    "body": {
+      "trabajadores": [
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "nombre": "Ana",
+          "rol": "admin"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "nombre": "Beto",
+          "rol": "empleado"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000008",
+          "nombre": "sin@t.test",
+          "rol": "empleado"
+        }
+      ]
+    }
+  },
+  "estadisticasMes": {
+    "status": 200,
+    "body": {
+      "rango": {
+        "desde": "2026-10-01",
+        "hasta": "2026-10-16"
+      },
+      "granularidad": "dia",
+      "resumen": {
+        "hoy": {
+          "actual": {
+            "completados": 2,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        },
+        "mes": {
+          "actual": {
+            "completados": 2,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        },
+        "anio": {
+          "actual": {
+            "completados": 3,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        }
+      },
+      "periodo": {
+        "turnos": 4,
+        "pedidos": 3,
+        "pendientes": 1,
+        "confirmados": 0,
+        "completados": 2,
+        "cancelados": 1,
+        "ingresos": 60000,
+        "ticketPromedio": 60000,
+        "completadosSinMonto": 1,
+        "tasaCancelacion": 0.25
+      },
+      "serie": [
+        {
+          "clave": "2026-10-01",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-02",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-03",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-04",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-05",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-06",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-07",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-08",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-09",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-10",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-11",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-12",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-13",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-14",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-15",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10-16",
+          "completados": 2,
+          "ingresos": 60000
+        }
+      ],
+      "porServicio": [
+        {
+          "servicioId": "pulido",
+          "nombre": "Pulido",
+          "pedidos": 2,
+          "completados": 1,
+          "ingresos": 60000
+        },
+        {
+          "servicioId": "encerado",
+          "nombre": "Encerado",
+          "pedidos": 1,
+          "completados": 1,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "lavado-basico",
+          "nombre": "Lavado Básico",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "lavado-premium",
+          "nombre": "Lavado Premium",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "restauracion-opticas",
+          "nombre": "Restauración de ópticas",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        }
+      ],
+      "porTrabajador": [
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "nombre": "Ana",
+          "completados": 1,
+          "ingresos": 60000
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "nombre": "Beto",
+          "completados": 1,
+          "ingresos": 0
+        }
+      ],
+      "porDiaSemana": [
+        {
+          "dia": 0,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 1,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 2,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 3,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 4,
+          "manana": 1,
+          "tarde": 0
+        },
+        {
+          "dia": 5,
+          "manana": 2,
+          "tarde": 0
+        },
+        {
+          "dia": 6,
+          "manana": 0,
+          "tarde": 0
+        }
+      ],
+      "completadosSinTrabajador": 0
+    }
+  },
+  "estadisticasAnio": {
+    "status": 200,
+    "body": {
+      "rango": {
+        "desde": "2026-01-01",
+        "hasta": "2026-12-31"
+      },
+      "granularidad": "mes",
+      "resumen": {
+        "hoy": {
+          "actual": {
+            "completados": 2,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        },
+        "mes": {
+          "actual": {
+            "completados": 2,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        },
+        "anio": {
+          "actual": {
+            "completados": 3,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        }
+      },
+      "periodo": {
+        "turnos": 5,
+        "pedidos": 4,
+        "pendientes": 1,
+        "confirmados": 0,
+        "completados": 3,
+        "cancelados": 1,
+        "ingresos": 60000,
+        "ticketPromedio": 60000,
+        "completadosSinMonto": 2,
+        "tasaCancelacion": 0.2
+      },
+      "serie": [
+        {
+          "clave": "2026-01",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-02",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-03",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-04",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-05",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-06",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-07",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-08",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-09",
+          "completados": 1,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-10",
+          "completados": 2,
+          "ingresos": 60000
+        },
+        {
+          "clave": "2026-11",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2026-12",
+          "completados": 0,
+          "ingresos": 0
+        }
+      ],
+      "porServicio": [
+        {
+          "servicioId": "pulido",
+          "nombre": "Pulido",
+          "pedidos": 3,
+          "completados": 2,
+          "ingresos": 60000
+        },
+        {
+          "servicioId": "encerado",
+          "nombre": "Encerado",
+          "pedidos": 1,
+          "completados": 1,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "lavado-basico",
+          "nombre": "Lavado Básico",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "lavado-premium",
+          "nombre": "Lavado Premium",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "restauracion-opticas",
+          "nombre": "Restauración de ópticas",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        }
+      ],
+      "porTrabajador": [
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "nombre": "Ana",
+          "completados": 1,
+          "ingresos": 60000
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "nombre": "Beto",
+          "completados": 1,
+          "ingresos": 0
+        },
+        {
+          "id": null,
+          "nombre": "Sin asignar",
+          "completados": 1,
+          "ingresos": 0
+        }
+      ],
+      "porDiaSemana": [
+        {
+          "dia": 0,
+          "manana": 1,
+          "tarde": 0
+        },
+        {
+          "dia": 1,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 2,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 3,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 4,
+          "manana": 1,
+          "tarde": 0
+        },
+        {
+          "dia": 5,
+          "manana": 2,
+          "tarde": 0
+        },
+        {
+          "dia": 6,
+          "manana": 0,
+          "tarde": 0
+        }
+      ],
+      "completadosSinTrabajador": 1
+    }
+  },
+  "estadisticasVacio": {
+    "status": 200,
+    "body": {
+      "rango": {
+        "desde": "2020-01-01",
+        "hasta": "2020-01-07"
+      },
+      "granularidad": "dia",
+      "resumen": {
+        "hoy": {
+          "actual": {
+            "completados": 2,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        },
+        "mes": {
+          "actual": {
+            "completados": 2,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        },
+        "anio": {
+          "actual": {
+            "completados": 3,
+            "ingresos": 60000
+          },
+          "anterior": {
+            "completados": 0,
+            "ingresos": 0
+          }
+        }
+      },
+      "periodo": {
+        "turnos": 0,
+        "pedidos": 0,
+        "pendientes": 0,
+        "confirmados": 0,
+        "completados": 0,
+        "cancelados": 0,
+        "ingresos": 0,
+        "ticketPromedio": null,
+        "completadosSinMonto": 0,
+        "tasaCancelacion": null
+      },
+      "serie": [
+        {
+          "clave": "2020-01-01",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2020-01-02",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2020-01-03",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2020-01-04",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2020-01-05",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2020-01-06",
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "clave": "2020-01-07",
+          "completados": 0,
+          "ingresos": 0
+        }
+      ],
+      "porServicio": [
+        {
+          "servicioId": "lavado-basico",
+          "nombre": "Lavado Básico",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "lavado-premium",
+          "nombre": "Lavado Premium",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "pulido",
+          "nombre": "Pulido",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "encerado",
+          "nombre": "Encerado",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        },
+        {
+          "servicioId": "restauracion-opticas",
+          "nombre": "Restauración de ópticas",
+          "pedidos": 0,
+          "completados": 0,
+          "ingresos": 0
+        }
+      ],
+      "porTrabajador": [],
+      "porDiaSemana": [
+        {
+          "dia": 0,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 1,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 2,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 3,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 4,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 5,
+          "manana": 0,
+          "tarde": 0
+        },
+        {
+          "dia": 6,
+          "manana": 0,
+          "tarde": 0
+        }
+      ],
+      "completadosSinTrabajador": 0
+    }
+  },
+  "misTrabajos": {
+    "status": 200,
+    "body": {
+      "rango": {
+        "desde": "2026-10-01",
+        "hasta": "2026-10-16"
+      },
+      "completados": 1,
+      "porServicio": [
+        {
+          "servicioId": "encerado",
+          "nombre": "Encerado",
+          "completados": 1
+        }
+      ],
+      "serie": [
+        {
+          "clave": "2026-10-01",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-02",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-03",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-04",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-05",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-06",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-07",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-08",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-09",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-10",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-11",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-12",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-13",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-14",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-15",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10-16",
+          "completados": 1
+        }
+      ]
+    }
+  },
+  "misTrabajosAnio": {
+    "status": 200,
+    "body": {
+      "rango": {
+        "desde": "2026-01-01",
+        "hasta": "2026-12-31"
+      },
+      "completados": 1,
+      "porServicio": [
+        {
+          "servicioId": "encerado",
+          "nombre": "Encerado",
+          "completados": 1
+        }
+      ],
+      "serie": [
+        {
+          "clave": "2026-01",
+          "completados": 0
+        },
+        {
+          "clave": "2026-02",
+          "completados": 0
+        },
+        {
+          "clave": "2026-03",
+          "completados": 0
+        },
+        {
+          "clave": "2026-04",
+          "completados": 0
+        },
+        {
+          "clave": "2026-05",
+          "completados": 0
+        },
+        {
+          "clave": "2026-06",
+          "completados": 0
+        },
+        {
+          "clave": "2026-07",
+          "completados": 0
+        },
+        {
+          "clave": "2026-08",
+          "completados": 0
+        },
+        {
+          "clave": "2026-09",
+          "completados": 0
+        },
+        {
+          "clave": "2026-10",
+          "completados": 1
+        },
+        {
+          "clave": "2026-11",
+          "completados": 0
+        },
+        {
+          "clave": "2026-12",
+          "completados": 0
+        }
+      ]
+    }
+  },
+  "permisosEmpleado": {
+    "status": 200,
+    "body": {
+      "roles": [
+        {
+          "id": "superadmin",
+          "nombre": "Superadministrador",
+          "descripcion": "Puede todo lo del administrador y, además, gestionar usuarios: alta, baja, rol y acceso al panel."
+        },
+        {
+          "id": "admin",
+          "nombre": "Administrador",
+          "descripcion": "Gestiona turnos (estado, fecha, borrar), carga y corrige el cobro de cada trabajo, edita catálogo y disponibilidad y ve las estadísticas con importes. No gestiona usuarios."
+        },
+        {
+          "id": "empleado",
+          "nombre": "Empleado",
+          "descripcion": "Ve turnos y agenda, escribe notas y marca turnos como completados (queda como quien lo hizo, sin cargar el monto). Ve sus propios trabajos, sin importes. No borra, cancela, confirma ni reprograma."
+        }
+      ],
+      "capacidades": [
+        {
+          "id": "turnos.ver",
+          "grupo": "Turnos",
+          "texto": "Ver los turnos y la agenda",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "turnos.estado",
+          "grupo": "Turnos",
+          "texto": "Cambiar el estado de un turno",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "parcial"
+          },
+          "matiz": {
+            "empleado": "Solo puede marcarlos como Completado"
+          }
+        },
+        {
+          "id": "turnos.reprogramar",
+          "grupo": "Turnos",
+          "texto": "Cambiar la fecha y la franja de un turno",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "turnos.borrar",
+          "grupo": "Turnos",
+          "texto": "Borrar turnos",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "turnos.notas",
+          "grupo": "Turnos",
+          "texto": "Escribir notas internas en un turno",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "turnos.clientes",
+          "grupo": "Turnos",
+          "texto": "Buscar turnos y ver el historial de un cliente",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "cobro.registrar",
+          "grupo": "Cobro",
+          "texto": "Registrar cuánto se cobró por un trabajo y quién lo hizo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "parcial"
+          },
+          "matiz": {
+            "empleado": "Al completar un turno queda como quien lo hizo, pero no carga el monto"
+          }
+        },
+        {
+          "id": "cobro.corregir",
+          "grupo": "Cobro",
+          "texto": "Corregir el monto y el trabajador de un turno ya completado",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "catalogo.ver",
+          "grupo": "Catálogo",
+          "texto": "Ver los servicios del catálogo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "catalogo.editar",
+          "grupo": "Catálogo",
+          "texto": "Crear, editar y ordenar los servicios del catálogo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "disponibilidad.ver",
+          "grupo": "Disponibilidad",
+          "texto": "Ver el horario, los días especiales y los cupos",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "disponibilidad.editar",
+          "grupo": "Disponibilidad",
+          "texto": "Cambiar el horario semanal y los días especiales",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "estadisticas.completas",
+          "grupo": "Estadísticas",
+          "texto": "Ver las estadísticas del taller, con importes y de todo el equipo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "estadisticas.propias",
+          "grupo": "Estadísticas",
+          "texto": "Ver los trabajos que uno mismo completó, sin importes",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "usuarios.gestionar",
+          "grupo": "Usuarios",
+          "texto": "Crear, editar y desactivar usuarios del panel",
+          "roles": {
+            "superadmin": "si",
+            "admin": "no",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "push.activar",
+          "grupo": "Avisos",
+          "texto": "Activar los avisos de turnos nuevos en su propio dispositivo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        }
+      ],
+      "tuRol": "empleado"
+    }
+  },
+  "permisosAdmin": {
+    "status": 200,
+    "body": {
+      "roles": [
+        {
+          "id": "superadmin",
+          "nombre": "Superadministrador",
+          "descripcion": "Puede todo lo del administrador y, además, gestionar usuarios: alta, baja, rol y acceso al panel."
+        },
+        {
+          "id": "admin",
+          "nombre": "Administrador",
+          "descripcion": "Gestiona turnos (estado, fecha, borrar), carga y corrige el cobro de cada trabajo, edita catálogo y disponibilidad y ve las estadísticas con importes. No gestiona usuarios."
+        },
+        {
+          "id": "empleado",
+          "nombre": "Empleado",
+          "descripcion": "Ve turnos y agenda, escribe notas y marca turnos como completados (queda como quien lo hizo, sin cargar el monto). Ve sus propios trabajos, sin importes. No borra, cancela, confirma ni reprograma."
+        }
+      ],
+      "capacidades": [
+        {
+          "id": "turnos.ver",
+          "grupo": "Turnos",
+          "texto": "Ver los turnos y la agenda",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "turnos.estado",
+          "grupo": "Turnos",
+          "texto": "Cambiar el estado de un turno",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "parcial"
+          },
+          "matiz": {
+            "empleado": "Solo puede marcarlos como Completado"
+          }
+        },
+        {
+          "id": "turnos.reprogramar",
+          "grupo": "Turnos",
+          "texto": "Cambiar la fecha y la franja de un turno",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "turnos.borrar",
+          "grupo": "Turnos",
+          "texto": "Borrar turnos",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "turnos.notas",
+          "grupo": "Turnos",
+          "texto": "Escribir notas internas en un turno",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "turnos.clientes",
+          "grupo": "Turnos",
+          "texto": "Buscar turnos y ver el historial de un cliente",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "cobro.registrar",
+          "grupo": "Cobro",
+          "texto": "Registrar cuánto se cobró por un trabajo y quién lo hizo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "parcial"
+          },
+          "matiz": {
+            "empleado": "Al completar un turno queda como quien lo hizo, pero no carga el monto"
+          }
+        },
+        {
+          "id": "cobro.corregir",
+          "grupo": "Cobro",
+          "texto": "Corregir el monto y el trabajador de un turno ya completado",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "catalogo.ver",
+          "grupo": "Catálogo",
+          "texto": "Ver los servicios del catálogo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "catalogo.editar",
+          "grupo": "Catálogo",
+          "texto": "Crear, editar y ordenar los servicios del catálogo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "disponibilidad.ver",
+          "grupo": "Disponibilidad",
+          "texto": "Ver el horario, los días especiales y los cupos",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "disponibilidad.editar",
+          "grupo": "Disponibilidad",
+          "texto": "Cambiar el horario semanal y los días especiales",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "estadisticas.completas",
+          "grupo": "Estadísticas",
+          "texto": "Ver las estadísticas del taller, con importes y de todo el equipo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "estadisticas.propias",
+          "grupo": "Estadísticas",
+          "texto": "Ver los trabajos que uno mismo completó, sin importes",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        },
+        {
+          "id": "usuarios.gestionar",
+          "grupo": "Usuarios",
+          "texto": "Crear, editar y desactivar usuarios del panel",
+          "roles": {
+            "superadmin": "si",
+            "admin": "no",
+            "empleado": "no"
+          }
+        },
+        {
+          "id": "push.activar",
+          "grupo": "Avisos",
+          "texto": "Activar los avisos de turnos nuevos en su propio dispositivo",
+          "roles": {
+            "superadmin": "si",
+            "admin": "si",
+            "empleado": "si"
+          }
+        }
+      ],
+      "tuRol": "admin"
+    }
+  }
+}

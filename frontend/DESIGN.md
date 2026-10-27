@@ -252,6 +252,15 @@ Viven en `src/admin/`, usan las variables del panel y no agregan colores (salvo 
 - Hoy: Mañana y Tarde con el cupo ("1/2", en rojo y negrita cuando está completa, "Cerrada" si no hay lugar) y los turnos con su sello de estado. Sin turnos: "Hoy no hay turnos.". Si el día figura cerrado o una franja está llena, un aviso ámbar arriba, con ícono y texto (nunca solo color).
 - Empleado: ve lo mismo; Hoy no tiene controles de edición (confirmar y reprogramar viven en Turnos y Agenda).
 
+### Cobro y trabajador
+- Dentro de la misma tarjeta, como Elegir fecha (`admin/cobro/`): fondo `--fondo-hundido`, título en display, campos de 48 px de alto con ancho máximo de 17 rem. El monto es de texto con teclado numérico; el "Desde" del servicio es un botón fantasma debajo, nunca un valor puesto a la fuerza.
+- Resumen en el turno completado: recuadro liso con "Cobro" + línea ("Cobrado $ 60.000 · Lucas"). Si falta el monto: borde punteado y fondo ámbar `#fff4e0` con ícono de alerta y texto "Sin cobro cargado" (el mismo ámbar de "Sin terminar"); la fila plegada lleva la señal "Sin cobro". En Hoy, el aviso ámbar suma el botón "Cargar cobros".
+
+### Permisos por rol
+- Sí / No / Parcial son píldoras con ícono y palabra: Sí sólida y verde, No gris apagada, Parcial con borde punteado ámbar; el matiz de lo parcial va en texto debajo. Nada depende del color.
+- Desde 720 px, tabla con una columna por rol (encabezado fijo, filas de grupo en mayúsculas chicas); en el celular, una tarjeta por rol con sus capacidades agrupadas, sin scroll horizontal. "Podés / No podés" y "Va a poder / No va a poder" son listas con ✓ y ✗.
+- El rol del encabezado es un botón (alcance táctil de 44 px) que abre el `<dialog>` "Tu rol".
+
 ### Aviso (toast)
 - Grafito del riel (#1f2327, borde #3f454c) con texto blanco, ícono de tilde en `--exito` o de alerta en `--error` y un cerrar de 44 px. Va fuera de `.panel`, con los tokens oscuros.
 - El éxito se cierra solo a los 4 s (se pausa con el mouse o el foco encima); el **error queda hasta cerrarlo**. Máximo 3: al pasar se descarta el éxito más viejo. El mismo texto repetido no se apila.
@@ -262,6 +271,17 @@ Viven en `src/admin/`, usan las variables del panel y no agregan colores (salvo 
 ### Esqueleto de carga
 - Barras y bloques de gris suave (`--borde-suave` con brillo `--fondo-hundido`) dentro de **los mismos contenedores y con las mismas alturas mínimas** que el contenido real: Servicios, Usuarios, Agenda (tira de siete días y día en el celular, grilla 7 × 2 desde 900 px), Disponibilidad (mes de seis semanas y panel del día) y Hoy. Al llegar los datos no hay saltos.
 - Decorativos (`aria-hidden`); el "Cargando…" lo anuncia la región en vivo de cada vista. El brillo corre solo sin `prefers-reduced-motion`; con reducción queda quieto.
+
+### Gráficos de Estadísticas
+Contrato: `reportes/2026-10-26_15_estadisticas-y-permisos.md`. SVG propio en `src/admin/estadisticas/graficos/`, sin librería; estilos en `estadisticas.css` (se descarga con la sección), solo variables del panel claro.
+- **Forma:** tiempo = columnas con ceros; rankings = barras horizontales (el nombre arriba de la barra para que no se corte); parte de un todo = una barra apilada; día × franja = mapa de calor. Una sola serie por gráfico, sin ejes dobles.
+- **Paleta:** énfasis, no categorías. La marca de datos va en tinta grafito (`--texto-3`) y en rojo del panel (`--acento`) solo lo mejor del período (columna más alta, primer puesto), con una frase que lo dice. La marca elegida va en `--texto`. Fondos de barra: `--borde` y `--fondo-hundido`. Grilla y eje: hairlines `--borde-suave` y `--borde`. El texto de ejes, valores y leyendas usa tokens de texto, nunca el color del dato.
+- **Estados** (barra apilada): los tonos de los sellos (#8a5200, #1d6b40, #3f464e, #a3221b; más de 6:1 contra blanco) más una trama propia (rayas, puntos, liso, rayas al revés), 2 px de hueco entre segmentos y una leyenda con cantidad y porcentaje: no dependen del color.
+- **Mapa de calor:** un solo tono (el rojo del panel) en 5 niveles discretos (0, 14, 32, 52 y 88 % sobre blanco), con el número escrito en cada casillero: tinta hasta el nivel 3 (6,7:1 o más) y blanco en el 4 (5,1:1).
+- **Marcas:** columnas de hasta 24 px con 4 px redondeados en la punta y base recta; barras horizontales con el origen recto; sin bordes, solo huecos.
+- **Dato sin mouse:** el SVG se dibuja con el ancho real del contenedor (el texto mide 12-13 px siempre). Tocar o pasar el mouse por una marca, o usar las flechas con el gráfico enfocado, escribe el dato en una línea fija debajo (`aria-live`): no hay tooltip que se corte en el celular. Los rankings ya traen todo escrito.
+- **Accesibles:** cada gráfico es un `role="img"` con nombre y descripción, y trae "Ver los números" (tabla real en `<details>`). El movimiento corre solo con `prefers-reduced-motion: no-preference`; con `forced-colors` las columnas toman `CanvasText`.
+- **Cambio de período:** el contenido queda atenuado (55 %) mientras llega lo nuevo, sin saltar a un esqueleto.
 
 ## Do's and Don'ts
 

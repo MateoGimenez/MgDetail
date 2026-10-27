@@ -3,6 +3,7 @@ import { ETIQUETA_ESTADO, ETIQUETA_FRANJA, ETIQUETA_VEHICULO, type Turno } from 
 import type { Rol } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { lugarEnAgenda } from '../lib/agenda';
+import { textoSinCobro } from '../lib/cobro';
 import { textoLugares, textoLugaresLargo } from '../lib/cupos';
 import { diaConMes, diaCortoConMes } from '../lib/fechas';
 import {
@@ -15,7 +16,10 @@ import {
   type FranjaDelDia,
   type Vista,
 } from '../lib/hoy';
+import './cobro/cobro.css';
 import { EsqueletoHoy } from './Esqueleto';
+import { puedeRegistrarCobro } from './permisos';
+import type { Filtro } from './useTurnos';
 import { useHoy } from './useHoy';
 
 const conMayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
@@ -27,7 +31,7 @@ interface Props {
   nombreServicio: (id: string) => string;
   alVencerSesion: (mensaje: string) => void;
   /** Lleva a otra vista del panel; `busqueda` abre Turnos con ese texto buscado. */
-  irA: (vista: Vista, busqueda?: string) => void;
+  irA: (vista: Vista, busqueda?: string, filtro?: Filtro) => void;
 }
 
 /** Primer nombre para el saludo ("Mateo Giménez" → "Mateo"; de un email se usa lo de antes de la arroba). */
@@ -43,7 +47,7 @@ function primerNombre(nombre: string | null): string | null {
  * confirmar, completar o reprogramar se hace en Turnos y Agenda.
  */
 export function VistaHoy({ rol, nombre, nombreServicio, alVencerSesion, irA }: Props) {
-  const h = useHoy(alVencerSesion);
+  const h = useHoy(alVencerSesion, puedeRegistrarCobro(rol));
   const tituloRef = useRef<HTMLHeadingElement>(null);
   const datos = h.datos;
   const quien = primerNombre(nombre);
@@ -120,6 +124,27 @@ export function VistaHoy({ rol, nombre, nombreServicio, alVencerSesion, irA }: P
 
       {datos && dia && manana && (
         <>
+          {datos.sinCobro && datos.sinCobro.cantidad > 0 && (
+            <ul role="list" className="hoy__avisos">
+              <li className="hoy__aviso hoy__aviso--cobro">
+                <span className="hoy__aviso-texto">
+                  <Icono nombre="alerta" tamano={18} />
+                  {textoSinCobro(datos.sinCobro.cantidad, datos.sinCobro.aproximado)}
+                </span>
+                <button
+                  type="button"
+                  className="boton boton--secundario boton--chico"
+                  onClick={() => {
+                    irA('turnos', undefined, 'completado');
+                  }}
+                >
+                  Cargar cobros
+                  <Icono nombre="flecha" tamano={18} />
+                </button>
+              </li>
+            </ul>
+          )}
+
           {avisos.length > 0 && (
             <ul role="list" className="hoy__avisos">
               {avisos.map((aviso) => (
