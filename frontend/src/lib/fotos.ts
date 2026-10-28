@@ -35,3 +35,14 @@ export function fotoOptimizada(foto: {
 export function esVertical(foto: Pick<FotoGaleria, 'ancho' | 'alto'>): boolean {
   return foto.ancho !== undefined && foto.alto !== undefined && foto.alto > foto.ancho;
 }
+
+/** Hasta cuántas fotos sueltas van al lado del título en la compu (con más, quedan muy chicas y van apiladas). */
+export const MAX_FOTOS_AL_LADO = 3;
+
+/**
+ * true si "Trabajos reales" arma el título a la izquierda y las fotos al lado (desde 1024 px): solo cuando hay
+ * fotos sueltas, hasta MAX_FOTOS_AL_LADO, y ningún antes y después (el comparador necesita todo el ancho).
+ */
+export function trabajosAlLado(cantidadFotos: number, cantidadPares: number): boolean {
+  return cantidadPares === 0 && cantidadFotos > 0 && cantidadFotos <= MAX_FOTOS_AL_LADO;
+}

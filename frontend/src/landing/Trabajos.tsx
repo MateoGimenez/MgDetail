@@ -2,6 +2,7 @@ import { MarcoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { instagramArroba, instagramUrl } from '../config/enlaces';
 import { antesDespues, fotos } from '../data/galeria';
+import { trabajosAlLado } from '../lib/fotos';
 import { CabeceraSeccion } from './CabeceraSeccion';
 import { Comparador } from './Comparador';
 import { Galeria } from './Galeria';
@@ -40,9 +41,13 @@ function TrabajosVacio() {
 
 export function Trabajos() {
   const hayFotos = fotos.length > 0 || antesDespues.length > 0;
+  // Solo fotos y pocas (hasta 3): en la compu el título va a la izquierda y las fotos al lado, así la fila entera
+  // entra en la pantalla de una notebook sin tener que bajar (landing.css). Con más fotos o con antes y después,
+  // todo va apilado.
+  const alLado = trabajosAlLado(fotos.length, antesDespues.length);
   return (
     <section id="trabajos" className="seccion trabajos" aria-labelledby="trabajos-titulo">
-      <div className="contenedor">
+      <div className={alLado ? 'contenedor trabajos__grilla' : 'contenedor'}>
         <CabeceraSeccion id="trabajos-titulo" titulo="Trabajos reales">
           <p className="seccion__bajada">
             {antesDespues.length > 0

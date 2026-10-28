@@ -75,6 +75,7 @@
   max-height: min(88dvh, 680px);
   margin: auto auto 0;
   padding: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid var(--borde);
@@ -89,8 +90,11 @@
   background: rgb(12 14 16 / 0.6);
 }
 
+/* Una sola columna que nunca crece más que la hoja: sin minmax(0, 1fr), un texto que no se parte (un email largo)
+   ensanchaba la columna y la hoja se desbordaba a la derecha (chevrones, X y Salir cortados). */
 .hoja__interior {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--e-3);
   padding: var(--e-4) var(--e-4) calc(var(--e-4) + env(safe-area-inset-bottom, 0px));
 }
@@ -100,6 +104,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--e-3);
+  min-width: 0;
 }
 
 .hoja__titulo {
@@ -113,6 +118,7 @@
   flex: none;
   width: 44px;
   min-width: 44px;
+  margin-right: calc(-1 * var(--e-2));
   padding-inline: 0;
   color: var(--texto-2);
 }
@@ -186,43 +192,54 @@
   }
 }
 
-/* ---------- Menú de perfil ---------- */
+/* ---------- Menú de perfil ----------
+   Quién sos arriba (nombre hasta dos líneas, rol y email en una línea cada uno), las dos filas y Salir.
+   Nada empuja el ancho: los textos largos se parten o se cortan con "…" dentro de la hoja. */
 .perfil__persona {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: var(--e-3);
   min-width: 0;
 }
 
 .perfil__datos {
+  display: grid;
+  flex: 1;
+  gap: 2px;
   min-width: 0;
 }
 
 .perfil__nombre {
+  display: -webkit-box;
   overflow: hidden;
   font-family: var(--f-display);
   font-size: 1.25rem;
   font-weight: 800;
   line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .perfil__rol {
-  overflow: hidden;
   color: var(--texto-2);
   font-size: 0.9375rem;
   font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .perfil__email {
-  font-weight: 400;
+  overflow: hidden;
+  color: var(--texto-3);
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .perfil__filas {
   display: grid;
+  min-width: 0;
   border-top: 1px solid var(--borde-suave);
 }
 
@@ -231,6 +248,7 @@
   align-items: center;
   gap: var(--e-3);
   width: 100%;
+  min-width: 0;
   min-height: 60px;
   padding: var(--e-2) var(--e-1);
   border: 0;
@@ -286,20 +304,40 @@
   width: 100%;
 }
 
-/* Pantalla mediana y ancha: el perfil cuelga del avatar, arriba a la derecha. */
+/* Desde 640 px el perfil es un menú que cuelga del avatar: su borde derecho coincide con el del botón del avatar
+   (el riel mide min(100% - 2 × margen, 1100px) y está centrado; los % del margen se miden contra la ventana). */
 @media (min-width: 640px) {
   .hoja--perfil {
-    width: 380px;
-    margin: 64px max(var(--margen), calc((100vw - 1100px) / 2)) auto auto;
+    width: min(360px, 100% - 2 * var(--margen));
+    margin: 66px calc((100% - min(100% - 2 * var(--margen), 1100px)) / 2) auto auto;
     border-bottom: 1px solid var(--borde);
     border-radius: var(--radio-3);
     box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.5);
+  }
+
+  .hoja--perfil .hoja__interior {
+    padding-bottom: var(--e-4);
   }
 
   .hoja--menu {
     margin-bottom: 16px;
     border-bottom: 1px solid var(--borde);
     border-radius: var(--radio-3);
+  }
+}
+
+/* El menú que cuelga baja apenas desde el avatar en vez de subir desde abajo. */
+@media (min-width: 640px) and (prefers-reduced-motion: no-preference) {
+  .hoja--perfil[open] {
+    animation-name: hoja-cuelga;
+    animation-duration: 180ms;
+  }
+}
+
+@keyframes hoja-cuelga {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
   }
 }
 

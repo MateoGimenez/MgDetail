@@ -58,10 +58,8 @@ export function HojaPerfil({ abierta, alCerrar, quien, email, rol, usuarioId, al
             <h2 id={idTitulo} className="perfil__nombre">
               {quien}
             </h2>
-            <p className="perfil__rol">
-              {ETIQUETA_ROL[rol]}
-              {email && email !== quien && <span className="perfil__email"> · {email}</span>}
-            </p>
+            <p className="perfil__rol">{ETIQUETA_ROL[rol]}</p>
+            {email && email !== quien && <p className="perfil__email">{email}</p>}
           </div>
         </div>
       }

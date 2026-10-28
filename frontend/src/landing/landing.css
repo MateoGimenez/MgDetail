@@ -662,6 +662,25 @@ legend.arranque__etiqueta + * {
   gap: var(--e-6);
 }
 
+/* Hasta tres fotos (sin antes y después): desde 1024 px el título queda a la izquierda y las fotos a su lado, como
+   en Cómo trabajamos y Preguntas. Así, al entrar por el menú o por /#trabajos, la fila entera se ve sin bajar. */
+@media (min-width: 1024px) {
+  .trabajos__grilla {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 8fr);
+    column-gap: clamp(32px, 4vw, 64px);
+    align-items: start;
+  }
+
+  .trabajos__grilla > .seccion__cabecera {
+    margin-bottom: 0;
+  }
+
+  .trabajos__grilla .galeria[data-modo='rejilla'] {
+    justify-content: end;
+  }
+}
+
 .comparador__marco {
   --pos: calc(28px + (100% - 56px) * var(--v) / 100);
   position: relative;
@@ -789,9 +808,13 @@ legend.arranque__etiqueta + * {
     gap: var(--e-4);
   }
 
+  /* Cada foto mide hasta 400 px de ancho y nunca es más alta que la pantalla menos la cabecera: en una notebook
+     (720 o 768 px de alto, menos la barra del navegador) la foto entera, con su rótulo, entra de una vez. */
   .galeria[data-modo='rejilla'] {
+    --foto-max: max(220px, min(400px, (100svh - var(--cabecera-alto) - 140px) * 4 / 5));
     display: grid;
-    grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--n), minmax(0, var(--foto-max)));
+    justify-content: start;
     overflow: visible;
     padding-bottom: 28px;
   }
@@ -813,7 +836,9 @@ legend.arranque__etiqueta + * {
   border: 0;
   border-radius: var(--radio-2);
   overflow: hidden;
-  background: var(--superficie);
+  /* Mientras la foto baja se ve el marco (en los dos temas), no un hueco del color del fondo. */
+  background: var(--superficie-2);
+  box-shadow: inset 0 0 0 1px var(--borde-suave);
   cursor: zoom-in;
 }
 

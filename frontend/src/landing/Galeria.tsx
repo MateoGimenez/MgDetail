@@ -81,7 +81,7 @@ export function Galeria({ fotos }: { fotos: readonly FotoGaleria[] }) {
                   abrir(posicion);
                 }}
               >
-                <Imagen foto={foto} sizes="(min-width: 900px) 300px, 72vw" />
+                <Imagen foto={foto} sizes="(min-width: 900px) min(30vw, 400px), 72vw" />
                 <span className="visualmente-oculto">Ver más grande</span>
               </button>
               {foto.titulo && (

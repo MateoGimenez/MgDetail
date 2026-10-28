@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { esVertical, fotoOptimizada } from './fotos';
+import { esVertical, fotoOptimizada, trabajosAlLado } from './fotos';
 
 describe('fotoOptimizada', () => {
   const foto = fotoOptimizada({ nombre: 'honda-nx-lateral', ancho: 1080, alto: 1350, alt: 'Una moto', titulo: 'Honda NX' });
@@ -26,5 +26,18 @@ describe('fotoOptimizada', () => {
     expect(esVertical(foto)).toBe(true);
     expect(esVertical({ ancho: 800, alto: 600 })).toBe(false);
     expect(esVertical({})).toBe(false);
+  });
+});
+
+describe('trabajosAlLado', () => {
+  it('pone el título al lado con 1 a 3 fotos sueltas', () => {
+    expect(trabajosAlLado(1, 0)).toBe(true);
+    expect(trabajosAlLado(3, 0)).toBe(true);
+  });
+
+  it('apila todo con más de 3 fotos, sin fotos o con algún antes y después', () => {
+    expect(trabajosAlLado(4, 0)).toBe(false);
+    expect(trabajosAlLado(0, 0)).toBe(false);
+    expect(trabajosAlLado(2, 1)).toBe(false);
   });
 });

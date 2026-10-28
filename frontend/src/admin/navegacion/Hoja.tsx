@@ -36,7 +36,11 @@ export function Hoja({ abierta, alCerrar, idTitulo, titulo, variante, cabecera, 
       ref={ref}
       className={`hoja hoja--${variante}`}
       aria-labelledby={idTitulo}
-      onClose={alCerrar}
+      onClose={(evento) => {
+        // Los diálogos que se abren desde la hoja ("Tu rol", "Ajustes") viven en un portal, pero React hace subir su
+        // `close` por el árbol de componentes hasta acá: sin este filtro, cerrarlos cerraba también la hoja.
+        if (evento.target === evento.currentTarget) alCerrar();
+      }}
       onClick={(evento) => {
         // Un toque en el fondo (el <dialog> mismo, no su contenido) cierra la hoja.
         if (evento.target === evento.currentTarget) ref.current?.close();
