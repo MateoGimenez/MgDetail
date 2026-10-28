@@ -274,34 +274,7 @@
   margin-bottom: var(--e-2);
 }
 
-/* ---------- Tu rol (encabezado) ---------- */
-
-button.panel__rol {
-  min-height: 28px;
-  background: transparent;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-button.panel__rol:hover {
-  background: rgb(255 255 255 / 0.12);
-}
-
-button.panel__rol:focus-visible {
-  outline: 2px solid #ffffff;
-  outline-offset: 2px;
-}
-
-/* Alcance táctil de 44 px sin agrandar la píldora. */
-button.panel__rol {
-  position: relative;
-}
-
-button.panel__rol::after {
-  content: '';
-  position: absolute;
-  inset: -8px -6px;
-}
+/* ---------- Tu rol (diálogo desde el perfil) ---------- */
 
 .dialogo-rol {
   max-height: calc(100dvh - 32px);

@@ -1,12 +1,6 @@
-/* Ajustes de la app (campana del encabezado y su diálogo). Usa la paleta clara del panel: el diálogo se dibuja
+/* Ajustes de la app (diálogo que abre la fila del perfil). Usa la paleta clara del panel: el diálogo se dibuja
    dentro de .panel, no en el riel oscuro. */
 
-.ajustes__abrir {
-  --boton-alto: 44px;
-  width: 44px;
-  min-width: 44px;
-  padding-inline: 0;
-}
 
 .ajustes {
   max-height: calc(100dvh - 32px);

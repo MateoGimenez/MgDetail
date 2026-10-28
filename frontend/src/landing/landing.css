@@ -750,49 +750,68 @@ legend.arranque__etiqueta + * {
   border-radius: 50%;
 }
 
-.comparador__pie,
-.galeria__pie {
-  margin-top: 10px;
-  color: var(--texto-2);
-  font-size: 0.95rem;
+/* Galería: tira de tarjetas verticales (4:5). En el celular se desliza de costado con la siguiente asomando, así la
+   sección no se alarga; desde 900 px, si son hasta cuatro fotos, se reparten en una fila con las pares apenas
+   más abajo (ritmo de revista); con más, siguen en tira. */
+.galeria {
+  --ancho-tarjeta: min(72vw, 300px);
+  display: flex;
+  gap: var(--e-3);
+  margin-inline: calc(-1 * var(--margen));
+  padding: 4px var(--margen) var(--e-3);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--margen);
+  scrollbar-width: none;
 }
 
-/* Galería: cada foto conserva su formato (vertical 4:5 u horizontal 4:3). Cada fila se arma con --columnas fotos y la
-   fila incompleta queda centrada: 3 fotos verticales se ven parejas en el celular, la tablet y la compu. */
-.galeria {
-  --columnas: 2;
-  --separacion: var(--e-3);
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: flex-start;
-  gap: var(--e-4) var(--separacion);
+.galeria::-webkit-scrollbar {
+  display: none;
 }
 
 .galeria__item {
-  flex: 0 0 calc((100% - (var(--columnas) - 1) * var(--separacion)) / var(--columnas));
+  position: relative;
+  flex: 0 0 var(--ancho-tarjeta);
   min-width: 0;
+  scroll-snap-align: start;
 }
 
-@media (min-width: 700px) {
+.galeria__item figure {
+  position: relative;
+}
+
+@media (min-width: 900px) {
   .galeria {
-    --columnas: 3;
-    --separacion: var(--e-4);
+    --ancho-tarjeta: 300px;
+    margin-inline: 0;
+    padding-inline: 0;
+    gap: var(--e-4);
   }
-}
 
-@media (min-width: 1060px) {
-  .galeria {
-    --columnas: 4;
+  .galeria[data-modo='rejilla'] {
+    display: grid;
+    grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+    overflow: visible;
+    padding-bottom: 28px;
+  }
+
+  .galeria[data-modo='rejilla'] .galeria__item {
+    flex: none;
+  }
+
+  .galeria[data-modo='rejilla'] .galeria__item:nth-child(even) {
+    transform: translateY(28px);
   }
 }
 
 .galeria__boton {
+  position: relative;
   display: block;
   width: 100%;
   padding: 0;
   border: 0;
-  border-radius: var(--radio-1);
+  border-radius: var(--radio-2);
   overflow: hidden;
   background: var(--superficie);
   cursor: zoom-in;
@@ -800,12 +819,67 @@ legend.arranque__etiqueta + * {
 
 .galeria__boton img {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 4 / 5;
   object-fit: cover;
 }
 
-.galeria__item[data-formato='vertical'] .galeria__boton img {
-  aspect-ratio: 4 / 5;
+/* Rótulo sobre la foto: degradé grafito fijo (la foto manda, el tema no cambia el contraste del texto). */
+.galeria__pie {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e-2);
+  padding: 44px var(--e-3) var(--e-3);
+  border-radius: 0 0 var(--radio-2) var(--radio-2);
+  background: linear-gradient(to top, var(--grafito-900), transparent);
+  color: var(--blanco);
+  font-weight: 650;
+  pointer-events: none;
+}
+
+.galeria__num {
+  color: var(--gris-200);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+/* Filete rojo que crece al apoyar el mouse o enfocar con teclado */
+.galeria__item::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  border-radius: 0 0 var(--radio-2) var(--radio-2);
+  background: var(--rojo-500);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 360ms var(--ease-salida);
+  pointer-events: none;
+}
+
+.galeria__item:hover::after,
+.galeria__item:focus-within::after {
+  transform: scaleX(1);
+}
+
+.galeria__boton:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .galeria__item::after {
+    transition: none;
+  }
+}
+
+.comparador__pie {
+  margin-top: 10px;
+  color: var(--texto-2);
+  font-size: 0.95rem;
 }
 
 .visor {

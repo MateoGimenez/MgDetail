@@ -206,7 +206,7 @@ Esquinas casi rectas, como una chapa pintada: 4px en paneles, 6px en botones y c
 - SEO: `lib/seoServicio.ts` arma título, descripción, Open Graph, canonical (solo con `sitio.url`) y JSON-LD `Service` + `BreadcrumbList`; `useSeo.ts` lo aplica al `head` y lo restaura al salir.
 
 ### Galería de trabajos
-- `Galeria.tsx`: fotos con `<picture>` (WebP de 480, 800 y 1080 px y JPG de respaldo, `npm run fotos`), `width` y `height` para reservar el lugar. Cada foto conserva su formato: las verticales en 4:5 y las horizontales en 4:3; la grilla es de 2 columnas en el celular, 3 desde 700 px y 4 desde 1060 px, y la fila incompleta queda centrada (3 fotos verticales se ven parejas en cualquier ancho). El visor las muestra enteras (`object-fit: contain`, alto máximo de la pantalla).
+- `Galeria.tsx`: fotos con `<picture>` (WebP de 480, 800 y 1080 px y JPG de respaldo, `npm run fotos`), `width` y `height` para reservar el lugar. Tarjetas 4:5 con rótulo (título y "01 / 03") sobre un degradé grafito fijo, para que el texto se lea igual en tema oscuro y claro. Celular: una sola tira con scroll-snap y la siguiente tarjeta asomando (72vw), sin alargar la página. Desde 900 px, hasta cuatro fotos van en una fila con las pares 28 px más abajo; con más, siguen en tira. Hover y foco: filete rojo que crece (`scaleX`) y zoom suave de la foto (solo con movimiento permitido). El visor las muestra enteras (`object-fit: contain`, alto máximo de la pantalla).
 
 ### Efectos sutiles
 - `efectos.css`; solo `transform` y `opacity`, todo bajo `prefers-reduced-motion: no-preference` y los de puntero además con `(hover: hover) and (pointer: fine)`. Sin librerías ni parallax.
@@ -308,7 +308,7 @@ Contrato: `reportes/2026-10-26_15_estadisticas-y-permisos.md`. SVG propio en `sr
 - **Cambio de período:** el contenido queda atenuado (55 %) mientras llega lo nuevo, sin saltar a un esqueleto.
 
 ### Navegación del panel y Finanzas
-- **Navegación:** tres grupos en el riel (Operación, Negocio, Ajustes). El grupo abierto se une a su fila de secciones como una solapa (fondo `--grafito-800`); la sección actual lleva el filete rojo y el grupo que la contiene, un rombo rojo. Desde 1240 px, una sola fila con divisores entre grupos.
+- **Navegación:** sin grupos. Celular y tablet (hasta 1179 px): barra fija abajo (64 px + área segura) con Hoy, Turnos, Agenda y Más; la sección actual lleva filete rojo arriba y color de acento. Más y el perfil son hojas (`.hoja`) que suben desde abajo; desde 640 px el perfil cuelga del avatar. Encabezado: marca + avatar con iniciales (nombre al lado desde 640 px). Desde 1180 px, una fila con todas las secciones bajo el encabezado, con el filete rojo de siempre.
 - **Finanzas:** tarjetas planas; la ganancia neta va al frente en display y en `#a3221b` con signo menos si es negativa. Metas: barra de 14 px (tinta `--texto-3`, verde de sello al cumplirse) con porcentaje y lectura escritos; estado como sello con ícono y palabras.
 - **Ingresos vs. gastos:** dos columnas finas por día o mes; ingresos en tinta lisa, gastos en rojo del panel con rayas y leyenda siempre visible. La paleta no pasa CVD solo por color (protan ΔE 6,6): la diferencia la cargan la trama, la leyenda y el dato escrito.
 

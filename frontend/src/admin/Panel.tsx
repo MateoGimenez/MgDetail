@@ -1,17 +1,16 @@
 import { Suspense, useState } from 'react';
 import { cerrarSesion } from '../api/admin';
 import { type UsuarioSesion } from '../api/contract-panel';
-import { Icono } from '../components/Icono';
 import { Logo } from '../components/Logo';
 import { nombreDeServicio } from '../data/servicios';
-import { BotonAjustes } from '../pwa/AjustesApp';
 import { desuscribirDispositivo } from '../pwa/avisos';
 import { resolverVista, type Vista } from '../lib/hoy';
 import { ContextoCobro } from './cobro/contextoCobro';
 import { NavegacionPanel } from './NavegacionPanel';
-import { BotonTuRol } from './permisos/BotonTuRol';
+import { BotonPerfil, HojaPerfil } from './navegacion/PerfilPanel';
 import { puedeEditarCatalogo, puedeEditarDisponibilidad, puedeGestionarUsuarios } from './permisos';
-import { gruposVisibles, seccionDe, vistasPermitidas, type PropsSeccion } from './secciones';
+import { navegacionPara, seccionDe, vistasPermitidas, type PropsSeccion } from './secciones';
+import { useConsulta } from './usePantallaAncha';
 import { useServicios } from './useServicios';
 import type { Filtro } from './useTurnos';
 import { VistaAgenda } from './VistaAgenda';
@@ -27,7 +26,10 @@ interface Props {
   alVencerSesion: (mensaje: string) => void;
 }
 
-/** Cáscara del panel: riel con quién está conectado y su rol, secciones y salir. */
+/**
+ * Cáscara del panel: encabezado limpio (marca y avatar de perfil), navegación de secciones (barra de abajo en el
+ * celular, fila en la compu) y el menú de perfil con nombre, rol, ajustes de la app y Salir.
+ */
 export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
   const gestionaUsuarios = puedeGestionarUsuarios(usuario.rol);
   // Se abre en Hoy, o en la vista de `?vista=` (accesos directos de la app) si es válida y este rol la puede ver.
@@ -42,7 +44,11 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
   } | null>(null);
   // `filtro` abre Turnos en esa pestaña (el aviso de Hoy "sin cobro cargado" lleva a Completadas).
   // `abrirCon` es un pedido para la sección de destino (por ejemplo 'bajo-stock' al ir a Inventario desde Hoy).
-  const [pedido, setPedido] = useState<{ vista: Vista; valor: string; clave: number } | null>(null);
+  const [pedido, setPedido] = useState<{
+    vista: Vista;
+    valor: string;
+    clave: number;
+  } | null>(null);
   const irA = (destino: Vista, busqueda?: string, filtro?: Filtro, abrirCon?: string) => {
     setBusquedaTurnos((previa) =>
       busqueda || filtro ? { texto: busqueda ?? '', clave: (previa?.clave ?? 0) + 1, filtro } : null,
@@ -51,6 +57,8 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
     setVista(destino);
   };
   const quien = usuario.nombre ?? usuario.email ?? 'Tu usuario';
+  const [perfilAbierto, setPerfilAbierto] = useState(false);
+  const pantallaAncha = useConsulta('(min-width: 1180px)');
   // El catálogo se carga una vez para todo el panel: Turnos lo usa para mostrar el nombre de cada servicio.
   const catalogo = useServicios(alVencerSesion);
   const nombreServicio = (id: string) => nombreDeServicio(id, catalogo.servicios ?? []);
@@ -61,8 +69,8 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
     alVencerSesion,
   };
 
-  // Las diez secciones salen del registro (secciones.ts), agrupadas y filtradas por rol.
-  const grupos = gruposVisibles(usuario.rol);
+  // Las diez secciones salen del registro (secciones.ts), filtradas por rol: las principales y las de "Más".
+  const { principales, mas } = navegacionPara(usuario.rol);
   const seccionActual = seccionDe(vista);
   const Diferida = seccionActual.puede(usuario.rol) ? seccionActual.componente : undefined;
   const propsSeccion: PropsSeccion = {
@@ -89,33 +97,54 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
 
   return (
     <ContextoCobro.Provider value={datosDeCobro}>
-      <div className="panel">
+      <div className={pantallaAncha ? 'panel' : 'panel panel--barra'}>
         <header className="panel__riel">
           <div className="panel__riel-interior">
             <div className="panel__marca">
               <Logo tamano="chico" />
               <span className="panel__rotulo">Panel</span>
             </div>
-            <div className="panel__usuario">
-              <div className="panel__quien">
-                <span className="panel__nombre">{quien}</span>
-                <BotonTuRol rol={usuario.rol} alVencerSesion={alVencerSesion} />
-              </div>
-              <BotonAjustes alVencerSesion={alVencerSesion} usuarioId={usuario.id} />
-              <button
-                type="button"
-                className="boton boton--fantasma boton--chico"
-                onClick={() => {
-                  void salir();
-                }}
-              >
-                <Icono nombre="salir" tamano={18} />
-                Salir
-              </button>
-            </div>
+            <BotonPerfil
+              quien={quien}
+              abierto={perfilAbierto}
+              alAbrir={() => {
+                setPerfilAbierto(true);
+              }}
+            />
           </div>
-          <NavegacionPanel grupos={grupos} vista={vista} alElegir={irA} />
+          {pantallaAncha && (
+            <NavegacionPanel
+              principales={principales}
+              mas={mas}
+              vista={vista}
+              alElegir={irA}
+              modo={pantallaAncha ? 'fila' : 'barra'}
+            />
+          )}
         </header>
+        {!pantallaAncha && (
+          <NavegacionPanel
+            principales={principales}
+            mas={mas}
+            vista={vista}
+            alElegir={irA}
+            modo={pantallaAncha ? 'fila' : 'barra'}
+          />
+        )}
+        <HojaPerfil
+          abierta={perfilAbierto}
+          alCerrar={() => {
+            setPerfilAbierto(false);
+          }}
+          quien={quien}
+          email={usuario.email}
+          rol={usuario.rol}
+          usuarioId={usuario.id}
+          alVencerSesion={alVencerSesion}
+          alSalir={() => {
+            void salir();
+          }}
+        />
 
         <main className="panel__trabajo">
           {vista === 'usuarios' && gestionaUsuarios ? (

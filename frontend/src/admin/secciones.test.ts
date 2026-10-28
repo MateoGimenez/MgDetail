@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { VISTAS, resolverVista } from '../lib/hoy';
-import { GRUPOS, SECCIONES, grupoDe, gruposVisibles, seccionDe, seccionesVisibles, vistasPermitidas } from './secciones';
+import { SECCIONES, navegacionPara, seccionDe, seccionesVisibles, vistasPermitidas } from './secciones';
 
 describe('registro de secciones del panel', () => {
   it('tiene las diez, una por clave de ?vista=, sin repetir', () => {
@@ -9,12 +9,8 @@ describe('registro de secciones del panel', () => {
     expect(new Set(SECCIONES.map((s) => s.clave)).size).toBe(10);
   });
 
-  it('cada sección está en un grupo que existe y tiene etiqueta', () => {
-    const grupos = GRUPOS.map((g) => g.clave);
-    for (const s of SECCIONES) {
-      expect(grupos).toContain(s.grupo);
-      expect(s.etiqueta.length).toBeGreaterThan(2);
-    }
+  it('cada sección tiene etiqueta', () => {
+    for (const s of SECCIONES) expect(s.etiqueta.length).toBeGreaterThan(2);
   });
 
   it('el superadmin ve las diez', () => {
@@ -35,24 +31,29 @@ describe('registro de secciones del panel', () => {
     );
   });
 
-  it('los grupos se arman por rol y ninguno queda vacío', () => {
-    expect(gruposVisibles('superadmin').map((g) => g.clave)).toEqual(['operacion', 'negocio', 'ajustes']);
-    const empleado = gruposVisibles('empleado');
-    expect(empleado.map((g) => g.clave)).toEqual(['operacion', 'negocio', 'ajustes']);
-    expect(empleado.find((g) => g.clave === 'negocio')?.secciones.map((s) => s.clave)).toEqual(['estadisticas']);
+  it('la barra de abajo lleva Hoy, Turnos y Agenda para todos los roles; el resto va en Más', () => {
     for (const rol of ['superadmin', 'admin', 'empleado'] as const) {
-      for (const g of gruposVisibles(rol)) expect(g.secciones.length).toBeGreaterThan(0);
+      const { principales, mas } = navegacionPara(rol);
+      expect(principales.map((x) => x.clave)).toEqual(['hoy', 'turnos', 'agenda']);
+      expect(principales.length + mas.length).toBe(seccionesVisibles(rol).length);
+      expect(mas.length).toBeGreaterThan(0);
     }
   });
 
-  it('en el celular entran todos los botones de una fila: ningún grupo pasa de cuatro secciones', () => {
-    for (const g of gruposVisibles('superadmin')) expect(g.secciones.length).toBeLessThanOrEqual(4);
+  it('Más respeta los permisos: el empleado no ve Finanzas, Presupuestos ni Usuarios', () => {
+    expect(navegacionPara('empleado').mas.map((x) => x.clave)).toEqual([
+      'inventario',
+      'estadisticas',
+      'disponibilidad',
+      'servicios',
+    ]);
+    expect(navegacionPara('admin').mas.map((x) => x.clave)).not.toContain('usuarios');
+    expect(navegacionPara('superadmin').mas.map((x) => x.clave)).toContain('usuarios');
   });
 
-  it('grupoDe y seccionDe', () => {
-    expect(grupoDe('finanzas')).toBe('negocio');
-    expect(grupoDe('inventario')).toBe('operacion');
+  it('seccionDe', () => {
     expect(seccionDe('hoy').etiqueta).toBe('Hoy');
+    expect(seccionDe('finanzas').principal).toBe(false);
   });
 
   it('las secciones que se cargan aparte tienen componente diferido; las de siempre las dibuja Panel', () => {

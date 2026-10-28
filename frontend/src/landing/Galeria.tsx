@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type CSSProperties } from 'react';
 import { Icono } from '../components/Icono';
 import { esVertical } from '../lib/fotos';
 import type { FotoGaleria } from '../types';
@@ -46,9 +46,8 @@ function Imagen({ foto, sizes, className }: { foto: FotoGaleria; sizes: string; 
 }
 
 /**
- * Grilla de fotos reales con un visor en <dialog> (Escape cierra, flechas recorren). Cada foto conserva su formato:
- * las verticales (4:5) se ven como vienen y las horizontales (4:3) también; las filas incompletas quedan centradas,
- * así 3 fotos o 5 se ven bien. El visor las muestra enteras, sin recortar.
+ * Fotos reales en una tira deslizable (celular) o una fila escalonada (compu, hasta cuatro fotos), con un visor en
+ * <dialog> (Escape cierra, flechas recorren). Las tarjetas son 4:5; el visor muestra cada foto entera, sin recortar.
  */
 export function Galeria({ fotos }: { fotos: readonly FotoGaleria[] }) {
   const visorRef = useRef<HTMLDialogElement>(null);
@@ -66,7 +65,12 @@ export function Galeria({ fotos }: { fotos: readonly FotoGaleria[] }) {
 
   return (
     <>
-      <ul className="galeria" role="list">
+      <ul
+        className="galeria"
+        role="list"
+        data-modo={fotos.length <= 4 ? 'rejilla' : 'tira'}
+        style={{ '--n': fotos.length } as CSSProperties}
+      >
         {fotos.map((foto, posicion) => (
           <li key={foto.src} className="galeria__item" data-formato={esVertical(foto) ? 'vertical' : 'horizontal'}>
             <figure>
@@ -77,10 +81,17 @@ export function Galeria({ fotos }: { fotos: readonly FotoGaleria[] }) {
                   abrir(posicion);
                 }}
               >
-                <Imagen foto={foto} sizes="(min-width: 1060px) 280px, (min-width: 700px) 30vw, 46vw" />
+                <Imagen foto={foto} sizes="(min-width: 900px) 300px, 72vw" />
                 <span className="visualmente-oculto">Ver más grande</span>
               </button>
-              {foto.titulo && <figcaption className="galeria__pie">{foto.titulo}</figcaption>}
+              {foto.titulo && (
+                <figcaption className="galeria__pie">
+                  <span>{foto.titulo}</span>
+                  <span className="galeria__num" aria-hidden="true">
+                    {String(posicion + 1).padStart(2, '0')} / {String(fotos.length).padStart(2, '0')}
+                  </span>
+                </figcaption>
+              )}
             </figure>
           </li>
         ))}

@@ -200,13 +200,6 @@
   font-weight: 600;
 }
 
-.panel__usuario {
-  display: flex;
-  align-items: center;
-  gap: var(--e-2);
-  min-width: 0;
-}
-
 .panel .panel__riel .boton--fantasma:hover {
   color: #ffffff;
   background: rgb(255 255 255 / 0.08);
@@ -646,51 +639,12 @@
 
 /* ---------- Usuario conectado y secciones ---------- */
 
-.panel__quien {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  font-size: 0.875rem;
-}
-
-.panel__nombre {
-  overflow: hidden;
-  max-width: 34vw;
-  color: var(--gris-200);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.panel__rol {
-  flex: none;
-  padding: 2px 8px;
-  border: 1px solid rgb(255 255 255 / 0.25);
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-}
-
-@media (min-width: 640px) {
-  .panel__nombre {
-    max-width: 260px;
-  }
-}
-
 .panel__secciones {
   width: min(100% - 2 * var(--margen), 1100px);
   margin-inline: auto;
   /* Con cuatro secciones en un celular angosto, la barra se desplaza sola y no la página entera. */
   overflow-x: auto;
   scrollbar-width: none;
-}
-
-.panel__secciones-lista {
-  display: flex;
-  gap: var(--e-1);
-  min-width: max-content;
 }
 
 @media (max-width: 420px) {
@@ -877,17 +831,6 @@
   .usuario__controles {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     align-items: end;
-  }
-}
-
-@media (max-width: 519px) {
-  .panel__rotulo {
-    display: none;
-  }
-
-  .panel__nombre {
-    min-width: 5ch;
-    max-width: 30vw;
   }
 }
 
@@ -3897,7 +3840,7 @@
 .toasts {
   position: fixed;
   inset-inline: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--toasts-barra, 0px) + var(--e-3));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--panel-barra, 0px) + var(--toasts-barra, 0px) + var(--e-3));
   z-index: 60;
   display: grid;
   gap: var(--e-2);

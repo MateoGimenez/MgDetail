@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Icono } from '../components/Icono';
+import { FilaPerfil } from '../admin/navegacion/FilaPerfil';
 import { bloquearEscape } from '../admin/dialogo';
 import { actualizarGlobito, reconfirmarAvisos } from './avisos';
 import { useAjustes, type Ajustes } from './useAjustes';
@@ -33,8 +34,8 @@ interface Props {
 }
 
 /**
- * Botón de campana del encabezado + diálogo "Ajustes de la app" (instalar y avisos de turnos nuevos).
- * El diálogo se dibuja dentro de `.panel` (no dentro del riel oscuro) para heredar la paleta clara del panel.
+ * Fila "Ajustes de la app" del menú de perfil (con su campana) + diálogo "Ajustes de la app" (instalar y avisos de turnos nuevos).
+ * El diálogo se dibuja dentro de `.panel` para heredar la paleta clara del panel.
  */
 export function BotonAjustes({ alVencerSesion, usuarioId }: Props) {
   const dialogoRef = useRef<HTMLDialogElement>(null);
@@ -52,8 +53,7 @@ export function BotonAjustes({ alVencerSesion, usuarioId }: Props) {
     <>
       <button
         type="button"
-        className="boton boton--fantasma ajustes__abrir"
-        aria-label="Ajustes de la app"
+        className="perfil__fila"
         aria-haspopup="dialog"
         ref={(boton) => {
           setAnfitrion(boton?.closest('.panel') ?? null);
@@ -63,14 +63,24 @@ export function BotonAjustes({ alVencerSesion, usuarioId }: Props) {
           dialogoRef.current?.showModal();
         }}
       >
-        <IconoCampana />
+        <FilaPerfil
+          icono={<IconoCampana />}
+          titulo="Ajustes de la app"
+          detalle="Instalarla y avisos de turnos nuevos"
+        />
       </button>
       {anfitrion && createPortal(<DialogoAjustes dialogoRef={dialogoRef} ajustes={ajustes} />, anfitrion)}
     </>
   );
 }
 
-function DialogoAjustes({ dialogoRef, ajustes }: { dialogoRef: RefObject<HTMLDialogElement | null>; ajustes: Ajustes }) {
+function DialogoAjustes({
+  dialogoRef,
+  ajustes,
+}: {
+  dialogoRef: RefObject<HTMLDialogElement | null>;
+  ajustes: Ajustes;
+}) {
   const ocupado = ajustes.ocupado !== null;
   return (
     <dialog
@@ -223,8 +233,8 @@ function SeccionAvisos({ ajustes }: { ajustes: Ajustes }) {
       {avisos.tipo === 'instalar-primero' && (
         <p className="ajustes__texto">
           En iPhone y iPad los avisos funcionan solo con la app instalada. Instalala primero (<strong>Compartir</strong>{' '}
-          → <strong>Agregar a inicio</strong>), abrí el panel desde el ícono nuevo y volvé acá para activarlos. Hace falta
-          iOS 16.4 o más.
+          → <strong>Agregar a inicio</strong>), abrí el panel desde el ícono nuevo y volvé acá para activarlos. Hace
+          falta iOS 16.4 o más.
         </p>
       )}
 

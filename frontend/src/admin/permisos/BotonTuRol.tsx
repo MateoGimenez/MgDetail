@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ETIQUETA_ROL, type Rol } from '../../api/contract-panel';
 import { Icono } from '../../components/Icono';
 import { nombreDeRol, rolDe } from '../../lib/permisosRol';
+import { FilaPerfil } from '../navegacion/FilaPerfil';
 import { ResumenDeRol } from './ResumenDeRol';
 import { usePermisos } from './usePermisos';
 import './permisos.css';
@@ -63,7 +64,7 @@ function Contenido({ rol, alVencerSesion, alCerrar }: Props & { alCerrar: () => 
 }
 
 /**
- * El rol del encabezado, como botón: al tocarlo abre "Tu rol: Empleado" con lo que podés y no podés hacer. Sirve para
+ * La fila "Tu rol" del menú de perfil: al tocarla abre "Tu rol: Empleado" con lo que podés y no podés hacer. Sirve para
  * cualquier persona. Devuelve el botón y su <dialog> (el que lo contiene no puede ser un <p>).
  */
 export function BotonTuRol({ rol, alVencerSesion }: Props) {
@@ -77,9 +78,8 @@ export function BotonTuRol({ rol, alVencerSesion }: Props) {
     <>
       <button
         type="button"
-        className="panel__rol"
+        className="perfil__fila"
         aria-haspopup="dialog"
-        aria-label={`Tu rol: ${ETIQUETA_ROL[rol]}. Ver qué podés hacer`}
         ref={(boton) => {
           setAnfitrion(boton?.closest('.panel') ?? null);
         }}
@@ -88,7 +88,11 @@ export function BotonTuRol({ rol, alVencerSesion }: Props) {
           dialogoRef.current?.showModal();
         }}
       >
-        {ETIQUETA_ROL[rol]}
+        <FilaPerfil
+          icono={<Icono nombre="ojo" tamano={22} />}
+          titulo={`Tu rol: ${ETIQUETA_ROL[rol]}`}
+          detalle="Qué podés y qué no podés hacer"
+        />
       </button>
       {anfitrion &&
         createPortal(

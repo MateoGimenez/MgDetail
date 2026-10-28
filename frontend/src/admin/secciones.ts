@@ -8,20 +8,12 @@ import type { Catalogo } from './useServicios';
 
 /**
  * Registro de las secciones del panel (reportes/2026-10-27_17_finanzas-inventario-documentos.md): una sola lista con
- * la clave (la de `?vista=`), la etiqueta, el grupo de la navegación, quién la ve y, en las que se cargan aparte, el
+ * la clave (la de `?vista=`), la etiqueta, si va en la barra principal, quién la ve y, en las que se cargan aparte, el
  * componente diferido. `Panel.tsx` arma la navegación y el contenido desde acá.
  *
  * Las secciones de siempre (Hoy, Turnos, Agenda, Disponibilidad, Servicios y Usuarios) las dibuja `Panel.tsx` con sus
  * propiedades particulares; las que traen `componente` reciben todas las mismas `PropsSeccion`.
  */
-
-export type GrupoClave = 'operacion' | 'negocio' | 'ajustes';
-
-export const GRUPOS: readonly { clave: GrupoClave; etiqueta: string }[] = [
-  { clave: 'operacion', etiqueta: 'Operación' },
-  { clave: 'negocio', etiqueta: 'Negocio' },
-  { clave: 'ajustes', etiqueta: 'Ajustes' },
-];
 
 /** Lo que Panel le da a cada sección diferida. Las que no usan algo, lo ignoran. */
 export interface PropsSeccion {
@@ -40,7 +32,8 @@ export interface PropsSeccion {
 export interface Seccion {
   clave: Vista;
   etiqueta: string;
-  grupo: GrupoClave;
+  /** Va siempre a mano en la barra de abajo del celular; las demás se juntan en "Más". */
+  principal: boolean;
   /** Quién la ve. La regla real la aplica el backend: acá solo se esconde lo que daría 403. */
   puede: (rol: Rol) => boolean;
   /** Componente cargado aparte. Sin él, `Panel.tsx` dibuja la sección con sus propiedades de siempre. */
@@ -67,25 +60,27 @@ function diferidaSiExiste(ruta: string, nombreExport: string): LazyExoticCompone
     if (!cargar) return { default: Proximamente as ComponentType<PropsSeccion> };
     const modulo = await cargar();
     const componente = modulo.default ?? modulo[nombreExport];
-    return { default: (typeof componente === 'function' ? componente : Proximamente) as ComponentType<PropsSeccion> };
+    return {
+      default: (typeof componente === 'function' ? componente : Proximamente) as ComponentType<PropsSeccion>,
+    };
   });
 }
 
 export const SECCIONES: readonly Seccion[] = [
-  { clave: 'hoy', etiqueta: 'Hoy', grupo: 'operacion', puede: todos },
-  { clave: 'turnos', etiqueta: 'Turnos', grupo: 'operacion', puede: todos },
-  { clave: 'agenda', etiqueta: 'Agenda', grupo: 'operacion', puede: todos },
+  { clave: 'hoy', etiqueta: 'Hoy', principal: true, puede: todos },
+  { clave: 'turnos', etiqueta: 'Turnos', principal: true, puede: todos },
+  { clave: 'agenda', etiqueta: 'Agenda', principal: true, puede: todos },
   {
     clave: 'inventario',
     etiqueta: 'Inventario',
-    grupo: 'operacion',
+    principal: false,
     puede: todos,
     componente: diferidaSiExiste('./inventario/VistaInventario.tsx', 'VistaInventario'),
   },
   {
     clave: 'estadisticas',
     etiqueta: 'Estadísticas',
-    grupo: 'negocio',
+    principal: false,
     puede: todos,
     // Estadísticas se descarga aparte: quien no la abre no paga el peso de los gráficos.
     componente: lazy(() => import('./estadisticas/VistaEstadisticas')),
@@ -93,20 +88,30 @@ export const SECCIONES: readonly Seccion[] = [
   {
     clave: 'finanzas',
     etiqueta: 'Finanzas',
-    grupo: 'negocio',
+    principal: false,
     puede: puedeVerFinanzas,
     componente: lazy(() => import('./finanzas/VistaFinanzas')),
   },
   {
     clave: 'presupuestos',
     etiqueta: 'Presupuestos',
-    grupo: 'negocio',
+    principal: false,
     puede: (rol) => rol === 'superadmin' || rol === 'admin',
     componente: diferidaSiExiste('./presupuestos/VistaPresupuestos.tsx', 'VistaPresupuestos'),
   },
-  { clave: 'disponibilidad', etiqueta: 'Disponibilidad', grupo: 'ajustes', puede: todos },
-  { clave: 'servicios', etiqueta: 'Servicios', grupo: 'ajustes', puede: todos },
-  { clave: 'usuarios', etiqueta: 'Usuarios', grupo: 'ajustes', puede: puedeGestionarUsuarios },
+  {
+    clave: 'disponibilidad',
+    etiqueta: 'Disponibilidad',
+    principal: false,
+    puede: todos,
+  },
+  { clave: 'servicios', etiqueta: 'Servicios', principal: false, puede: todos },
+  {
+    clave: 'usuarios',
+    etiqueta: 'Usuarios',
+    principal: false,
+    puede: puedeGestionarUsuarios,
+  },
 ];
 
 export function seccionDe(clave: Vista): Seccion {
@@ -121,18 +126,17 @@ export const seccionesVisibles = (rol: Rol): Seccion[] => SECCIONES.filter((s) =
 /** Las claves de `?vista=` que este rol puede abrir (las demás caen en Hoy). */
 export const vistasPermitidas = (rol: Rol): Vista[] => seccionesVisibles(rol).map((s) => s.clave);
 
-export interface GrupoVisible {
-  clave: GrupoClave;
-  etiqueta: string;
-  secciones: Seccion[];
-}
-
-/** Los grupos de la navegación con las secciones que ve este rol; un grupo sin ninguna no aparece. */
-export function gruposVisibles(rol: Rol): GrupoVisible[] {
+/**
+ * La navegación del celular: las secciones principales (barra de abajo) y el resto (hoja "Más"), ya filtradas por
+ * rol. "Más" no aparece si no queda nada para meter adentro.
+ */
+export function navegacionPara(rol: Rol): {
+  principales: Seccion[];
+  mas: Seccion[];
+} {
   const visibles = seccionesVisibles(rol);
-  return GRUPOS.map((g) => ({ ...g, secciones: visibles.filter((s) => s.grupo === g.clave) })).filter(
-    (g) => g.secciones.length > 0,
-  );
+  return {
+    principales: visibles.filter((s) => s.principal),
+    mas: visibles.filter((s) => !s.principal),
+  };
 }
-
-export const grupoDe = (clave: Vista): GrupoClave => seccionDe(clave).grupo;
