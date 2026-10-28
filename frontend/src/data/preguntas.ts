@@ -10,6 +10,8 @@ import { buscarServicio, servicioDeRespaldo, type IdDeRespaldo } from './servici
 export interface PreguntaFrecuente {
   pregunta: string;
   respuesta: readonly string[];
+  /** Si la pregunta es de un servicio en particular, su id: la página de ese servicio la muestra. */
+  servicioId?: string;
 }
 
 export function preguntasFrecuentes({
@@ -45,6 +47,7 @@ export function preguntasFrecuentes({
     },
     {
       pregunta: '¿Cada cuánto conviene encerar?',
+      servicioId: 'encerado',
       respuesta: [
         'Depende del uso, de si el vehículo duerme bajo techo y del clima. Una pista fácil: cuando el agua deja de formar gotitas sobre la pintura, la protección se está yendo.',
         'Contanos cómo usás tu vehículo y te recomendamos cada cuánto hacerlo.',
@@ -52,6 +55,7 @@ export function preguntasFrecuentes({
     },
     {
       pregunta: '¿Qué saca y qué no saca un pulido?',
+      servicioId: 'pulido',
       respuesta: [
         'Saca rayas finas, swirls (esas marcas circulares finitas que se ven con el sol) y la opacidad de la pintura.',
         'No saca las rayas profundas, las que llegan a la base de la pintura. Una prueba casera: pasá la uña, y si se engancha, probablemente sea profunda. Se pueden disimular, pero no desaparecen, y te lo decimos antes de empezar.',
@@ -59,6 +63,7 @@ export function preguntasFrecuentes({
     },
     {
       pregunta: '¿Por qué se ponen amarillentas las ópticas?',
+      servicioId: 'restauracion-opticas',
       respuesta: [
         'Los faros de hoy son de policarbonato, un plástico que viene de fábrica con una capa protectora. Con el sol, esa capa se degrada y el faro se pone opaco y amarillento.',
         'Por eso, después de pulirlas, les aplicamos un sellado UV: una capa transparente que las protege del sol.',

@@ -1,6 +1,7 @@
 import { defineConfig, type HtmlTagDescriptor, type Plugin, type ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import { negocio, sitio } from './src/config/sitio.ts';
+import { jsonLdDelNegocio } from './src/lib/negocioJsonLd.ts';
 
 /**
  * Backend local. Se usa 127.0.0.1 y no "localhost": en Windows, con Node 17+,
@@ -20,28 +21,8 @@ function datosDelNegocio(): Plugin {
   return {
     name: 'mg-datos-del-negocio',
     transformIndexHtml() {
-      const direccion: Record<string, string> = {
-        '@type': 'PostalAddress',
-        addressLocality: negocio.ciudad,
-        addressRegion: negocio.provincia,
-        addressCountry: 'AR',
-      };
-      if (sitio.direccion.trim()) direccion.streetAddress = sitio.direccion.trim();
-
-      const jsonLd: Record<string, unknown> = {
-        '@context': 'https://schema.org',
-        '@type': 'AutoWash',
-        name: negocio.nombre,
-        address: direccion,
-      };
-      const whatsapp = sitio.whatsapp.replace(/\D/g, '');
-      if (whatsapp.length >= 8) jsonLd.telephone = `+${whatsapp}`;
-      const instagram = sitio.instagram.trim().replace(/^@/, '');
-      if (instagram) jsonLd.sameAs = [`https://www.instagram.com/${instagram}/`];
-      if (/^https:\/\//i.test(sitio.mapsUrl.trim())) jsonLd.hasMap = sitio.mapsUrl.trim();
-
+      const jsonLd: Record<string, unknown> = { '@context': 'https://schema.org', ...jsonLdDelNegocio(sitio, negocio) };
       const url = sitio.url.trim().replace(/\/+$/, '');
-      if (/^https:\/\//i.test(url)) jsonLd.url = `${url}/`;
 
       const etiqueta: HtmlTagDescriptor = {
         tag: 'script',

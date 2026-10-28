@@ -1,10 +1,12 @@
 import { Logo } from '../components/Logo';
-import { instagramArroba, instagramUrl, whatsappUrl } from '../config/enlaces';
+import { hayUbicacion, instagramArroba, instagramUrl, whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
+import { EnlaceSeccion } from './EnlaceSeccion';
 
 const ANIO = new Date().getFullYear();
 
-export function Pie() {
+/** `enPagina`: se ve en otra página (la de un servicio), así que los enlaces de sección llevan a `/#sección`. */
+export function Pie({ enPagina = false }: { enPagina?: boolean }) {
   const whatsapp = whatsappUrl();
   const instagram = instagramUrl();
   const arroba = instagramArroba();
@@ -19,16 +21,23 @@ export function Pie() {
         <nav className="pie__nav" aria-label="Pie de página">
           <ul role="list">
             <li>
-              <a href="#servicios">Servicios</a>
+              <EnlaceSeccion hash="#servicios" enPagina={enPagina}>Servicios</EnlaceSeccion>
             </li>
             <li>
-              <a href="#como-trabajamos">Cómo trabajamos</a>
+              <EnlaceSeccion hash="#como-trabajamos" enPagina={enPagina}>Cómo trabajamos</EnlaceSeccion>
             </li>
             <li>
-              <a href="#preguntas">Preguntas</a>
+              <EnlaceSeccion hash="#preguntas" enPagina={enPagina}>Preguntas</EnlaceSeccion>
             </li>
+            {hayUbicacion() && (
+              <li>
+                <EnlaceSeccion hash="#donde" enPagina={enPagina}>
+                  Dónde estamos
+                </EnlaceSeccion>
+              </li>
+            )}
             <li>
-              <a href="#reservar">Reservá tu turno</a>
+              <EnlaceSeccion hash="#reservar" enPagina={enPagina}>Reservá tu turno</EnlaceSeccion>
             </li>
             {whatsapp && (
               <li>

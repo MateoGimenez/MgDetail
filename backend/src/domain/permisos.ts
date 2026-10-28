@@ -21,6 +21,10 @@ import type { Rol } from './perfil.js';
  * | Disponibilidad (ver / editar)          | sí / sí    | sí / sí | sí / no                         |
  * | Estadísticas completas (con importes)  | sí         | sí    | no                                |
  * | Estadísticas propias (sin importes)    | sí         | sí    | sí                                |
+ * | Gastos y metas mensuales               | sí         | sí    | no                                |
+ * | Presupuestos, comprobantes, taller     | sí         | sí    | no                                |
+ * | Inventario: ver / usar                 | sí         | sí    | sí                                |
+ * | Inventario: crear, comprar, ajustar    | sí         | sí    | no                                |
  * | Gestionar usuarios                     | sí         | no    | no                                |
  * | Avisos push en su dispositivo          | sí         | sí    | sí                                |
  *
@@ -135,6 +139,54 @@ export const CAPACIDADES = [
     roles: { superadmin: 'si', admin: 'si', empleado: 'si' },
   },
   {
+    id: 'finanzas.gastos',
+    grupo: 'Finanzas',
+    texto: 'Ver y cargar los gastos del taller',
+    roles: { superadmin: 'si', admin: 'si', empleado: 'no' },
+  },
+  {
+    id: 'finanzas.metas',
+    grupo: 'Finanzas',
+    texto: 'Fijar y seguir las metas mensuales',
+    roles: { superadmin: 'si', admin: 'si', empleado: 'no' },
+  },
+  {
+    id: 'documentos.presupuestos',
+    grupo: 'Documentos',
+    texto: 'Armar presupuestos y descargarlos en PDF',
+    roles: { superadmin: 'si', admin: 'si', empleado: 'no' },
+  },
+  {
+    id: 'documentos.comprobantes',
+    grupo: 'Documentos',
+    texto: 'Emitir comprobantes de pago en PDF',
+    roles: { superadmin: 'si', admin: 'si', empleado: 'no' },
+  },
+  {
+    id: 'documentos.taller',
+    grupo: 'Documentos',
+    texto: 'Editar los datos del taller que salen en los PDF',
+    roles: { superadmin: 'si', admin: 'si', empleado: 'no' },
+  },
+  {
+    id: 'inventario.ver',
+    grupo: 'Inventario',
+    texto: 'Ver el inventario',
+    roles: { superadmin: 'si', admin: 'si', empleado: 'si' },
+  },
+  {
+    id: 'inventario.usar',
+    grupo: 'Inventario',
+    texto: 'Registrar el uso de insumos',
+    roles: { superadmin: 'si', admin: 'si', empleado: 'si' },
+  },
+  {
+    id: 'inventario.gestionar',
+    grupo: 'Inventario',
+    texto: 'Crear insumos, cargar compras y ajustar el stock',
+    roles: { superadmin: 'si', admin: 'si', empleado: 'no' },
+  },
+  {
     id: 'usuarios.gestionar',
     grupo: 'Usuarios',
     texto: 'Crear, editar y desactivar usuarios del panel',
@@ -210,6 +262,51 @@ export function puedeCorregirCobro(rol: Rol): boolean {
 /** Los importes (`monto`) los ven solo quienes ven las estadísticas completas: admin y superadmin. */
 export function puedeVerImportes(rol: Rol): boolean {
   return puedeVerEstadisticas(rol);
+}
+
+/** Gastos del taller: verlos, cargarlos, corregirlos y borrarlos. El empleado nunca recibe gastos. */
+export function puedeGestionarGastos(rol: Rol): boolean {
+  return nivelDe(rol, 'finanzas.gastos') === 'si';
+}
+
+/** Metas mensuales: fijarlas y seguirlas. El empleado nunca recibe metas. */
+export function puedeGestionarMetas(rol: Rol): boolean {
+  return nivelDe(rol, 'finanzas.metas') === 'si';
+}
+
+/** Presupuestos y su PDF. */
+export function puedeArmarPresupuestos(rol: Rol): boolean {
+  return nivelDe(rol, 'documentos.presupuestos') === 'si';
+}
+
+/** Comprobantes de pago y su PDF. */
+export function puedeEmitirComprobantes(rol: Rol): boolean {
+  return nivelDe(rol, 'documentos.comprobantes') === 'si';
+}
+
+/** Ver y editar los datos del taller que salen en los PDF (GET y PUT /api/admin/taller). */
+export function puedeEditarTaller(rol: Rol): boolean {
+  return nivelDe(rol, 'documentos.taller') === 'si';
+}
+
+/** Ver el inventario (todos los roles; el empleado sin costos ni valores en pesos). */
+export function puedeVerInventario(rol: Rol): boolean {
+  return nivelDe(rol, 'inventario.ver') === 'si';
+}
+
+/** Registrar el uso (salidas) de insumos: todos los roles. */
+export function puedeRegistrarUsoInsumos(rol: Rol): boolean {
+  return nivelDe(rol, 'inventario.usar') === 'si';
+}
+
+/** Crear y editar insumos, cargar compras y ajustar el stock. */
+export function puedeGestionarInventario(rol: Rol): boolean {
+  return nivelDe(rol, 'inventario.gestionar') === 'si';
+}
+
+/** Los costos y valores en pesos del inventario los ven solo quienes gestionan el inventario (no el empleado). */
+export function puedeVerCostosInventario(rol: Rol): boolean {
+  return puedeGestionarInventario(rol);
 }
 
 /**

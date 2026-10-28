@@ -4,11 +4,13 @@ import type {
   ConteoPeriodo,
   EstadisticasRepository,
   FilaDiaSemana,
+  FilaGastoCategoria,
   FilaServicio,
   FilaTrabajador,
+  GastosDeUnPunto,
   Granularidad,
   MisTrabajos,
-  PuntoSerie,
+  PuntoSerieTurnos,
   Rango,
   RangoNombrado,
   Totales,
@@ -75,7 +77,7 @@ export class PostgresEstadisticasRepository implements EstadisticasRepository {
     };
   }
 
-  async serie({ desde, hasta }: Rango, granularidad: Granularidad): Promise<PuntoSerie[]> {
+  async serie({ desde, hasta }: Rango, granularidad: Granularidad): Promise<PuntoSerieTurnos[]> {
     const { rows } =
       granularidad === 'dia'
         ? await this.sql.query(
@@ -101,6 +103,53 @@ export class PostgresEstadisticasRepository implements EstadisticasRepository {
       completados: int(row, 'completados'),
       ingresos: int(row, 'ingresos'),
     }));
+  }
+
+  async gastosPorRango(rangos: readonly RangoNombrado[]): Promise<Record<string, number>> {
+    // Igual que totales(): un rango sin gastos igual devuelve su fila, con cero. Los gastos se agrupan por su fecha.
+    const { rows } = await this.sql.query(
+      `SELECT r.clave, coalesce(sum(g.monto), 0)::float8 AS gastos
+       FROM unnest($1::text[], $2::date[], $3::date[]) AS r(clave, desde, hasta)
+       LEFT JOIN mgdetailing.gastos g ON g.fecha BETWEEN r.desde AND r.hasta
+       GROUP BY r.clave`,
+      [rangos.map((r) => r.clave), rangos.map((r) => r.desde), rangos.map((r) => r.hasta)],
+    );
+    const resultado: Record<string, number> = {};
+    for (const row of rows) resultado[str(row, 'clave')] = int(row, 'gastos');
+    return resultado;
+  }
+
+  async gastosSerie({ desde, hasta }: Rango, granularidad: Granularidad): Promise<GastosDeUnPunto[]> {
+    const { rows } =
+      granularidad === 'dia'
+        ? await this.sql.query(
+            `SELECT to_char(g.fecha, 'YYYY-MM-DD') AS clave, sum(g.monto)::float8 AS gastos
+             FROM mgdetailing.gastos g
+             WHERE g.fecha BETWEEN $1::date AND $2::date
+             GROUP BY 1 ORDER BY 1`,
+            [desde, hasta],
+          )
+        : await this.sql.query(
+            `SELECT to_char(g.fecha, 'YYYY-MM') AS clave, sum(g.monto)::float8 AS gastos
+             FROM mgdetailing.gastos g
+             WHERE g.fecha BETWEEN $1::date AND $2::date
+             GROUP BY 1 ORDER BY 1`,
+            [desde, hasta],
+          );
+    return rows.map((row) => ({ clave: str(row, 'clave'), gastos: int(row, 'gastos') }));
+  }
+
+  async gastosPorCategoria({ desde, hasta }: Rango): Promise<FilaGastoCategoria[]> {
+    const { rows } = await this.sql.query(
+      `SELECT g.categoria, sum(g.monto)::float8 AS monto
+       FROM mgdetailing.gastos g
+       WHERE g.fecha BETWEEN $1::date AND $2::date
+       GROUP BY g.categoria
+       HAVING sum(g.monto) > 0
+       ORDER BY monto DESC, g.categoria`,
+      [desde, hasta],
+    );
+    return rows.map((row) => ({ categoria: str(row, 'categoria'), monto: int(row, 'monto') }));
   }
 
   async porServicio({ desde, hasta }: Rango): Promise<FilaServicio[]> {

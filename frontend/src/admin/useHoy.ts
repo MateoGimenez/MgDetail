@@ -114,6 +114,8 @@ export function useHoy(alVencerSesion: (mensaje: string) => void, contarCobros =
   const vigente = resultado?.clave === recarga ? resultado : null;
 
   return {
+    /** Cambia con cada recarga: los extras de Hoy (finanzas, stock) lo usan para volver a pedir. */
+    version: recarga,
     cargando: vigente === null,
     datos: vigente && 'hoy' in vigente ? vigente : null,
     error: vigente && 'error' in vigente ? vigente.error : null,

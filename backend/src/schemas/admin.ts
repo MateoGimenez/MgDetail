@@ -3,16 +3,16 @@ import { type Confirmada, type Estado, ESTADOS, FRANJAS, MONTO_MAX } from '../do
 import { MAX_DIAS_AGENDA } from '../domain/booking-dates.js';
 import { daysBetween, isValidCalendarDate } from '../lib/dates.js';
 
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 100;
-const MAX_OFFSET = 1_000_000;
+export const DEFAULT_PAGE_SIZE = 50;
+export const MAX_PAGE_SIZE = 100;
+export const MAX_OFFSET = 1_000_000;
 
 const ESTADO_MSG = 'El estado tiene que ser pendiente, confirmado, completado o cancelado.';
 
 /** Un parámetro de query vacío (`?estado=`) cuenta como no enviado. */
-const blankToUndefined = (value: unknown): unknown => (value === '' ? undefined : value);
+export const blankToUndefined = (value: unknown): unknown => (value === '' ? undefined : value);
 
-function integerParam(min: number, max: number, message: string) {
+export function integerParam(min: number, max: number, message: string) {
   return z
     .string({ error: message })
     .regex(/^\d{1,7}$/, { error: message })
@@ -26,14 +26,14 @@ const BUSQUEDA_MSG = `La búsqueda tiene que tener entre ${String(MIN_BUSQUEDA)}
 const CLIENTE_MSG = 'El cliente tiene que ser un teléfono normalizado: solo dígitos, de 8 a 15.';
 
 /** Recorta los espacios de un texto (y, si queda vacío, cuenta como no enviado). Otros tipos pasan tal cual. */
-const trimToUndefined = (value: unknown): unknown => {
+export const trimToUndefined = (value: unknown): unknown => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
   return trimmed === '' ? undefined : trimmed;
 };
 
 /** Largo en caracteres (code points), como char_length de Postgres: un emoji cuenta 1, no 2. */
-const charLength = (text: string): number => Array.from(text).length;
+export const charLength = (text: string): number => Array.from(text).length;
 
 /**
  * GET /api/admin/bookings?estado=&q=&cliente=&limit=&offset= (los parámetros desconocidos se ignoran).
@@ -106,12 +106,12 @@ const NOTAS_MSG = `La nota interna tiene que ser un texto de hasta ${String(MAX_
 const NOTAS_CONTROL_MSG = 'La nota interna no puede tener caracteres de control (solo se permiten saltos de línea y tabulaciones).';
 /** Caracteres de control C0 y C1 y DEL, salvo tabulación (\t) y salto de línea (\n). */
 // eslint-disable-next-line no-control-regex -- justamente se buscan caracteres de control
-const CONTROL_CHARS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/;
+export const CONTROL_CHARS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/;
 /**
  * Controles bidireccionales (LRM, RLO, ...): se QUITAN, como en el comentario del turno y en el catálogo
  * (schemas/bookings.ts, schemas/servicios.ts). Son invisibles y pueden invertir el orden visual de la nota en el panel.
  */
-const BIDI_CONTROLS = /\p{Bidi_Control}/gu;
+export const BIDI_CONTROLS = /\p{Bidi_Control}/gu;
 
 /**
  * notasInternas: string o null. Los controles bidireccionales se quitan. Un salto de línea de Windows (\r\n) cuenta

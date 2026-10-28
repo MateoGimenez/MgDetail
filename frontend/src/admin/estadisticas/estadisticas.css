@@ -16,6 +16,7 @@
   --est-confirmado: #1d6b40;
   --est-completado: #3f464e;
   --est-cancelado: #a3221b;
+  --est-gasto: var(--acento);
   --est-sube: #1d6b40;
   --est-baja: #a3221b;
   gap: var(--e-4);
@@ -315,7 +316,7 @@
 
 @media (min-width: 720px) {
   .est-cifras {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .est-cifra--grande {
@@ -325,6 +326,35 @@
   .est-cifra--grande .est-cifra__valor {
     font-size: 1.7rem;
   }
+}
+
+/* Objetivo 10: la plata va en su propia fila (ingresos, gastos, ganancia neta y margen) sobre la del trabajo. */
+.est-cifras--plata {
+  padding-bottom: var(--e-4);
+  border-bottom: 1px solid var(--borde-suave);
+}
+
+.est-cifra__valor--negativa,
+.est-kpi__neta-valor--negativa {
+  color: #a3221b;
+}
+
+.est-kpi__neta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--e-2);
+  margin-top: var(--e-2);
+}
+
+.est-kpi__neta dt {
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+}
+
+.est-kpi__neta dd {
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .est-graficos {
@@ -395,6 +425,11 @@
 
 .est-barra--maxima {
   fill: var(--est-enfasis);
+}
+
+/* Gastos del gráfico "Ingresos vs. gastos": rojo del panel, con rayas encima (ver el componente). */
+.est-barra--gastos {
+  fill: var(--est-gasto);
 }
 
 .est-barra--activa {
@@ -780,6 +815,8 @@
 @media (prefers-reduced-motion: no-preference) {
   .est-barra,
   .est-barra--maxima,
+  .est-barra--gastos,
+  .est-trama-barra,
   .est-barra--activa {
     transform-box: fill-box;
     transform-origin: bottom;
@@ -806,6 +843,7 @@
 @media (forced-colors: active) {
   .est-barra,
   .est-barra--maxima,
+  .est-barra--gastos,
   .est-barra--activa {
     fill: CanvasText;
   }

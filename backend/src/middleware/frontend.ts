@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import compression from 'compression';
 import express, { type Express, type Response } from 'express';
@@ -26,12 +26,27 @@ function adminAssetHeaders(res: Response, filePath: string): void {
   }
 }
 
+/** El robots.txt de siempre, si el build no trae uno. */
+const ROBOTS_POR_DEFECTO = ['User-agent: *', 'Allow: /', 'Disallow: /admin', ''].join('\n');
+
+/**
+ * robots.txt con la línea `Sitemap:` (solo cuando hay PUBLIC_URL, que es lo que también activa /sitemap.xml). Parte del
+ * robots.txt del build (frontend/public/robots.txt) sin tocar lo que ya dice; si ya trae una línea Sitemap, no la repite.
+ */
+export function robotsConSitemap(distPath: string, publicUrl: string): string {
+  const archivo = path.join(distPath, 'robots.txt');
+  const base = existsSync(archivo) ? readFileSync(archivo, 'utf8') : ROBOTS_POR_DEFECTO;
+  if (/^\s*sitemap\s*:/im.test(base)) return base;
+  const conSalto = base.endsWith('\n') ? base : `${base}\n`;
+  return `${conSalto}\nSitemap: ${publicUrl}/sitemap.xml\n`;
+}
+
 /**
  * Sirve el build del frontend (../frontend/dist) como estáticos, con fallback SPA a index.html para
  * las rutas que no empiezan con /api (ej.: /admin). Se monta DESPUÉS de la API: las rutas /api nunca
  * llegan hasta acá (el router de la API termina en su propio 404), así que la compresión solo toca estáticos.
  */
-export function mountFrontend(app: Express, distPath: string): void {
+export function mountFrontend(app: Express, distPath: string, publicUrl?: string): void {
   const indexFile = path.join(distPath, 'index.html');
   if (!existsSync(indexFile)) {
     throw new Error(
@@ -40,6 +55,16 @@ export function mountFrontend(app: Express, distPath: string): void {
   }
 
   app.use(compression());
+
+  // robots.txt dinámico solo con URL pública (así apunta al sitemap); sin ella, el archivo estático del build.
+  if (publicUrl !== undefined) {
+    const robots = robotsConSitemap(distPath, publicUrl);
+    app.get('/robots.txt', (_req, res) => {
+      res.type('text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.send(robots);
+    });
+  }
 
   // redirect:false => una carpeta (/assets) no responde un 301 a /assets/: cae al 404.
   // Los archivos de /assets llevan hash en el nombre (Vite): se pueden cachear un año.

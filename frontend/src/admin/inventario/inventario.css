@@ -1,0 +1,295 @@
+/* =========================================================================
+   Inventario (reportes/2026-10-27_17_finanzas-inventario-documentos.md).
+   Solo variables de color del panel: lo urgente se dice con palabras ("Stock bajo", "Sin stock") y con la barra;
+   el color es un refuerzo, nunca el único aviso.
+   ========================================================================= */
+
+.inv-lista {
+  margin-top: var(--e-4);
+}
+
+.inv-mostrar {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  margin-top: var(--e-3);
+}
+
+.inv-mostrar .desplegable {
+  min-width: 10rem;
+}
+
+/* ---------- Tarjeta ---------- */
+
+.inv {
+  gap: var(--e-3);
+}
+
+.inv__cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--e-2) var(--e-3);
+}
+
+.inv__quien {
+  min-width: 0;
+}
+
+.inv__nombre {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.375rem;
+  line-height: 1.15;
+  letter-spacing: var(--display-tracking);
+  overflow-wrap: anywhere;
+}
+
+.inv__categoria {
+  margin-top: 2px;
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+.inv__etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.inv__etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.inv__etiqueta--bajo {
+  background: var(--acento-fondo);
+  color: var(--acento-texto);
+}
+
+.inv__etiqueta--sin-stock {
+  border-color: var(--error);
+  background: var(--error);
+  color: var(--superficie);
+}
+
+.inv__etiqueta--inactivo {
+  border-style: dashed;
+  color: var(--texto-3);
+}
+
+.inv--inactivo {
+  background: var(--fondo-hundido);
+}
+
+.inv--inactivo .inv__nombre {
+  color: var(--texto-2);
+}
+
+/* ---------- Cuánto queda ---------- */
+
+.inv__stock {
+  display: grid;
+  gap: 6px;
+}
+
+.inv__cantidad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  color: var(--texto-3);
+  font-size: 0.9375rem;
+}
+
+.inv__cantidad strong {
+  color: var(--texto);
+  font-size: 1.5rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.inv--bajo .inv__cantidad strong {
+  color: var(--acento-texto);
+}
+
+.inv--sin-stock .inv__cantidad strong {
+  color: var(--error);
+}
+
+.inv__minimo {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+/* La barra mide el stock; la marca vertical es el mínimo. */
+.inv-barra {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--borde-suave);
+  box-shadow: inset 0 0 0 1px var(--borde);
+}
+
+.inv-barra__relleno {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--texto-2);
+}
+
+.inv-barra--bajo .inv-barra__relleno {
+  background: var(--acento);
+}
+
+.inv-barra--sin-stock .inv-barra__relleno {
+  width: 0 !important;
+}
+
+.inv-barra__minimo {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--texto);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .inv-barra__relleno {
+    transition: width var(--t-media) var(--ease-salida);
+  }
+}
+
+/* Costos: solo los ve quien gestiona el inventario. */
+.inv__plata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--e-4);
+  color: var(--texto-2);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv__acciones {
+  padding-top: var(--e-3);
+}
+
+.inv--esqueleto {
+  min-height: 190px;
+}
+
+.esq--barra-stock {
+  height: 10px;
+  border-radius: 999px;
+}
+
+/* ---------- Formulario de Usé / Compré / Ajustar ---------- */
+
+.inv-form {
+  display: grid;
+  gap: var(--e-3);
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--fondo-hundido);
+}
+
+.inv-form__contexto {
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.inv-form .entrada {
+  min-height: 48px;
+}
+
+.inv-form .campo {
+  max-width: 24rem;
+}
+
+.inv-form__con-unidad {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  max-width: 17rem;
+}
+
+.inv-form__unidad {
+  min-width: 2.5rem;
+  color: var(--texto-3);
+  font-weight: 600;
+}
+
+/* ---------- Historial ---------- */
+
+.inv-historial {
+  display: grid;
+  gap: var(--e-3);
+  padding-top: var(--e-3);
+  border-top: 1px solid var(--borde-suave);
+}
+
+.inv-historial__vacio {
+  color: var(--texto-3);
+}
+
+.inv-historial__lista {
+  display: grid;
+  gap: 0;
+}
+
+.inv-mov {
+  display: grid;
+  gap: 2px;
+  padding: var(--e-2) 0 var(--e-2) var(--e-3);
+  border-left: 3px solid var(--borde);
+  border-bottom: 1px solid var(--borde-suave);
+}
+
+.inv-mov--compra {
+  border-left-color: var(--texto-2);
+}
+
+.inv-mov--ajuste {
+  border-left-style: dashed;
+}
+
+.inv-mov__linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--e-3);
+}
+
+.inv-mov__tipo {
+  font-weight: 650;
+}
+
+.inv-mov__cantidad {
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-mov__quien,
+.inv-mov__detalle {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.inv-historial__mas {
+  display: grid;
+  justify-items: start;
+  gap: var(--e-2);
+}

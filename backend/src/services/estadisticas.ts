@@ -3,8 +3,10 @@ import {
   type EstadisticasRepository,
   type FilaDiaSemana,
   type MisTrabajos,
+  type PuntoSerie,
   type Rango,
   type Totales,
+  type TotalesConGastos,
   clavesDeSerie,
   granularidadDe,
   razon,
@@ -45,21 +47,33 @@ export class EstadisticasService {
     const granularidad = granularidadDe(rango);
     const repo = this.deps.estadisticas;
 
-    const [totales, conteo, serie, porServicio, porTrabajador, porDiaSemana] = await Promise.all([
-      repo.totales(rangosDelResumen(hoy)),
-      repo.conteo(rango),
-      repo.serie(rango, granularidad),
-      repo.porServicio(rango),
-      repo.porTrabajador(rango),
-      repo.porDiaSemana(rango),
-    ]);
+    const [totales, gastos, conteo, serie, gastosSerie, gastosPorCategoria, porServicio, porTrabajador, porDiaSemana] =
+      await Promise.all([
+        repo.totales(rangosDelResumen(hoy)),
+        repo.gastosPorRango([...rangosDelResumen(hoy), { clave: 'periodo', ...rango }]),
+        repo.conteo(rango),
+        repo.serie(rango, granularidad),
+        repo.gastosSerie(rango, granularidad),
+        repo.gastosPorCategoria(rango),
+        repo.porServicio(rango),
+        repo.porTrabajador(rango),
+        repo.porDiaSemana(rango),
+      ]);
 
-    const total = (clave: string): Totales => totales[clave] ?? CERO;
+    const total = (clave: string): TotalesConGastos => {
+      const { completados, ingresos } = totales[clave] ?? CERO;
+      const gastado = gastos[clave] ?? 0;
+      return { completados, ingresos, gastos: gastado, ganancia: ingresos - gastado };
+    };
+    const gastosDelPeriodo = gastos.periodo ?? 0;
+    const gananciaNeta = conteo.ingresos - gastosDelPeriodo;
+    const margen = razon(gananciaNeta, conteo.ingresos);
     const pedidos = conteo.pendientes + conteo.confirmados + conteo.completados;
     const ticket = razon(conteo.ingresos, conteo.completadosConMonto);
     const tasa = razon(conteo.cancelados, conteo.turnos);
 
     const porClave = new Map(serie.map((punto) => [punto.clave, punto]));
+    const gastosPorClave = new Map(gastosSerie.map((punto) => [punto.clave, punto.gastos]));
     const diasSemana = new Map(porDiaSemana.map((fila) => [fila.dia, fila]));
 
     return {
@@ -78,15 +92,21 @@ export class EstadisticasService {
         completados: conteo.completados,
         cancelados: conteo.cancelados,
         ingresos: conteo.ingresos,
+        gastos: gastosDelPeriodo,
+        gananciaNeta,
+        margen: margen === null ? null : redondear4(margen),
         ticketPromedio: ticket === null ? null : Math.round(ticket),
         completadosSinMonto: conteo.completados - conteo.completadosConMonto,
         tasaCancelacion: tasa === null ? null : redondear4(tasa),
       },
-      serie: clavesDeSerie(rango, granularidad).map((clave) => porClave.get(clave) ?? { clave, ...CERO }),
+      serie: clavesDeSerie(rango, granularidad).map(
+        (clave): PuntoSerie => ({ ...(porClave.get(clave) ?? { clave, ...CERO }), gastos: gastosPorClave.get(clave) ?? 0 }),
+      ),
       porServicio,
       porTrabajador,
       porDiaSemana: [0, 1, 2, 3, 4, 5, 6].map((dia): FilaDiaSemana => diasSemana.get(dia) ?? { dia, manana: 0, tarde: 0 }),
       completadosSinTrabajador: porTrabajador.find((fila) => fila.id === null)?.completados ?? 0,
+      gastosPorCategoria,
     };
   }
 

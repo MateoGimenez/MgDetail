@@ -29,7 +29,7 @@ describe('"hoy" es el de La Rioja, a cualquier hora', () => {
     await turno(tarde.context, { fecha: '2026-12-31', monto: 7 });
     const a = await tarde.client.get('/api/admin/estadisticas');
     expect(a.body.rango).toEqual({ desde: '2026-12-01', hasta: '2026-12-30' });
-    expect(a.body.resumen.hoy).toEqual({ actual: { completados: 1, ingresos: 100 }, anterior: { completados: 0, ingresos: 0 } });
+    expect(a.body.resumen.hoy).toEqual({ actual: { completados: 1, ingresos: 100, gastos: 0, ganancia: 100 }, anterior: { completados: 0, ingresos: 0, gastos: 0, ganancia: 0 } });
     await closeAllContexts();
 
     const medianoche = await admin(new Date('2026-12-31T03:00:00.000Z')); // 31/12 00:00:00 en La Rioja
@@ -37,9 +37,9 @@ describe('"hoy" es el de La Rioja, a cualquier hora', () => {
     await turno(medianoche.context, { fecha: '2026-12-31', monto: 7 });
     const b = await medianoche.client.get('/api/admin/estadisticas');
     expect(b.body.rango).toEqual({ desde: '2026-12-01', hasta: '2026-12-31' });
-    expect(b.body.resumen.hoy).toEqual({ actual: { completados: 1, ingresos: 7 }, anterior: { completados: 1, ingresos: 100 } });
+    expect(b.body.resumen.hoy).toEqual({ actual: { completados: 1, ingresos: 7, gastos: 0, ganancia: 7 }, anterior: { completados: 1, ingresos: 100, gastos: 0, ganancia: 100 } });
     // fin de año: el año pasado hasta el mismo día
-    expect(b.body.resumen.anio.actual).toEqual({ completados: 2, ingresos: 107 });
+    expect(b.body.resumen.anio.actual).toEqual({ completados: 2, ingresos: 107, gastos: 0, ganancia: 107 });
   });
 });
 
@@ -51,12 +51,12 @@ describe('años bisiestos y rangos largos', () => {
     await turno(context, { fecha: '2028-01-29', monto: 50 });
     await turno(context, { fecha: '2028-01-30', monto: 9999 }); // fuera del "mes pasado hasta el 29/01"
     const response = await client.get('/api/admin/estadisticas');
-    expect(response.body.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 1000 });
-    expect(response.body.resumen.hoy.anterior).toEqual({ completados: 0, ingresos: 0 });
-    expect(response.body.resumen.mes.anterior).toEqual({ completados: 1, ingresos: 50 });
+    expect(response.body.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 1000, gastos: 0, ganancia: 1000 });
+    expect(response.body.resumen.hoy.anterior).toEqual({ completados: 0, ingresos: 0, gastos: 0, ganancia: 0 });
+    expect(response.body.resumen.mes.anterior).toEqual({ completados: 1, ingresos: 50, gastos: 0, ganancia: 50 });
     expect(response.body.resumen.anio.anterior.ingresos).toBe(300);
     expect(response.body.serie).toHaveLength(29);
-    expect(response.body.serie.at(-1)).toEqual({ clave: '2028-02-29', completados: 1, ingresos: 1000 });
+    expect(response.body.serie.at(-1)).toEqual({ clave: '2028-02-29', completados: 1, ingresos: 1000, gastos: 0 });
   });
 
   it('366 días exactos pasan (por mes) incluso con un 29/02 adentro; 367 es 400', async () => {
@@ -68,7 +68,7 @@ describe('años bisiestos y rangos largos', () => {
     expect(ok.body.serie.map((p: { clave: string }) => p.clave)).toEqual(
       Array.from({ length: 12 }, (_, i) => `2028-${String(i + 1).padStart(2, '0')}`),
     );
-    expect(ok.body.serie[1]).toEqual({ clave: '2028-02', completados: 1, ingresos: 5 });
+    expect(ok.body.serie[1]).toEqual({ clave: '2028-02', completados: 1, ingresos: 5, gastos: 0 });
     const largo = await client.get('/api/admin/estadisticas?desde=2028-01-01&hasta=2029-01-01'); // 367
     expect(largo.status).toBe(400);
     expect(largo.body.error.fields).toHaveProperty('hasta');

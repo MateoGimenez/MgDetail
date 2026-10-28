@@ -22,9 +22,9 @@ src/
 
 | Qué | Dónde |
 |---|---|
-| WhatsApp, Instagram, dirección, horarios, Maps, URL pública, logo | `src/config/sitio.ts` (lo vacío se oculta solo) |
+| WhatsApp, Instagram, dirección, horarios (texto y `horariosSemana` para el "Abierto ahora"), Maps, mapa embebido, URL pública, logo | `src/config/sitio.ts` (lo vacío se oculta solo) |
 | Servicios (textos, incluye, glosario, duración, precio, destacado, activo, orden) | panel `/admin` → **Servicios**. `src/data/servicios.ts` es solo el respaldo (ver abajo) |
-| Fotos de trabajos y pares antes/después | archivos en `public/fotos/` + entradas en `src/data/galeria.ts` |
+| Fotos de trabajos y pares antes/después | originales en `fotos-originales/` + `npm run fotos` + entradas en `src/data/galeria.ts` (ver el comentario de ese archivo) |
 | Logo y archivos de marca | originales en `public/fotos/MgDetailing-*`; `npm run marca` genera las versiones livianas en `public/marca/` (logo, póster del monograma, og.jpg, favicon). El logo se elige en `sitio.ts` |
 | Preguntas frecuentes | `src/data/preguntas.ts` |
 
@@ -40,6 +40,7 @@ Buscá `COMPLETAR` para ver todo lo pendiente.
 | `npm run preview` | sirve el build en http://localhost:4173 |
 | `npm run typecheck` | solo TypeScript |
 | `npm run lint` | ESLint (incluye accesibilidad con jsx-a11y) |
+| `npm run fotos` | optimiza las fotos de `fotos-originales/` (WebP de 480, 800 y 1080 px y JPG de respaldo) en `public/trabajos/`; los originales no se publican |
 | `npm run marca` | regenera las imágenes livianas de marca con sharp, incluidos los logos para fondo oscuro y claro (los originales no se tocan) |
 | `npm test` | tests de fechas, de la app instalable y los avisos push (`pwa/`, `api/push`), del esquema del turno, de la sesión del panel, de usuarios, del catálogo, de la agenda, de notas, búsqueda e historial y de disponibilidad y seguimiento (vitest) |
 
@@ -83,13 +84,23 @@ Contrato: `reportes/2026-10-22_07_catalogo-editable.md`.
 - **Panel → Servicios:** lista en el orden de la web con precio, duración, destacado y activo/inactivo. Superadmin y admin crean (el identificador se sugiere desde el nombre y queda fijo al crear), editan todos los campos en un diálogo (listas editables para "Incluye" y "En palabras simples"), destacan (a lo sumo uno: el anterior se desmarca; un inactivo no se puede destacar), activan o desactivan (no se borran: hay turnos que los usan; desactivar el destacado lo desmarca) y suben o bajan el orden (`PUT /api/admin/servicios/orden`). El empleado ve la lista sin controles. Las validaciones (`admin/validacionServicio.ts`) son las del contrato y usan las mismas claves de error que el backend (`incluye.2`, `glosario.0.termino`).
 - Turnos muestra el nombre del servicio con el catálogo del panel (o el del respaldo, o el id tal cual si ya no existe).
 
-## Servicios como cards, comparativa y revelado al scroll
+## Servicios como cards y revelado al scroll
 
-Contrato: `reportes/2026-10-26_14_servicios-cards-comparativa.md`. Estilos en `landing/servicios.css` y `landing/revelar.css`; solo variables semánticas (andan en los dos temas).
+Contrato: `reportes/2026-10-26_14_*` (cards y revelado). Estilos en `landing/servicios.css` y `landing/revelar.css`; solo variables semánticas (andan en los dos temas).
 
-- **Cards:** `landing/Servicios.tsx` arma las `TarjetaServicio.tsx` dentro de `ListaTarjetas.tsx` (carrusel con scroll-snap y "1 de 5" en el celular; grilla de 2 y 3 columnas desde 700 px) y, debajo, `Comparativa.tsx` (en dos columnas desde 900 px). "Ver qué incluye" despliega la descripción, el "Incluye" completo y el glosario sin desmontar nada (`inert` plegado).
-- **Comparativa:** la lógica está en `src/lib/comparativa.ts` (con tests): expande `Todo lo del <nombre>` en "Incluye" (sin distinguir mayúsculas ni acentos, sin bucles si dos servicios se referencian), arma la matriz de filas, la separa en comunes y distintas (`dividirFilas`: la tabla muestra las distintas y junta las comunes en una fila desplegable), calcula los extras, la diferencia de precio (solo con los dos precios y > 0) y el par por defecto (primer servicio + destacado). La línea de ayuda del panel (Servicios → Incluye) explica la convención.
-- **Revelado:** `landing/useRevelar.ts` (ref callback; `useRevelar()` lo devuelve para un elemento suelto y `revelar` sirve en listas) marca `data-revelar` solo en lo que está debajo de la pantalla al montar. Para animar algo nuevo: `ref={revelar}` y la clase `revelar` (más `revelar--sutil` o `revelar--tarjeta`); para escalonar hijos, `revelar-hijo` con `--i`. `CabeceraSeccion` dibuja el filete de cada encabezado. Sin librerías; solo `transform` y `opacity`, y solo con `prefers-reduced-motion: no-preference`. Detalle de tiempos en `DESIGN.md`.
+- **Cards:** `landing/Servicios.tsx` arma las `TarjetaServicio.tsx` dentro de `ListaTarjetas.tsx` (carrusel con scroll-snap y "1 de 5" en el celular; grilla de 2 y 3 columnas desde 700 px). "Ver qué incluye" despliega la descripción, el "Incluye" completo y el glosario sin desmontar nada (`inert` plegado); "Ver el servicio completo" lleva a `/servicios/:id`.
+- **Revelado:** `landing/useRevelar.ts` (ref callback; `useRevelar()` lo devuelve para un elemento suelto y `revelar` sirve en listas) marca `data-revelar` solo en lo que está debajo de la pantalla al montar. Para animar algo nuevo: `ref={revelar}` y la clase `revelar` (más `revelar--sutil` o `revelar--tarjeta`); para escalonar hijos, `revelar-hijo` con `--i`. `CabeceraSeccion` dibuja el filete de cada título. Todo con `transform` y `opacity`, solo sin `prefers-reduced-motion`.
+
+## Landing: WhatsApp, dónde estamos, página por servicio, scrollspy y fotos
+
+Contrato: `reportes/2026-10-27_16_landing-whatsapp-mapa-servicios.md`. El diseño está en `DESIGN.md` (cabecera y scrollspy, Dónde estamos, botón de WhatsApp, página de un servicio, galería y efectos).
+
+- **WhatsApp:** `sitio.whatsapp` va en formato internacional, solo dígitos (`5493804781737`). `config/enlaces.ts` arma los enlaces (`whatsappUrl(mensaje)`, `MENSAJE_CONSULTA_TURNO`, `mensajeConsultaServicio(nombre)`). El botón flotante (`landing/BotonWhatsapp.tsx`) solo existe si hay número.
+- **Dónde estamos** (`landing/DondeEstamos.tsx`): dirección, horarios y mapa. El "Abierto ahora / Cerrado ahora · abrimos…" sale de `sitio.horariosSemana` (día 0 = domingo, tramos `desde`/`hasta` "HH:MM", hora de La Rioja; `lib/horarioTaller.ts`). Si cambiás `sitio.horarios` (el texto), cambiá también `horariosSemana`. El mapa embebido es opcional: en Google Maps, Compartir → Insertar un mapa, copiá solo el `src` a `sitio.mapaEmbedUrl` (tiene que empezar con `https://www.google.com/maps/`); se carga al tocar "Ver el mapa acá". Sin él, queda la tarjeta con la dirección y "Cómo llegar". Sin dirección, horarios ni `mapsUrl`, la sección y su enlace del nav no se emiten.
+- **Página por servicio:** `/servicios/:id` (`landing/PaginaServicio.tsx`, carga diferida) con el catálogo de `GET /api/servicios` y el respaldo. El SEO sale de `lib/seoServicio.ts` (título, descripción, Open Graph, canonical solo con `sitio.url`, JSON-LD `Service` y `BreadcrumbList`; el `provider` es `lib/negocioJsonLd.ts`, el mismo del `index.html`) y se aplica con `landing/useSeo.ts`. Enlace profundo de reserva: `/?servicio=<id>#reservar` (sirve para el link de Instagram). Una pregunta frecuente de un servicio se muestra en su página agregándole `servicioId` en `data/preguntas.ts`; las fotos, con `servicioId` en `data/galeria.ts`. El sitemap y el `robots.txt` los sirve el backend.
+- **Scrollspy:** `landing/useSeccionActiva.ts` (IntersectionObserver) con la decisión en `lib/seccionActiva.ts`, usado por `Cabecera.tsx`.
+- **Fotos de trabajos:** originales en `fotos-originales/` (fuera de `public/`), `npm run fotos` (`scripts/optimizar-fotos.mjs`) genera en `public/trabajos/` tres WebP (480, 800 y 1080 px) y un JPG de 800 px; `lib/fotos.ts` (`fotoOptimizada`) arma `src`, `srcset` y medidas. La galería respeta fotos verticales (4:5) y horizontales. Para sumar una foto, seguí los pasos del comentario de `data/galeria.ts`.
+- **Efectos** (`landing/efectos.css`, `useMagnetico.ts`): ver `DESIGN.md`. Tests: `lib/horarioTaller.test.ts`, `seccionActiva.test.ts`, `seoServicio.test.ts`, `fotos.test.ts`, `config/enlaces.test.ts` y `seccionQuitada.test.ts` (que no queden restos de la sección quitada).
 
 ## Agenda
 
@@ -160,6 +171,20 @@ Contrato: `reportes/2026-10-26_13_panel-pulido-y-app.md` (bloque C). Solo el pan
 - **Probar en desarrollo.** El service worker y los avisos solo andan en `https` o `localhost`: con `npm run dev:lan` desde un celular (http) no se activan. Para probar instalación y avisos de punta a punta hace falta el sitio publicado con `https` o un túnel https.
 - **Alcance del service worker.** Se registra con alcance `/admin`; si el servidor no manda `Service-Worker-Allowed: /admin`, queda en `/admin/` y la página "Sin conexión" no cubre la ruta exacta `/admin` (los avisos funcionan igual).
 
+## Inventario, presupuestos y comprobantes (F2)
+
+Contrato: `reportes/2026-10-27_17_finanzas-inventario-documentos.md`. Las secciones se cargan aparte y `admin/secciones.ts` las toma solas (`inventario/VistaInventario.tsx`, `presupuestos/VistaPresupuestos.tsx`; exportan nombre y `default`).
+
+| Capacidad | Superadmin | Admin | Empleado |
+|---|---|---|---|
+| Ver el inventario y anotar uso (**Usé**) | sí | sí | sí |
+| Crear/editar/desactivar insumos, **Compré**, **Ajustar**, ver costos y valor en stock (`puedeGestionarInventario`) | sí | sí | no (el backend manda `null`) |
+| Presupuestos, datos del taller, **Comprobante** y PDF (`puedeEmitirDocumentos`) | sí | sí | no |
+
+- **Inventario** (`admin/inventario/`, `lib/inventario.ts`, `api/inventario.ts`): búsqueda, filtro **Stock bajo**, barra contra el mínimo y etiqueta con texto (Stock bajo / Sin stock), cantidades es-AR con unidad ("4,5 L", "3 unidades"), formularios en la tarjeta, historial por insumo, `409 STOCK_INSUFICIENTE` en el campo cantidad y nombre repetido en su campo. Se abre filtrado con `?vista=inventario&bajoStock=1` (vale una vez) o con `abrirCon="bajo-stock"`.
+- **Presupuestos** (`admin/presupuestos/`, `lib/presupuestos.ts`, `lib/taller.ts`): lista con filtro por estado, búsqueda y «Vencido»; editor de ítems (catálogo con «Desde» o libre, cantidad con decimales) con total en vivo con la misma cuenta del backend; cambiar estado; borrar (`PRESUPUESTO_ACEPTADO`); **Descargar** y **Compartir** (solo si `navigator.canShare` con archivos); **Avisar por WhatsApp** (`wa.me` con texto en voseo; el PDF va aparte). Arriba, «Datos que salen en los PDF» (`GET/PUT /api/admin/taller`).
+- **Comprobante** (`admin/comprobantes/ComprobanteDelTurno.tsx`): en turnos completados (Turnos, Agenda, Hoy). Sin cobro explica «Primero cargá el cobro» y abre el formulario de cobro; si ya hay comprobante lo reabre. El PDF se baja con `api/pdf.ts` (Blob con cookies y refresco de sesión). Ninguno es factura.
+
 ## Tema claro y oscuro
 
 Contrato: `reportes/2026-10-23_12_modo-claro.md`. La web pública (landing, éxito del turno, 404 y la página de seguimiento) tiene dos temas; el panel `/admin` no cambia.
@@ -185,6 +210,16 @@ Contrastes del tema claro (WCAG 2.1 AA, calculados):
 | Foco / fondo · blanco | `#14171a` | 16,9 · 18,0 |
 | Texto blanco / botón rojo (degradé) | `#ffffff` / `#d61c35`–`#c8102e` | 5,2–5,9 |
 | Elegido: texto · acento / fondo elegido | `#15181b` · `#c8102e` / `#fbeef0` | 15,8 · 5,2 |
+
+## Navegación, Finanzas y estadísticas ampliadas (objetivo 10, F1)
+
+Contrato: `reportes/2026-10-27_17_finanzas-inventario-documentos.md`.
+
+- **Registro de secciones** (`admin/secciones.ts`): las diez secciones (clave de `?vista=`, etiqueta, grupo, quién la ve y, si se carga aparte, su componente con `React.lazy`). `Panel.tsx` arma navegación y contenido desde ahí; `lib/hoy.ts` tiene `VISTAS`. Un rol sin permiso cae en Hoy. Presupuestos e Inventario (F2) se enchufan con `import.meta.glob` a `./presupuestos/VistaPresupuestos.tsx` y `./inventario/VistaInventario.tsx` (export default o con nombre): sin el archivo muestran `Proximamente.tsx`. Reciben `PropsSeccion` (`rol`, `usuarioId`, `alVencerSesion`, `irA`, `catalogo`, `nombreServicio`, `abrirCon`; Hoy abre Inventario con `abrirCon='bajo-stock'`).
+- **Navegación** (`NavegacionPanel.tsx`, `navegacion.css`): grupos Operación (Hoy, Turnos, Agenda, Inventario), Negocio (Estadísticas, Finanzas, Presupuestos) y Ajustes (Disponibilidad, Servicios, Usuarios). Hasta 1239 px: fila de grupos y debajo las secciones del grupo abierto (el de la sección actual): 1 toque dentro del grupo, 2 hacia otro; sin scroll lateral. Desde 1240 px: una sola fila con las diez, separadas por grupo.
+- **Finanzas** (`admin/finanzas/`, `api/finanzas.ts`, `lib/finanzas.ts`; admin y superadmin): resumen del mes con navegación de mes (ganancia neta, ingresos, gastos, margen) y pestañas **Gastos** (búsqueda, categoría, lista por día, alta, edición y baja con confirmación; los de inventario van marcados y sin acciones; `409 GASTO_DE_INVENTARIO` muestra el mensaje y recarga) y **Metas** (barras, estado en texto, ritmo, proyección, "te faltan $ X, $ Y por día", fijar, cambiar, quitar, historial del año).
+- **Estadísticas**: ganancia neta en las tarjetas con su comparación, gastos, ganancia y margen en el resumen, gráficos *Ingresos vs. gastos* y *Gastos por categoría*, CSV con las columnas nuevas y la meta del mes. **Hoy**: tarjeta del mes (ganancia neta y meta, solo admin) y aviso "N insumos con stock bajo" (todos).
+- Los esquemas de estadísticas son estrictos con los campos nuevos; `contrato-backend.test.ts` completa en cero las capturas viejas hasta que el backend regenere las fixtures.
 
 ## Notas
 

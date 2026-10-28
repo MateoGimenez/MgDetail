@@ -36,9 +36,15 @@ export interface Totales {
   ingresos: number;
 }
 
+/** Totales de un período con la plata que salió: gastos y ganancia (ingresos - gastos; puede ser negativa). */
+export interface TotalesConGastos extends Totales {
+  gastos: number;
+  ganancia: number;
+}
+
 export interface Comparacion {
-  actual: Totales;
-  anterior: Totales;
+  actual: TotalesConGastos;
+  anterior: TotalesConGastos;
 }
 
 export interface ResumenFijo {
@@ -67,6 +73,12 @@ export interface PeriodoTurnos {
   completados: number;
   cancelados: number;
   ingresos: number;
+  /** Suma de los gastos del período (por fecha del gasto). */
+  gastos: number;
+  /** ingresos - gastos; puede ser negativa. */
+  gananciaNeta: number;
+  /** gananciaNeta / ingresos (4 decimales); null si los ingresos son 0. */
+  margen: number | null;
   ticketPromedio: number | null;
   completadosSinMonto: number;
   tasaCancelacion: number | null;
@@ -75,6 +87,22 @@ export interface PeriodoTurnos {
 export interface PuntoSerie extends Totales {
   /** YYYY-MM-DD (granularidad día) o YYYY-MM (mes). */
   clave: string;
+  gastos: number;
+}
+
+/** Lo que sale de la base para la serie: ingresos y completados (los gastos van aparte). */
+export interface PuntoSerieTurnos extends Totales {
+  clave: string;
+}
+
+export interface GastosDeUnPunto {
+  clave: string;
+  gastos: number;
+}
+
+export interface FilaGastoCategoria {
+  categoria: string;
+  monto: number;
 }
 
 export interface FilaServicio {
@@ -110,6 +138,8 @@ export interface Estadisticas {
   porTrabajador: FilaTrabajador[];
   porDiaSemana: FilaDiaSemana[];
   completadosSinTrabajador: number;
+  /** Por monto descendente; solo categorías con gastos en el período. */
+  gastosPorCategoria: FilaGastoCategoria[];
 }
 
 /** "Mis trabajos": lo que hizo una persona. Nunca tiene importes. */
@@ -134,7 +164,13 @@ export interface EstadisticasRepository {
   totales(rangos: readonly RangoNombrado[]): Promise<Record<string, Totales>>;
   conteo(rango: Rango): Promise<ConteoPeriodo>;
   /** Solo los períodos con completados; completar con ceros es cosa del servicio. */
-  serie(rango: Rango, granularidad: Granularidad): Promise<PuntoSerie[]>;
+  serie(rango: Rango, granularidad: Granularidad): Promise<PuntoSerieTurnos[]>;
+  /** Suma de los gastos de cada rango, por fecha del gasto (cero si no hubo). */
+  gastosPorRango(rangos: readonly RangoNombrado[]): Promise<Record<string, number>>;
+  /** Solo los períodos con gastos; completar con ceros es cosa del servicio. */
+  gastosSerie(rango: Rango, granularidad: Granularidad): Promise<GastosDeUnPunto[]>;
+  /** Por monto descendente, solo las categorías con gastos. */
+  gastosPorCategoria(rango: Rango): Promise<FilaGastoCategoria[]>;
   /** Por pedidos descendente; servicios sin pedidos solo si están activos. */
   porServicio(rango: Rango): Promise<FilaServicio[]>;
   /** Por completados descendente; id null = sin asignar (sin trabajador o la persona se borró). */

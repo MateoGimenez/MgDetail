@@ -13,6 +13,12 @@ import type { AuthService } from '../services/auth.js';
 import type { BookingService } from '../services/bookings.js';
 import type { DisponibilidadService } from '../services/disponibilidad.js';
 import type { EstadisticasService } from '../services/estadisticas.js';
+import type { ComprobanteService } from '../services/comprobantes.js';
+import type { GastoService } from '../services/gastos.js';
+import type { InventarioService } from '../services/inventario.js';
+import type { PresupuestoService } from '../services/presupuestos.js';
+import type { MetaService } from '../services/metas.js';
+import type { TallerService } from '../services/taller.js';
 import type { PerfilRepository } from '../domain/perfil.js';
 import type { PushService } from '../services/push.js';
 import type { RecordatorioService } from '../services/recordatorios.js';
@@ -26,6 +32,12 @@ import { adminPermisosRouter } from './admin-permisos.js';
 import { adminServiciosRouter } from './admin-servicios.js';
 import { adminTrabajadoresRouter } from './admin-trabajadores.js';
 import { adminEstadisticasRouter } from './admin-estadisticas.js';
+import { adminComprobantesRouter } from './admin-comprobantes.js';
+import { adminInsumosRouter } from './admin-insumos.js';
+import { adminPresupuestosRouter } from './admin-presupuestos.js';
+import { adminGastosRouter } from './admin-gastos.js';
+import { adminMetasRouter } from './admin-metas.js';
+import { adminTallerRouter } from './admin-taller.js';
 import { adminUsuariosRouter } from './admin-usuarios.js';
 import { authRouter } from './auth.js';
 import { publicBookingsRouter } from './bookings.js';
@@ -52,6 +64,12 @@ export interface ApiDeps {
   auth: AuthService;
   usuarios: UsuarioService;
   servicios: ServicioService;
+  gastos: GastoService;
+  metas: MetaService;
+  taller: TallerService;
+  inventario: InventarioService;
+  presupuestos: PresupuestoService;
+  comprobantes: ComprobanteService;
   cookies: SessionCookies;
   limiters: RateLimiters;
 }
@@ -74,6 +92,12 @@ export function createApiRouter(deps: ApiDeps): Router {
     auth,
     usuarios,
     servicios,
+    gastos,
+    metas,
+    taller,
+    inventario,
+    presupuestos,
+    comprobantes,
     cookies,
     limiters,
   } = deps;
@@ -83,8 +107,17 @@ export function createApiRouter(deps: ApiDeps): Router {
   api.use(noStore);
   api.use(limiters.api); // tope general por IP, antes de parsear nada
   api.use(requestGuard(config.frontendOrigins)); // CSRF: Origin + Content-Type, antes de leer el body
-  // 10 kb alcanzan de sobra. inflate:false rechaza bodies comprimidos (evita "zip bombs").
-  api.use(express.json({ limit: '10kb', inflate: false, strict: true }));
+  // 10 kb alcanzan de sobra; un presupuesto de 30 ítems con tildes y emojis necesita más (24 kb, solo ahí).
+  // inflate:false rechaza bodies comprimidos (evita "zip bombs"). Cada body se lee una sola vez.
+  const jsonCorto = express.json({ limit: '10kb', inflate: false, strict: true });
+  const jsonPresupuestos = express.json({ limit: '24kb', inflate: false, strict: true });
+  api.use((req, res, next) => {
+    (req.path === '/admin/presupuestos' || req.path.startsWith('/admin/presupuestos/') ? jsonPresupuestos : jsonCorto)(
+      req,
+      res,
+      next,
+    );
+  });
 
   const withSession = requireSession(auth, cookies);
 
@@ -104,6 +137,12 @@ export function createApiRouter(deps: ApiDeps): Router {
   api.use('/admin/servicios', adminServiciosRouter({ servicios }));
   api.use('/admin/trabajadores', adminTrabajadoresRouter({ perfiles }));
   api.use('/admin/estadisticas', adminEstadisticasRouter({ estadisticas }));
+  api.use('/admin/gastos', adminGastosRouter({ gastos }));
+  api.use('/admin/metas', adminMetasRouter({ metas }));
+  api.use('/admin/taller', adminTallerRouter({ taller }));
+  api.use('/admin/insumos', adminInsumosRouter({ inventario }));
+  api.use('/admin/presupuestos', adminPresupuestosRouter({ presupuestos, taller, pdfLimiter: limiters.pdf }));
+  api.use('/admin', adminComprobantesRouter({ comprobantes, taller, pdfLimiter: limiters.pdf }));
   api.use('/admin/permisos', adminPermisosRouter({ perfiles }));
   api.use('/admin/push', adminPushRouter({ push }));
 

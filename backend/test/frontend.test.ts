@@ -178,7 +178,7 @@ describe('SERVE_FRONTEND=true', () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("connect-src 'self'");
-    // CSP recortada a lo real: todo propio, fuentes autoalojadas, sin iframes.
+    // CSP recortada a lo real: todo propio, fuentes autoalojadas, un solo iframe permitido (el mapa).
     const directives = String(csp).split(';');
     expect(directives).toEqual(
       expect.arrayContaining([
@@ -188,7 +188,7 @@ describe('SERVE_FRONTEND=true', () => {
         "font-src 'self'",
         "img-src 'self' data:",
         "connect-src 'self'",
-        "frame-src 'none'",
+        'frame-src https://www.google.com/maps/',
         "worker-src 'self'",
         "manifest-src 'self'",
         "object-src 'none'",
@@ -198,7 +198,8 @@ describe('SERVE_FRONTEND=true', () => {
       ]),
     );
     expect(csp).not.toMatch(/unsafe-(inline|eval)/);
-    expect(csp).not.toMatch(/google|gstatic|https:/i);
+    // Lo único de otro dominio: el iframe de Google Maps de "Dónde estamos" (frame-src), nada más.
+    expect(String(csp).replace('frame-src https://www.google.com/maps/', '')).not.toMatch(/google|gstatic|https:/i);
     expect(page.headers['x-frame-options']).toBe('DENY');
     expect(page.headers['x-content-type-options']).toBe('nosniff');
 

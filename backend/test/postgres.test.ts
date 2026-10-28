@@ -28,7 +28,22 @@ async function pglite(): Promise<PgliteDatabase> {
   return database;
 }
 
-const TABLES = ['bookings', 'dias_especiales', 'horario_semanal', 'perfiles', 'push_suscripciones', 'roles', 'servicios'];
+const TABLES = [
+  'bookings',
+  'comprobantes',
+  'dias_especiales',
+  'gastos',
+  'horario_semanal',
+  'insumos',
+  'metas_mensuales',
+  'movimientos_stock',
+  'perfiles',
+  'presupuestos',
+  'push_suscripciones',
+  'roles',
+  'servicios',
+  'taller',
+];
 
 describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGlite)', () => {
   it('RLS activo en todas las tablas, sin admins/sessions, y anon/authenticated/service_role sin ningún privilegio', async () => {
@@ -268,6 +283,12 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     await expect(verifyPostgresSchema(sql)).rejects.toThrow(
       /Faltan columnas en mgdetailing\.bookings \(franja_confirmada\).*agenda_fecha_confirmada/,
     );
+  });
+
+  it('verifyPostgresSchema avisa si falta la migración de finanzas', async () => {
+    const { pg, sql } = await pglite();
+    await pg.exec('DROP TABLE mgdetailing.metas_mensuales');
+    await expect(verifyPostgresSchema(sql)).rejects.toThrow(/Faltan tablas de la migración de finanzas.*metas_mensuales.*finanzas_gastos_metas_taller/);
   });
 
   it('verifyPostgresSchema avisa si falta la migración de estadísticas y cobro', async () => {

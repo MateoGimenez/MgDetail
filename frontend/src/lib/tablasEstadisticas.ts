@@ -1,4 +1,5 @@
 import type { Estadisticas, FilaDiaSemana, Granularidad, MisTrabajos, PuntoDeSerie } from '../api/estadisticas';
+import { nombreDeCategoria, pesosConSigno } from './finanzas';
 import {
   DIAS_SEMANA_BACKEND,
   ORDEN_SEMANA,
@@ -34,6 +35,32 @@ export function tablaIngresos(serie: readonly PuntoDeSerie[], granularidad: Gran
     columnas: [granularidad === 'dia' ? 'Día' : 'Mes', 'Trabajos completados', 'Ingresos'],
     numericas: [false, true, true],
     filas: serie.map((p) => [conMayuscula(etiquetaDeClave(p.clave)), entero(p.completados), pesos(p.ingresos)]),
+  };
+}
+
+/** Ingresos, gastos y lo que queda por día o por mes (la tabla del gráfico "Ingresos vs. gastos"). */
+export function tablaIngresosGastos(serie: readonly PuntoDeSerie[], granularidad: Granularidad): TablaDatos {
+  return {
+    titulo: granularidad === 'dia' ? 'Ingresos y gastos por día' : 'Ingresos y gastos por mes',
+    columnas: [granularidad === 'dia' ? 'Día' : 'Mes', 'Ingresos', 'Gastos', 'Ganancia neta'],
+    numericas: [false, true, true, true],
+    filas: serie.map((p) => [
+      conMayuscula(etiquetaDeClave(p.clave)),
+      pesos(p.ingresos),
+      pesos(p.gastos),
+      pesosConSigno(p.ingresos - p.gastos),
+    ]),
+  };
+}
+
+/** Cuánto se gastó en cada categoría y qué parte del total es. */
+export function tablaGastosCategoria(porCategoria: Estadisticas['gastosPorCategoria']): TablaDatos {
+  const total = porCategoria.reduce((suma, c) => suma + c.monto, 0);
+  return {
+    titulo: 'Gastos por categoría',
+    columnas: ['Categoría', 'Gastado', 'Parte del total'],
+    numericas: [false, true, true],
+    filas: porCategoria.map((c) => [nombreDeCategoria(c.categoria), pesos(c.monto), porcentaje(total > 0 ? c.monto / total : 0)]),
   };
 }
 
@@ -150,14 +177,21 @@ export function csvEstadisticas(datos: Estadisticas): string {
     ['Completados', p.completados],
     ['Cancelados', p.cancelados],
     ['Ingresos (pesos)', p.ingresos],
+    ['Gastos (pesos)', p.gastos],
+    ['Ganancia neta (pesos)', p.gananciaNeta],
+    ['Margen (%)', pctCsv(p.margen)],
     ['Ticket promedio (pesos)', p.ticketPromedio === null ? null : Math.round(p.ticketPromedio)],
     ['Tasa de cancelación (%)', pctCsv(p.tasaCancelacion)],
     ['Completados sin cobro cargado', p.completadosSinMonto],
     ['Completados sin trabajador', datos.completadosSinTrabajador],
     [],
-    [datos.granularidad === 'dia' ? 'Ingresos por día' : 'Ingresos por mes'],
-    [datos.granularidad === 'dia' ? 'Día' : 'Mes', 'Completados', 'Ingresos (pesos)'],
-    ...datos.serie.map((s): CeldaCsv[] => [s.clave, s.completados, s.ingresos]),
+    [datos.granularidad === 'dia' ? 'Ingresos y gastos por día' : 'Ingresos y gastos por mes'],
+    [datos.granularidad === 'dia' ? 'Día' : 'Mes', 'Completados', 'Ingresos (pesos)', 'Gastos (pesos)', 'Ganancia neta (pesos)'],
+    ...datos.serie.map((s): CeldaCsv[] => [s.clave, s.completados, s.ingresos, s.gastos, s.ingresos - s.gastos]),
+    [],
+    ['Gastos por categoría'],
+    ['Categoría', 'Gastado (pesos)'],
+    ...datos.gastosPorCategoria.map((c): CeldaCsv[] => [nombreDeCategoria(c.categoria), c.monto]),
     [],
     ['Por servicio'],
     ['Servicio', 'Pedidos', 'Completados', 'Ingresos (pesos)'],

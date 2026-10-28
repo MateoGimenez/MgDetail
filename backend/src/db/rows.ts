@@ -34,6 +34,15 @@ export function intOrNull(row: Row, key: string): number | null {
   return row[key] === null ? null : int(row, key);
 }
 
+/** Número (entero o decimal): las columnas numeric se piden con ::float8 para que lleguen como number. */
+export function num(row: Row, key: string): number {
+  const value = row[key];
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new TypeError(`La columna "${key}" debería ser un número`);
+  }
+  return value;
+}
+
 export function bool(row: Row, key: string): boolean {
   const value = row[key];
   if (typeof value !== 'boolean') {

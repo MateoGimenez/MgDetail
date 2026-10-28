@@ -2,14 +2,15 @@ import type { PeriodoEstadisticas } from '../../api/estadisticas';
 import { Icono } from '../../components/Icono';
 import type { Vista } from '../../lib/hoy';
 import { entero, pesos, porcentaje } from '../../lib/estadisticas';
+import { pesosConSigno, textoMargen } from '../../lib/finanzas';
 
 const cifra = (n: number | null, formato: (valor: number) => string) => (n === null ? '—' : formato(n));
 
-function Cifra({ nombre, valor, nota, grande }: { nombre: string; valor: string; nota?: string; grande?: boolean }) {
+function Cifra({ nombre, valor, nota, grande, negativa }: { nombre: string; valor: string; nota?: string; grande?: boolean; negativa?: boolean }) {
   return (
     <div className={grande ? 'est-cifra est-cifra--grande' : 'est-cifra'}>
       <dt className="est-cifra__nombre">{nombre}</dt>
-      <dd className="est-cifra__valor">
+      <dd className={negativa ? 'est-cifra__valor est-cifra__valor--negativa' : 'est-cifra__valor'}>
         {valor === '—' ? (
           <>
             <span aria-hidden="true">—</span>
@@ -24,15 +25,28 @@ function Cifra({ nombre, valor, nota, grande }: { nombre: string; valor: string;
   );
 }
 
-/** Los números del período elegido: pedidos, completados, ingresos, ticket promedio y cancelación. */
+/**
+ * Los números del período elegido: primero la plata (ingresos, gastos, ganancia neta y margen) y después el trabajo
+ * (pedidos, completados, ticket promedio y cancelación).
+ */
 export function ResumenDelPeriodo({ periodo }: { periodo: PeriodoEstadisticas }) {
   return (
     <section className="est-tarjeta" aria-labelledby="est-resumen-titulo">
       <h2 id="est-resumen-titulo" className="est-tarjeta__titulo">
         Resumen del período
       </h2>
+      <dl className="est-cifras est-cifras--plata">
+        <Cifra nombre="Ingresos" valor={pesos(periodo.ingresos)} />
+        <Cifra nombre="Gastos" valor={pesos(periodo.gastos)} />
+        <Cifra
+          nombre="Ganancia neta"
+          valor={pesosConSigno(periodo.gananciaNeta)}
+          nota={periodo.gananciaNeta < 0 ? 'Gastaste más de lo que cobraste' : 'Ingresos menos gastos'}
+          negativa={periodo.gananciaNeta < 0}
+        />
+        <Cifra nombre="Margen" valor={cifra(periodo.margen, textoMargen)} nota="Qué parte de lo cobrado queda" />
+      </dl>
       <dl className="est-cifras">
-        <Cifra nombre="Ingresos" valor={pesos(periodo.ingresos)} grande />
         <Cifra nombre="Pedidos" valor={entero(periodo.pedidos)} nota="Sin los cancelados" />
         <Cifra nombre="Completados" valor={entero(periodo.completados)} />
         <Cifra

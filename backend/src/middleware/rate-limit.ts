@@ -25,6 +25,8 @@ export interface RateLimiters {
   loginFailures: RequestHandler;
   /** GET /api/turnos/:id: seguimiento del turno (contra el barrido de ids). Cuentan todos los pedidos, también los 404. */
   seguimiento: RequestHandler;
+  /** GET de los PDF de presupuestos y comprobantes: cuesta CPU generarlos. */
+  pdf: RequestHandler;
 }
 
 /**
@@ -48,5 +50,6 @@ export function createRateLimiters(rules: AppConfig['rateLimits']): RateLimiters
       rules.seguimiento,
       'Consultaste tu turno demasiadas veces seguidas. Esperá unos minutos y probá de nuevo.',
     ),
+    pdf: createLimiter(rules.pdf, 'Pediste demasiados PDF seguidos. Esperá un momento y probá de nuevo.'),
   };
 }

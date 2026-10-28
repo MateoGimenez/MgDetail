@@ -1,0 +1,32 @@
+/* =========================================================================
+   Botones de PDF compartidos por Presupuestos y Comprobantes. Solo variables de color del panel.
+   ========================================================================= */
+
+.pdf {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.pdf__botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.pdf__estado,
+.pdf__error {
+  font-size: 0.875rem;
+}
+
+.pdf__estado {
+  color: var(--texto-2);
+}
+
+.pdf__error {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.pdf__estado:empty {
+  display: none;
+}

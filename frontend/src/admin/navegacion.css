@@ -1,0 +1,141 @@
+/* =========================================================================
+   Navegación del panel: tres grupos y diez secciones. Vive en el riel grafito (tokens oscuros del riel).
+   Los selectores llevan `.panel__riel` para ganarle a las reglas viejas de admin.css, que se carga después.
+   ========================================================================= */
+
+.panel__riel .panel__secciones {
+  width: min(100% - 2 * var(--margen), 1100px);
+  margin-inline: auto;
+  /* Antes la barra se desplazaba de costado; ahora todo entra o baja de renglón. */
+  overflow: visible;
+}
+
+.panel__riel .panel__grupos {
+  display: grid;
+  /* `--grupos` lo pone el componente: tantos botones de grupo como grupos ve este rol. */
+  grid-template-columns: repeat(var(--grupos, 3), minmax(0, 1fr));
+}
+
+/* Cada grupo reparte sus hijos directamente en la grilla: el botón en la fila 1, las secciones en la fila 2. */
+.panel__riel .panel__grupo {
+  display: contents;
+}
+
+.panel__riel .panel__grupo-boton {
+  grid-row: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--grafito-700);
+  background: transparent;
+  color: var(--gris-300);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.panel__riel .panel__grupo-boton:hover {
+  color: #ffffff;
+}
+
+.panel__riel .panel__grupo[data-abierto='true'] .panel__grupo-boton {
+  border-radius: 6px 6px 0 0;
+  background: var(--grafito-800);
+  border-bottom-color: var(--grafito-800);
+  color: #ffffff;
+}
+
+/* El grupo que contiene la sección actual lleva un rombo rojo (además de la frase oculta para el lector). */
+.panel__riel .panel__grupo[data-actual='true'] .panel__grupo-boton::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  background: var(--rojo-500);
+  transform: rotate(45deg);
+}
+
+.panel__riel .panel__grupo-secciones {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  display: none;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding-inline: 4px;
+  border-radius: 0 0 6px 6px;
+  background: var(--grafito-800);
+}
+
+.panel__riel .panel__grupo[data-abierto='true'] .panel__grupo-secciones {
+  display: flex;
+}
+
+.panel__riel .panel__grupo-secciones > li {
+  display: flex;
+}
+
+.panel__riel .panel__grupo-secciones .panel__seccion {
+  padding-inline: 12px;
+  font-size: 0.9375rem;
+}
+
+@media (max-width: 420px) {
+  .panel__riel .panel__grupo-secciones .panel__seccion {
+    padding-inline: 8px;
+  }
+}
+
+/* La línea roja de la sección actual se apoya en el borde de abajo del riel. */
+.panel__riel .panel__grupo-secciones .panel__seccion.activa::after {
+  left: 8px;
+  right: 8px;
+}
+
+.panel__riel .panel__seccion:focus-visible,
+.panel__riel .panel__grupo-boton:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -3px;
+}
+
+/* ---------- Pantalla ancha: una sola fila, por grupos ---------- */
+@media (min-width: 1240px) {
+  .panel__riel .panel__grupos {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .panel__riel .panel__grupo {
+    display: flex;
+  }
+
+  .panel__riel .panel__grupo + .panel__grupo {
+    margin-left: 14px;
+    padding-left: 14px;
+    border-left: 1px solid var(--grafito-600);
+  }
+
+  /* Los botones de grupo sobran: se ven todas las secciones. Cada grupo se anuncia por el `aria-label` de su lista. */
+  .panel__riel .panel__grupo-boton {
+    display: none;
+  }
+
+  .panel__riel .panel__grupo-secciones,
+  .panel__riel .panel__grupo[data-abierto='true'] .panel__grupo-secciones {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    padding-inline: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .panel__riel .panel__grupo-secciones .panel__seccion {
+    padding-inline: 14px;
+  }
+}

@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { obtenerEstadisticas, obtenerMisTrabajos } from '../../api/estadisticas';
 import { Icono } from '../../components/Icono';
 import { hoyEnLaRioja } from '../../lib/fechas';
-import type { Vista } from '../../lib/hoy';
 import { resolverGranularidad, trabajos } from '../../lib/estadisticas';
 import {
   PRESET_POR_DEFECTO,
@@ -13,6 +12,9 @@ import {
 import { csvEstadisticas, csvMisTrabajos, nombreArchivoCsv } from '../../lib/tablasEstadisticas';
 import type { Rol } from '../../api/contract-panel';
 import { puedeVerEstadisticas } from '../permisos';
+import { MetaDelMes } from '../finanzas/MetaDelMes';
+import { useMetaActual } from '../finanzas/useMetaActual';
+import type { PropsSeccion } from '../secciones';
 import { useAvisos } from '../toast/contexto';
 import { descargarCsv } from './descargarCsv';
 import { EsqueletoEstadisticas } from './EsqueletoEstadisticas';
@@ -27,7 +29,7 @@ import './estadisticas.css';
 interface Props {
   rol: Rol;
   alVencerSesion: (mensaje: string) => void;
-  irA: (vista: Vista, busqueda?: string) => void;
+  irA: PropsSeccion['irA'];
 }
 
 /**
@@ -48,6 +50,8 @@ export default function VistaEstadisticas({ rol, alVencerSesion, irA }: Props) {
 
   const completas = useEstadisticas(obtenerEstadisticas, rango, alVencerSesion, completa);
   const mias = useEstadisticas(obtenerMisTrabajos, rango, alVencerSesion, !completa);
+  // La meta del mes la ven solo admin y superadmin (el empleado recibiría 403).
+  const meta = useMetaActual(alVencerSesion, 0, completa);
   // Cada rol hace un solo pedido: el hook del otro queda inactivo.
   const estado = completa ? completas : mias;
   const elegir = (p: Preset) => {
@@ -79,7 +83,10 @@ export default function VistaEstadisticas({ rol, alVencerSesion, irA }: Props) {
           {completa ? 'Estadísticas' : 'Mis trabajos'}
         </h1>
         <div className="est-acciones">
-          <button type="button" className="boton boton--secundario boton--chico" disabled={estado.cargando} onClick={estado.recargar}>
+          <button type="button" className="boton boton--secundario boton--chico" disabled={estado.cargando} onClick={() => {
+              estado.recargar();
+              if (completa) meta.recargar();
+            }}>
             <Icono nombre="refrescar" tamano={18} />
             Actualizar
           </button>
@@ -111,6 +118,7 @@ export default function VistaEstadisticas({ rol, alVencerSesion, irA }: Props) {
       {completa && completas.datos && (
         <div className={completas.obsoleto ? 'est-contenido est-contenido--obsoleto' : 'est-contenido'} aria-busy={completas.obsoleto}>
           <TarjetasDePeriodo resumen={completas.datos.resumen} />
+          <MetaDelMes carga={meta} irA={irA} />
           <SelectorDeRango hoy={hoy} preset={preset} rango={rango} alElegir={elegir} alAplicar={(r) => { setPersonalizado(r); }} />
           <AvisosDeCarga periodo={completas.datos.periodo} completadosSinTrabajador={completas.datos.completadosSinTrabajador} irA={irA} />
           {sinDatos ? (

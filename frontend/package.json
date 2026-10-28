@@ -15,7 +15,8 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run",
-    "marca": "node scripts/optimizar-marca.mjs"
+    "marca": "node scripts/optimizar-marca.mjs",
+    "fotos": "node scripts/optimizar-fotos.mjs"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",

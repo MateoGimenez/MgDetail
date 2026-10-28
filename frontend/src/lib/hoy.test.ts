@@ -10,6 +10,7 @@ import {
   resumenDelDia,
   saludoSegunHora,
   textoPendientes,
+  textoStockBajo,
   type Vista,
 } from './hoy';
 
@@ -68,6 +69,35 @@ describe('vista inicial (?vista=)', () => {
   it('no deja abrir lo que el rol no puede ver', () => {
     expect(resolverVista('usuarios', SIN_USUARIOS)).toBe('hoy');
     expect(resolverVista('servicios', SIN_USUARIOS)).toBe('servicios');
+  });
+});
+
+describe('las diez vistas', () => {
+  it('son las del contrato, en el orden de la navegación', () => {
+    expect(VISTAS).toEqual([
+      'hoy',
+      'turnos',
+      'agenda',
+      'estadisticas',
+      'finanzas',
+      'presupuestos',
+      'inventario',
+      'disponibilidad',
+      'servicios',
+      'usuarios',
+    ]);
+  });
+
+  it('abre las nuevas si están permitidas', () => {
+    expect(resolverVista('finanzas', TODAS)).toBe('finanzas');
+    expect(resolverVista('presupuestos', TODAS)).toBe('presupuestos');
+    expect(resolverVista('inventario', TODAS)).toBe('inventario');
+    expect(resolverVista('finanzas', ['hoy', 'turnos'])).toBe('hoy');
+  });
+
+  it('frase del aviso de stock bajo', () => {
+    expect(textoStockBajo(1)).toBe('1 insumo con stock bajo');
+    expect(textoStockBajo(4)).toBe('4 insumos con stock bajo');
   });
 });
 

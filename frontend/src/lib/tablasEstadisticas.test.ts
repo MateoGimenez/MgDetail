@@ -9,7 +9,9 @@ import {
   nombreArchivoCsv,
   tablaDiaSemana,
   tablaEstados,
+  tablaGastosCategoria,
   tablaIngresos,
+  tablaIngresosGastos,
   tablaServicios,
 } from './tablasEstadisticas';
 
@@ -42,13 +44,37 @@ describe('celdas del CSV', () => {
   });
 });
 
+describe('tablas de gastos', () => {
+  it('ingresos y gastos por día, con la ganancia de cada uno (y el signo menos)', () => {
+    const t = tablaIngresosGastos(MUESTRA.serie, 'dia');
+    expect(t.columnas).toEqual(['Día', 'Ingresos', 'Gastos', 'Ganancia neta']);
+    expect(t.numericas).toEqual([false, true, true, true]);
+    expect(t.filas).toHaveLength(3);
+    expect(plano(t.filas[0]?.[3] ?? '')).toBe('$ 60.000');
+    expect(t.filas[1]?.[3]).toBe('−$ 45.000');
+  });
+
+  it('gastos por categoría con la parte del total', () => {
+    const t = tablaGastosCategoria(MUESTRA.gastosPorCategoria);
+    expect(t.filas[0]?.[0]).toBe('Alquiler');
+    expect(plano(t.filas[0]?.[1] ?? '')).toBe('$ 150.000');
+    expect(plano(t.filas[0]?.[2] ?? '')).toBe('48,4 %');
+    expect(tablaGastosCategoria([]).filas).toEqual([]);
+  });
+});
+
 describe('CSV del período', () => {
   it('trae el resumen, las series y las tablas, y neutraliza fórmulas', () => {
     const csv = csvEstadisticas(MUESTRA);
     expect(csv).toContain('Ingresos (pesos);1240000');
     expect(csv).toContain('Ticket promedio (pesos);51667');
     expect(csv).toContain('Tasa de cancelación (%);10');
-    expect(csv).toContain('2026-10-02;0;0');
+    expect(csv).toContain('2026-10-02;0;0;45000;-45000');
+    expect(csv).toContain('Gastos (pesos);310000');
+    expect(csv).toContain('Ganancia neta (pesos);930000');
+    expect(csv).toContain('Margen (%);75');
+    expect(csv).toContain('Gastos por categoría');
+    expect(csv).toContain('Alquiler;150000');
     expect(csv).toContain('Lavado Premium;14;10;600000');
     expect(csv).toContain('"\'=HYPERLINK(""http://x"")";1;0;0');
     expect(csv).toContain('Lunes;5;3');

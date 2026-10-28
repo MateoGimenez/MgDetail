@@ -17,6 +17,7 @@ import { lugarEnAgenda, mensajeParaCliente, textoPidio } from '../lib/agenda';
 import { faltaCobro, lineaDeCobro } from '../lib/cobro';
 import { diaCortoConMes, fechaCorta, momentoEnLaRioja } from '../lib/fechas';
 import { referenciaDeTurno, selloDeCliente } from '../lib/turnos';
+import { ComprobanteDelTurno } from './comprobantes/ComprobanteDelTurno';
 import { FormularioCobro } from './cobro/FormularioCobro';
 import { ElegirFecha, type ModoFecha } from './ElegirFecha';
 import { NotaInterna } from './NotaInterna';
@@ -26,6 +27,7 @@ import {
   muestraSelectorDeEstado,
   puedeBorrarTurnos,
   puedeEditarNotas,
+  puedeEmitirDocumentos,
   puedeRegistrarCobro,
   puedeReprogramar,
 } from './permisos';
@@ -89,12 +91,15 @@ export function TarjetaTurno({
   // Qué formulario está abierto en la tarjeta: elegir fecha, completar con cobro, o editar el cobro de un completado.
   const [formulario, setFormulario] = useState<ModoFecha | 'completar' | 'cobro' | null>(null);
   const [editandoNota, setEditandoNota] = useState(false);
+  // El panel del comprobante abierto también es algo a medio hacer.
+  const [emitiendoComprobante, setEmitiendoComprobante] = useState(false);
   const Titulo = nivelTitulo === 2 ? 'h2' : 'h3';
 
   const servicio = nombreServicio;
   const lugar = lugarEnAgenda(turno);
   const reprograma = puedeReprogramar(rol);
   const registraCobro = puedeRegistrarCobro(rol);
+  const emiteComprobante = puedeEmitirDocumentos(rol);
   // El mensaje usa la fecha de agenda (la confirmada si existe, si no la que pidió) y, si la web tiene URL
   // pública, el enlace de seguimiento.
   const whatsapp = whatsappClienteUrl(
@@ -120,7 +125,7 @@ export function TarjetaTurno({
   if (formulario !== null && !abierto) setFormulario(null);
 
   // Algo a medio escribir: la vista no lo pliega con "Plegar todas" (y plegar a mano solo lo oculta, no lo borra).
-  const borrador = (abierto && formulario !== null) || editandoNota;
+  const borrador = (abierto && formulario !== null) || editandoNota || emitiendoComprobante;
   const avisarRef = useRef(plegado?.alCambiarBorrador);
   useEffect(() => {
     avisarRef.current = plegado?.alCambiarBorrador;
@@ -269,6 +274,16 @@ export function TarjetaTurno({
             }
           />
         ))}
+
+      {turno.estado === 'completado' && emiteComprobante && !(abierto && formulario === 'cobro') && (
+        <ComprobanteDelTurno
+          turno={turno}
+          alCargarCobro={() => {
+            setFormulario('cobro');
+          }}
+          alCambiarAbierto={setEmitiendoComprobante}
+        />
+      )}
 
       {puedeEditarNotas(rol) ? (
         <NotaInterna

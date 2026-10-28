@@ -48,7 +48,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     trustProxy: false,
     serveFrontend: false,
     frontendDistPath: '',
-    rateLimits: { api: NO_LIMIT, bookings: NO_LIMIT, loginFailures: NO_LIMIT, seguimiento: NO_LIMIT },
+    rateLimits: { api: NO_LIMIT, bookings: NO_LIMIT, loginFailures: NO_LIMIT, seguimiento: NO_LIMIT, pdf: NO_LIMIT },
     whatsapp: { provider: 'none' },
     recordatorios: { cronSecret: undefined, email: undefined, whatsapp: undefined },
     push: undefined,

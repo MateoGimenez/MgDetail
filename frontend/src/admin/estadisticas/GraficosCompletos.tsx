@@ -9,18 +9,23 @@ import {
   pedidos,
   pesos,
   pesosCorto,
+  porcentaje,
   trabajos,
 } from '../../lib/estadisticas';
+import { nombreDeCategoria, pesosConSigno } from '../../lib/finanzas';
 import {
   diasEnOrden,
   tablaDiaSemana,
   tablaEquipo,
   tablaEstados,
+  tablaGastosCategoria,
   tablaIngresos,
+  tablaIngresosGastos,
   tablaServicios,
 } from '../../lib/tablasEstadisticas';
 import { EstadoDeTurnos } from './graficos/EstadoDeTurnos';
 import { GraficoColumnas, type Columna } from './graficos/GraficoColumnas';
+import { GraficoIngresosGastos, type ParDeColumnas } from './graficos/GraficoIngresosGastos';
 import { MapaDeCalor } from './graficos/MapaDeCalor';
 import { MarcoGrafico } from './graficos/MarcoGrafico';
 import { RankingBarras, type FilaRanking } from './graficos/RankingBarras';
@@ -41,6 +46,29 @@ export function GraficosCompletos({ datos }: { datos: Estadisticas }) {
     detalle: `${pesos(p.ingresos)} · ${trabajos(p.completados)}`,
   }));
   const mejor = columnas.reduce<Columna | null>((m, c) => (c.valor > (m?.valor ?? 0) ? c : m), null);
+
+  /* ----- Ingresos vs. gastos ----- */
+  const pares: ParDeColumnas[] = serie.map((p, i) => ({
+    clave: p.clave,
+    ingresos: p.ingresos,
+    gastos: p.gastos,
+    etiquetaEje: etiquetaDeEje(p.clave, i),
+    titulo: conMayuscula(etiquetaDeClave(p.clave)),
+    detalle: `Ingresos ${pesos(p.ingresos)} · Gastos ${pesos(p.gastos)} · Ganancia neta ${pesosConSigno(p.ingresos - p.gastos)}`,
+  }));
+  const hayMovimiento = periodo.ingresos > 0 || periodo.gastos > 0;
+
+  /* ----- Gastos por categoría ----- */
+  const totalGastado = datos.gastosPorCategoria.reduce((suma, c) => suma + c.monto, 0);
+  const gastosCategoria: FilaRanking[] = datos.gastosPorCategoria.map((c, i) => ({
+    id: c.categoria,
+    etiqueta: nombreDeCategoria(c.categoria),
+    valor: c.monto,
+    textoValor: pesos(c.monto),
+    detalle: `${porcentaje(totalGastado > 0 ? c.monto / totalGastado : 0)} de lo gastado`,
+    enfasis: i === 0,
+  }));
+  const mayorGasto = datos.gastosPorCategoria[0];
 
   /* ----- Servicios ----- */
   const primeroConPedidos = datos.porServicio.findIndex((s) => s.pedidos > 0);
@@ -110,6 +138,23 @@ export function GraficosCompletos({ datos }: { datos: Estadisticas }) {
         )}
       </div>
 
+      <div className="est-graficos__ancho">
+        <MarcoGrafico
+          titulo="Ingresos vs. gastos"
+          ayuda={`Lo cobrado y lo gastado por ${unidad}, lado a lado. Los gastos van rayados.`}
+          resumen={`En el período entraron ${pesos(periodo.ingresos)} y se gastaron ${pesos(periodo.gastos)}: la ganancia neta fue ${pesosConSigno(periodo.gananciaNeta)}.`}
+          tabla={tablaIngresosGastos(serie, granularidad)}
+        >
+          {(ids) =>
+            hayMovimiento ? (
+              <GraficoIngresosGastos pares={pares} idTitulo={ids.titulo} idResumen={ids.resumen} formatoEje={pesosCorto} />
+            ) : (
+              <p className="est-vacio-chico">Todavía no hay ingresos ni gastos cargados en este período.</p>
+            )
+          }
+        </MarcoGrafico>
+      </div>
+
       <MarcoGrafico
         titulo="Servicios"
         ayuda="Los más pedidos primero. Atrás, los pedidos; adelante, los que ya se completaron."
@@ -150,6 +195,25 @@ export function GraficosCompletos({ datos }: { datos: Estadisticas }) {
             <p className="est-vacio-chico">Todavía no hay trabajos completados en este período.</p>
           ) : (
             <RankingBarras filas={equipo} idTitulo={ids.titulo} idResumen={ids.resumen} nombrePlural="personas" />
+          )
+        }
+      </MarcoGrafico>
+
+      <MarcoGrafico
+        titulo="Gastos por categoría"
+        ayuda="En qué se fue la plata del período, de lo que más a lo que menos. En rojo, la categoría más grande."
+        resumen={
+          mayorGasto
+            ? `Lo que más se gastó fue ${nombreDeCategoria(mayorGasto.categoria)}, con ${pesos(mayorGasto.monto)} de ${pesos(totalGastado)}.`
+            : 'Todavía no hay gastos cargados en este período.'
+        }
+        tabla={tablaGastosCategoria(datos.gastosPorCategoria)}
+      >
+        {(ids) =>
+          gastosCategoria.length === 0 ? (
+            <p className="est-vacio-chico">Todavía no hay gastos cargados en este período. Se cargan desde Finanzas.</p>
+          ) : (
+            <RankingBarras filas={gastosCategoria} idTitulo={ids.titulo} idResumen={ids.resumen} nombrePlural="categorías" />
           )
         }
       </MarcoGrafico>

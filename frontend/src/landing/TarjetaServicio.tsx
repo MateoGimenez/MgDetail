@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import { Rombo } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { textoPrecio } from '../data/servicios';
@@ -137,6 +138,10 @@ export function TarjetaServicio({
             Reservá este servicio
             <Icono nombre="flecha" />
           </button>
+          <Link className="enlace tarjeta__completo" to={`/servicios/${encodeURIComponent(servicio.id)}`}>
+            Ver el servicio completo
+            <span className="visualmente-oculto">: {servicio.nombre}</span>
+          </Link>
         </div>
       </article>
     </li>

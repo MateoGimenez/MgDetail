@@ -18,14 +18,21 @@ import { createWebPushSender } from './notifications/push.js';
 import { createCanalesRecordatorio } from './notifications/recordatorio.js';
 import type { Repositories } from './repositories/index.js';
 import { createApiRouter } from './routes/index.js';
+import { sitemapRouter } from './routes/sitemap.js';
 import { AgendaService } from './services/agenda.js';
 import { AuthService } from './services/auth.js';
 import { BookingService } from './services/bookings.js';
+import { ComprobanteService } from './services/comprobantes.js';
 import { DisponibilidadService } from './services/disponibilidad.js';
 import { EstadisticasService } from './services/estadisticas.js';
+import { GastoService } from './services/gastos.js';
+import { InventarioService } from './services/inventario.js';
+import { MetaService } from './services/metas.js';
+import { PresupuestoService } from './services/presupuestos.js';
 import { PUSH_TIMEOUT_MS, PushService } from './services/push.js';
 import { RecordatorioService } from './services/recordatorios.js';
 import { ServicioService } from './services/servicios.js';
+import { TallerService } from './services/taller.js';
 import { UsuarioService } from './services/usuarios.js';
 
 export interface AppDeps {
@@ -58,7 +65,20 @@ export function createApp(deps: AppDeps): Express {
   const logger = deps.logger ?? createLogger();
   const now = deps.now ?? (() => new Date());
 
-  const { bookings, perfiles, servicios, disponibilidad, push: pushRepo, estadisticas: estadisticasRepo } = deps.repositories;
+  const {
+    bookings,
+    perfiles,
+    servicios,
+    disponibilidad,
+    push: pushRepo,
+    estadisticas: estadisticasRepo,
+    gastos: gastosRepo,
+    metas: metasRepo,
+    taller: tallerRepo,
+    inventario: inventarioRepo,
+    presupuestos: presupuestosRepo,
+    comprobantes: comprobantesRepo,
+  } = deps.repositories;
   const push = new PushService({
     repo: pushRepo,
     config: config.push,
@@ -98,6 +118,18 @@ export function createApp(deps: AppDeps): Express {
   const estadisticas = new EstadisticasService({ estadisticas: estadisticasRepo, now });
   const servicioService = new ServicioService({ servicios, logger, now });
   const disponibilidadService = new DisponibilidadService({ disponibilidad, logger, now });
+  const gastos = new GastoService({ gastos: gastosRepo, logger, now });
+  const metas = new MetaService({
+    metas: metasRepo,
+    estadisticas: estadisticasRepo,
+    disponibilidad: disponibilidadService,
+    logger,
+    now,
+  });
+  const taller = new TallerService({ taller: tallerRepo, logger, now });
+  const inventario = new InventarioService({ inventario: inventarioRepo, logger, now });
+  const presupuestos = new PresupuestoService({ presupuestos: presupuestosRepo, logger, now });
+  const comprobantes = new ComprobanteService({ comprobantes: comprobantesRepo, logger, now });
   const recordatorios = new RecordatorioService({
     bookings,
     canales: createCanalesRecordatorio(config.recordatorios, {
@@ -137,13 +169,24 @@ export function createApp(deps: AppDeps): Express {
       auth,
       usuarios,
       servicios: servicioService,
+      gastos,
+      metas,
+      taller,
+      inventario,
+      presupuestos,
+      comprobantes,
       cookies,
       limiters,
     }),
   );
 
+  // /sitemap.xml (SEO): solo con PUBLIC_URL; sin ella no se monta y cae al 404 de siempre.
+  if (config.publicUrl !== undefined) {
+    app.use(sitemapRouter({ publicUrl: config.publicUrl, servicios: servicioService, limiter: limiters.api }));
+  }
+
   if (config.serveFrontend) {
-    mountFrontend(app, config.frontendDistPath);
+    mountFrontend(app, config.frontendDistPath, config.publicUrl);
   }
 
   app.use(notFoundHandler);

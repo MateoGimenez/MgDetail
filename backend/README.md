@@ -69,7 +69,7 @@ Copiá `.env.example` a `.env` (está ignorado por git; nunca subas uno con secr
 | `DATABASE_SSL_CA_FILE` | (obligatoria con Postgres remoto) | Certificado raíz de Supabase para verificar al servidor (TLS verify-full). Ruta relativa a `backend/` o absoluta. Solo un Postgres local (`localhost`/`127.x`) se tolera sin ella fuera de producción, con un aviso. |
 | `DB_DRIVER`, `DB_PATH`, `JWT_SECRET` | | **Ya no se usan.** `DB_DRIVER=postgres` se sigue aceptando (cualquier otro valor se rechaza); `DB_PATH` y `JWT_SECRET` solo generan un aviso al arrancar: borralos del `.env`. |
 | `TRUST_PROXY` | `false` | Cuántos proxies hay delante (`1`) o una lista de IP/CIDR de confianza, para que el rate limit vea la IP real. `true` se rechaza a propósito (permite falsear la IP). |
-| `PUBLIC_URL` | (vacía) | Origen público del sitio (ej. `https://mgdetailing.com.ar`). Opcional: si está, el aviso de WhatsApp incluye el link al panel. |
+| `PUBLIC_URL` | (vacía) | Origen público del sitio (ej. `https://mgdetailing.com.ar`). Opcional: si está, el aviso de WhatsApp incluye el link al panel, se publica `GET /sitemap.xml` (sin ella, 404) y `robots.txt` suma la línea `Sitemap:` (ver [Gastos, metas y datos del taller](#gastos-metas-mensuales-y-datos-del-taller-objetivo-10-m1)). |
 | `WHATSAPP_PROVIDER` | `none` | `none`, `callmebot`, `cloud` o `telegram`. Ver [Avisos por WhatsApp](#avisos-por-whatsapp). |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | | Solo con `telegram`. Vacías = avisos desactivados (advertencia en desarrollo; en producción no arranca). |
 | `WHATSAPP_OWNER_PHONE` | | Número del dueño, con código de país y solo dígitos (`5493804781737`). |
@@ -141,10 +141,18 @@ La lista `CAPACIDADES` de `src/domain/permisos.ts` es la única fuente: de ahí 
 | Disponibilidad | Cambiar horario semanal y días especiales | sí | sí | no |
 | Estadísticas | Estadísticas del taller, con importes y de todo el equipo | sí | sí | no |
 | Estadísticas | Ver los trabajos que uno mismo completó (sin importes) | sí | sí | sí |
+| Finanzas | Ver y cargar los gastos del taller | sí | sí | no |
+| Finanzas | Fijar y seguir las metas mensuales | sí | sí | no |
+| Documentos | Armar presupuestos y descargarlos en PDF | sí | sí | no |
+| Documentos | Emitir comprobantes de pago en PDF | sí | sí | no |
+| Documentos | Editar los datos del taller que salen en los PDF | sí | sí | no |
+| Inventario | Ver el inventario | sí | sí | sí |
+| Inventario | Registrar el uso de insumos | sí | sí | sí |
+| Inventario | Crear insumos, cargar compras y ajustar el stock | sí | sí | no |
 | Usuarios | Crear, editar y desactivar usuarios | sí | no | no |
 | Avisos | Activar los avisos de turnos nuevos en su dispositivo | sí | sí | sí |
 
-Funciones: `puedeCambiarEstado(rol, estado)`, `puedeReprogramar`, `puedeBorrarTurnos`, `puedeGestionarUsuarios`, `puedeEditarCatalogo`, `puedeEditarDisponibilidad`, `puedeVerEstadisticas` (también decide quién ve importes: `puedeVerImportes`), `puedeRegistrarCobro` (monto y elegir trabajador) y `puedeCorregirCobro`. Los textos de `mgdetailing.roles.descripcion` los actualiza la migración `estadisticas_cobro_trabajador` para que digan lo mismo.
+Funciones: `puedeCambiarEstado(rol, estado)`, `puedeReprogramar`, `puedeBorrarTurnos`, `puedeGestionarUsuarios`, `puedeEditarCatalogo`, `puedeEditarDisponibilidad`, `puedeVerEstadisticas` (también decide quién ve importes: `puedeVerImportes`), `puedeRegistrarCobro` (monto y elegir trabajador) y `puedeCorregirCobro`. Objetivo 10: `puedeGestionarGastos`, `puedeGestionarMetas`, `puedeArmarPresupuestos`, `puedeEmitirComprobantes`, `puedeEditarTaller`, `puedeVerInventario`, `puedeRegistrarUsoInsumos`, `puedeGestionarInventario` y `puedeVerCostosInventario` (el empleado nunca recibe costos ni valores en pesos del inventario). Los textos de `mgdetailing.roles.descripcion` los actualiza la migración `estadisticas_cobro_trabajador` para que digan lo mismo.
 
 **El empleado nunca recibe importes**: `monto` es siempre `null` en cualquier respuesta con turnos (listado, agenda, PATCH; función `vistaDeTurno`), no puede pedir las estadísticas completas (`403`) y "mis trabajos" no lleva ningún importe (la consulta ni siquiera lee la columna). El seguimiento público tampoco devuelve `monto` ni `trabajador`.
 
@@ -285,6 +293,9 @@ erDiagram
 | `roles` | Los 3 roles del panel (sembrados por migración). Los permisos de cada rol los aplica el backend (`domain/permisos.ts`). | PK `id` (slug). |
 | `perfiles` | Un perfil por usuario de Supabase Auth: rol y si puede entrar. Lo crea el trigger de `auth.users`; se borra en cascada con el usuario. | PK/FK `id -> auth.users ON DELETE CASCADE`; FK `rol_id -> roles` con índice; CHECK de email en minúsculas y largo de nombre; trigger `updated_at`; trigger `perfiles_al_menos_un_superadmin`. |
 | `push_suscripciones` | Dispositivos de las personas del panel que activaron los avisos push (ver [Avisos push](#avisos-push)). `endpoint`, `p256dh` y `auth` son secretos de capacidad: quien los tiene puede mandarle avisos a ese aparato. | PK `id`; FK `perfil_id -> perfiles ON DELETE CASCADE`; `endpoint` único (CHECK: `https`, de 12 a 2048); CHECK de formato base64url en `p256dh` y `auth` y de largo en `agente` (≤ 120); índice `(perfil_id, created_at)` para la FK y el tope de 10 por persona. RLS con policies solo para `mgdetailing_app`; GRANT `SELECT`, `DELETE`, `INSERT` por columna y `UPDATE (ultimo_aviso_at)`. |
+| `gastos` | Gastos del taller (objetivo 10, migración `finanzas_gastos_metas_taller`). Ganancia neta = ingresos de los turnos completados - gastos, por fecha. | PK `id` uuid; `fecha` date; `categoria` CHECK (9 valores); `descripcion` 1 a 120; `monto` entero 1 a 99.999.999; `proveedor` <= 80 o null; `origen` CHECK `manual`/`inventario` (el de inventario no se edita desde Gastos); `creado_por` FK `perfiles ON DELETE SET NULL`; índices `gastos_fecha_idx` y parcial de la FK; trigger `updated_at`. RLS; `mgdetailing_app`: SELECT, DELETE, INSERT y UPDATE por columna (nunca `id` ni `origen`). |
+| `metas_mensuales` | Meta de cada mes: ingresos y/o trabajos completados. | PK `mes` date (CHECK: siempre el día 1); `ingresos_objetivo` 1 a 999.999.999; `trabajos_objetivo` 1 a 9.999; CHECK: al menos uno no nulo. RLS; SELECT, INSERT, DELETE y UPDATE de los objetivos. |
+| `taller` | Datos del taller que salen en los PDF. **Una sola fila** (`id = 1`, CHECK), sembrada con nombre, teléfono y dirección. | CHECK de `telefono` (8 a 15 dígitos), `cuit` (11 dígitos o `NN-NNNNNNNN-N`), `instagram` (sin `@`, <= 30) y largos. RLS; la app solo tiene SELECT y UPDATE por columna (no inserta ni borra). |
 
 Funciones y triggers (migración `perfiles_roles_supabase_auth`):
 
@@ -329,6 +340,7 @@ Decisiones:
 - **`20261023200000_disponibilidad_seguimiento` (2026-10-23): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-23_11_disponibilidad-seguimiento-recordatorios.md`). Crea `horario_semanal` (7 filas) y `dias_especiales` (15 feriados) con RLS y policies solo para `mgdetailing_app`, agrega `bookings.recordatorio_enviado_at` (nullable, sin reescribir la tabla), hace que el trigger de `updated_at` de `bookings` no corra cuando cambia la marca del recordatorio (marcarlo no es un cambio del turno: el cliente ve "actualizado el") y da a `mgdetailing_app` `SELECT` en las dos tablas, `UPDATE (abierto, cupo_manana, cupo_tarde)` en el horario, `INSERT`/`UPDATE (abierto, cupos, motivo)`/`DELETE` en los días especiales y `UPDATE (recordatorio_enviado_at)` en `bookings`. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de disponibilidad"). Orden: después de `notas_telefono_cliente`, antes de desplegar; después, los advisors. **Al aplicarla, el formulario empieza a rechazar domingos, feriados y franjas con 2 turnos**: revisá antes el horario y los cupos con el dueño.
 - **`20261026120000_push_suscripciones` (2026-10-26): PENDIENTE de aplicar en Supabase, con aprobación del dueño** (contrato `reportes/2026-10-26_13_panel-pulido-y-app.md`, bloque A). Crea `push_suscripciones` (tabla nueva y vacía: no reescribe nada) con RLS, policies solo para `mgdetailing_app`, CHECK de formato y los GRANT de arriba. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan objetos de la migración de avisos push"). Orden: después de `disponibilidad_seguimiento`, antes de desplegar; después, los advisors (se espera el INFO *unused index* en `push_suscripciones_perfil_idx` hasta que haya dispositivos).
 - **`20261027100000_estadisticas_cobro_trabajador` (2026-10-27): PENDIENTE de aplicar en Supabase** (contrato `reportes/2026-10-26_15_estadisticas-y-permisos.md`). Agrega `bookings.monto` y `bookings.trabajador_id` (nullable, sin default: no reescribe la tabla) con sus CHECK y la FK `ON DELETE SET NULL`, los índices `bookings_trabajador_id_idx` (parcial) y `bookings_fecha_agenda_estado_idx` (fecha de agenda + estado, para las estadísticas, que cuentan también los cancelados), amplía la condición del trigger de `updated_at` (tampoco corre al cambiar `monto` o `trabajador_id`), da `GRANT UPDATE (monto, trabajador_id)` a `mgdetailing_app` y actualiza `roles.descripcion`. Hasta aplicarla, **el backend nuevo no arranca** ("Faltan columnas en mgdetailing.bookings (monto, trabajador_id)"). Orden: después de `push_suscripciones`, antes de desplegar; después, los advisors. No aplicar sin pasar las pruebas.
+- **`20261028110000_inventario` y `20261028120000_presupuestos_comprobantes` (2026-10-28): PENDIENTES de aplicar en Supabase** (contrato `reportes/2026-10-27_17_finanzas-inventario-documentos.md`, M2 y M3). Cuatro tablas nuevas y vacías (`insumos`, `movimientos_stock`, `presupuestos`, `comprobantes`) y la función `presupuesto_items_validos`; no reescriben nada. Hasta aplicarlas, **el backend nuevo no arranca** ("Faltan tablas de la migración inventario/presupuestos_comprobantes"). Orden: después de `finanzas_gastos_metas_taller` (la FK `movimientos_stock.gasto_id` apunta a `gastos`), antes de desplegar (el despliegue también tiene que llevar `backend/assets/`); después, los advisors. No aplicar sin pasar las pruebas.
 - Los servicios ya **no** se agregan por migración ni en el código: se crean desde el panel.
 
 ### Backups (Supabase)
@@ -778,17 +790,18 @@ Todo se agrupa por la **fecha de agenda** del turno (la confirmada si existe, si
   "rango": { "desde": "2026-10-01", "hasta": "2026-10-26" },
   "granularidad": "dia",
   "resumen": {
-    "hoy":  { "actual": { "completados": 3, "ingresos": 95000 }, "anterior": { "completados": 2, "ingresos": 60000 } },
+    "hoy":  { "actual": { "completados": 3, "ingresos": 95000, "gastos": 12500, "ganancia": 82500 }, "anterior": { "completados": 2, "ingresos": 60000, "gastos": 0, "ganancia": 60000 } },
     "mes":  { "actual": {}, "anterior": {} },
     "anio": { "actual": {}, "anterior": {} }
   },
   "periodo": { "turnos": 40, "pedidos": 36, "pendientes": 4, "confirmados": 6, "completados": 24, "cancelados": 4,
-               "ingresos": 1240000, "ticketPromedio": 59048, "completadosSinMonto": 3, "tasaCancelacion": 0.1 },
-  "serie": [ { "clave": "2026-10-01", "completados": 2, "ingresos": 80000 } ],
+               "ingresos": 1240000, "gastos": 310000, "gananciaNeta": 930000, "margen": 0.75, "ticketPromedio": 59048, "completadosSinMonto": 3, "tasaCancelacion": 0.1 },
+  "serie": [ { "clave": "2026-10-01", "completados": 2, "ingresos": 80000, "gastos": 12500 } ],
   "porServicio": [ { "servicioId": "lavado-premium", "nombre": "Lavado Premium", "pedidos": 14, "completados": 10, "ingresos": 600000 } ],
   "porTrabajador": [ { "id": "<uuid>", "nombre": "Lucas", "completados": 12, "ingresos": 560000 } ],
   "porDiaSemana": [ { "dia": 1, "manana": 5, "tarde": 3 } ],
-  "completadosSinTrabajador": 2
+  "completadosSinTrabajador": 2,
+  "gastosPorCategoria": [ { "categoria": "alquiler", "monto": 90000 } ]
 }
 ```
 
@@ -798,6 +811,7 @@ Todo se agrupa por la **fecha de agenda** del turno (la confirmada si existe, si
 - `porTrabajador`: por `completados` descendente; `id: null` y `nombre: "Sin asignar"` agrupa los completados sin trabajador (o cuya persona se borró). `completadosSinTrabajador` es esa misma cuenta.
 - `porDiaSemana`: siempre los 7 días (0 = domingo ... 6 = sábado), con los pedidos de mañana y tarde del rango.
 - `ticketPromedio` y `tasaCancelacion` son `null` si el denominador es 0.
+- **Gastos (objetivo 10):** `resumen.*.{actual,anterior}` suman `gastos` y `ganancia` (ingresos - gastos; puede ser negativa); `periodo` suma `gastos`, `gananciaNeta` y `margen` (gananciaNeta / ingresos, 4 decimales, `null` si los ingresos son 0); cada punto de `serie` suma `gastos`; `gastosPorCategoria` va por monto descendente y solo con categorías con gasto. Los gastos se agrupan por la **fecha del gasto** (criterio de caja) con agregaciones en SQL. `/estadisticas/mias` no cambia.
 
 ### `GET /api/admin/estadisticas/mias?desde&hasta` (todos los roles)
 
@@ -927,6 +941,42 @@ Body estricto con al menos uno de: `nombre`, `resumen`, `descripcion`, `incluye`
 ### `PUT /api/admin/servicios/orden` (solo `admin` y `superadmin`)
 
 Body estricto `{ "ids": string[] }` con **todos** los ids del catálogo (activos e inactivos), sin repetir, en el orden nuevo. Se guarda `orden = posición × 10` (10, 20, 30...) en una transacción. `200 { "servicios": Servicio[] }` (el catálogo completo, ya ordenado). `400 VALIDATION_ERROR` con `fields.ids` si faltan, sobran o se repiten ids; `403 FORBIDDEN` para `empleado`. Pasa por el mismo control CSRF que `POST`/`PATCH`/`DELETE` (`Origin` + `Content-Type`).
+
+### Gastos, metas mensuales y datos del taller (objetivo 10, M1)
+
+Contrato: `reportes/2026-10-27_17_finanzas-inventario-documentos.md`. **Todo es solo para `admin` y `superadmin`: el empleado recibe `403` en cada endpoint (antes de validar el body) y nunca ve gastos, ganancia ni metas.** Errores, CSRF y `fields` como el resto de la API.
+
+#### `GET /api/admin/gastos?desde=&hasta=&categoria=&q=&limit=&offset=`
+
+`200 { "gastos": Gasto[], "total": N, "suma": N }`. `Gasto` = `{ id, fecha: "YYYY-MM-DD", categoria, descripcion, monto, proveedor: string|null, origen: "manual"|"inventario", creadoPor: { id, nombre }|null, createdAt, updatedAt }`. Categorías: `insumos`, `herramientas`, `alquiler`, `servicios`, `sueldos`, `publicidad`, `mantenimiento`, `impuestos`, `otros`. Sin `desde` ni `hasta`: el **mes actual** (hora de La Rioja); con uno solo, el otro extremo queda abierto; `hasta` anterior a `desde` es `400 fields.hasta`. `total` y `suma` (pesos) son de **todo el filtro**, no de la página. Orden: fecha descendente. `limit` 1 a 100 (50), `offset` >= 0. `q` (2 a 80 caracteres) busca en descripción y proveedor sin distinguir mayúsculas ni acentos (`mgdetailing.texto_busqueda`; la ñ se conserva) y los comodines `%`, `_` y `\` se buscan como texto.
+
+#### `POST /api/admin/gastos` `{ fecha, categoria, descripcion, monto, proveedor? }` -> `201 { "gasto" }`
+
+`descripcion` 1 a 120 caracteres, `proveedor` hasta 80 o `null` (una línea, sin caracteres de control; los bidireccionales se quitan), `monto` entero de 1 a 99.999.999. **La fecha no puede ser futura** (`400 fields.fecha`, según el "hoy" de La Rioja). Campos de más: `400`.
+
+#### `PATCH /api/admin/gastos/:id` y `DELETE /api/admin/gastos/:id`
+
+PATCH acepta cualquiera de esos campos (al menos uno; `proveedor: null` lo borra) -> `200 { "gasto" }`; DELETE -> `204`. `404` si no existe (o el id no es un UUID). Un gasto con `origen: "inventario"` (lo crea una compra de inventario) **no se edita ni se borra desde acá**: `409` con código `GASTO_DE_INVENTARIO` y el mensaje "Este gasto viene de una compra de inventario: corregilo desde Inventario."
+
+**Para el inventario (M2):** `registrarGastoDeInventario(tx, { fecha, descripcion, monto, proveedor?, creadoPor? })` en `src/services/gastos.ts` crea el gasto (`categoria: "insumos"`, `origen: "inventario"`) **dentro de la transacción de quien la llama** (`tx` es el cliente de `sql.transaction(async (tx) => ...)`) y devuelve el `Gasto` (su `id` va al movimiento de stock). Si algo después falla, el gasto se revierte con el resto. Los valores tienen que respetar los topes de la tabla (si no, la base rechaza y se revierte todo).
+
+#### `GET /api/admin/metas/actual`
+
+`200 { "mes": "2026-10", "meta": { ingresosObjetivo, trabajosObjetivo } | null, "progreso": { ingresos, trabajos, porcentajeIngresos, porcentajeTrabajos, diasDeAtencionTranscurridos, diasDeAtencionRestantes, diasDeAtencionTotales, proyeccionIngresos, necesarioPorDia, estado } }`. El mes y "hoy" son los de La Rioja. Ingresos y trabajos del mes: los de las estadísticas (turnos completados por fecha de agenda). **Días de atención** = días del mes en que el taller atiende según el horario semanal y los días especiales (`DisponibilidadService.cupos`): domingos y feriados cerrados no cuentan, un día especial abierto sí; **hoy cuenta como transcurrido**. `proyeccionIngresos` = ingresos / transcurridos x totales (redondeado; `null` sin transcurridos o sin meta). `necesarioPorDia` = (objetivo de ingresos - ingresos) / restantes, redondeado (`0` si ya se cumplió; `null` sin restantes, sin objetivo de ingresos o sin meta). `estado`: `sin-meta`; `cumplida` (todos los objetivos fijados alcanzados); si no, con `esperado = objetivo x transcurridos / totales`: `adelantado` (>= 110 %), `en-ritmo` (90 a 110 %), `atrasado` (< 90 %); con dos objetivos se mira el más atrasado; sin días transcurridos (o mes sin días de atención) es `en-ritmo`. Los porcentajes son `null` si ese objetivo no está fijado (y pueden pasar de 1).
+
+#### `GET /api/admin/metas?anio=YYYY`, `PUT /api/admin/metas/:mes`, `DELETE /api/admin/metas/:mes`
+
+- `GET` -> `200 { "metas": [{ mes, ingresosObjetivo, trabajosObjetivo, ingresos, trabajos, cumplida }] }` solo de los meses del año con meta, por mes (sin `anio`, el actual).
+- `PUT` (`:mes` = `YYYY-MM`, de 12 meses atrás a 12 adelante; si no, `400 fields.mes`) `{ ingresosObjetivo?: int|null, trabajosObjetivo?: int|null }` (ingresos 1 a 999.999.999, trabajos 1 a 9.999) se **mezcla con lo guardado** (lo que no viene se conserva, `null` lo vacía); si después de mezclar no queda ningún objetivo: `400` (`fields.ingresosObjetivo` y `fields.trabajosObjetivo`). -> `200 { "meta": { mes, ingresosObjetivo, trabajosObjetivo } }`.
+- `DELETE` -> `204`; `404` si ese mes no tenía meta. Un `:mes` mal escrito es `400 fields.mes`.
+
+#### `GET /api/admin/taller` y `PUT /api/admin/taller`
+
+`200 { "taller": { nombre, telefono, direccion, instagram, cuit, leyendaPdf } }` (los cinco últimos pueden ser `null`). `PUT` **reemplaza** los seis campos (`nombre` obligatorio, 1 a 80; los otros aceptan `null`, texto en blanco o no mandarse para vaciarlos): `telefono` solo dígitos con código de país (8 a 15, ej. `5493804781737`), `instagram` sin `@` (letras, números, `.`, `_`; hasta 30), `cuit` 11 dígitos o `NN-NNNNNNNN-N` (no se verifica el dígito verificador), `direccion` hasta 160, `leyendaPdf` hasta 300 (una línea). Sembrado con el nombre, teléfono y dirección de la web. **Para el PDF:** `TallerService.obtener()` (`src/services/taller.ts`) devuelve esos datos.
+
+#### `GET /sitemap.xml` y `robots.txt` (SEO, objetivo 9)
+
+Solo con `PUBLIC_URL` configurada: `GET /sitemap.xml` (público, fuera de `/api`) arma el XML en cada pedido con la home y una URL `PUBLIC_URL/servicios/<id>` por **servicio activo**, cada una con `<lastmod>` (la fecha, en La Rioja, de la última edición del servicio; la home, la del cambio más reciente); `Cache-Control: public, max-age=3600`. Sin `PUBLIC_URL` responde `404`. Con `SERVE_FRONTEND=true` y `PUBLIC_URL`, `robots.txt` es el del build (`frontend/public/robots.txt`, sin tocar lo que dice) más la línea `Sitemap: <PUBLIC_URL>/sitemap.xml`; sin `PUBLIC_URL`, el archivo tal cual. `/servicios/<id>` cae al `index.html` de la SPA (sin `noindex`). La CSP de la SPA permite `frame-src https://www.google.com/maps/` (el mapa de "Dónde estamos"); la de la API sigue en `default-src 'none'`.
 
 ## Avisos por WhatsApp
 
@@ -1202,3 +1252,62 @@ Los tests usan un reloj fijo, **PGlite** (Postgres compilado a WebAssembly, en m
 `createTestContext` abre por defecto los 7 días con 20 cupos y quita los días especiales (`disponibilidad: 'libre'`), para que los tests anteriores al objetivo 4 sigan probando lo suyo; los de disponibilidad usan `disponibilidad: 'fabrica'` (la base tal como la deja la migración).
 
 No hace falta internet ni ninguna clave de Supabase para correr los tests: ninguno hace requests reales. Un test adicional falla si algún fuente contiene caracteres invisibles escritos literalmente (ataque "Trojan Source").
+
+### Inventario, presupuestos, comprobantes y PDF (objetivo 10, M2/M3)
+
+Contrato: `reportes/2026-10-27_17_finanzas-inventario-documentos.md`. Errores, CSRF y `fields` como el resto de la API. **Presupuestos y comprobantes NO son facturas.**
+
+**Quién puede qué.** Inventario: ver y registrar **uso** = todos los roles; crear/editar insumos, **compras** y **ajustes** = `admin` y `superadmin` (el empleado recibe `403` antes de validar el body, también al mandar `compra` o `ajuste`). **El empleado nunca recibe costos ni valores en pesos** (`costoUnitario`, `valorEnStock`, `costoTotal`, `valorTotal` van `null` en cada respuesta: lo aplican las vistas `vistaDeInsumo`, `vistaDeMovimiento` y `vistaDeListaDeInsumos` de `domain/inventario.ts`). Presupuestos, comprobantes y PDF: solo `admin` y `superadmin` (`403` al empleado en todo).
+
+#### Inventario
+
+`Insumo` = `{ id, nombre, categoria: string|null, unidad, stock, stockMinimo, costoUnitario: int|null, activo, bajoStock, valorEnStock: int|null, updatedAt }`. Unidades: `unidad`, `litro`, `ml`, `kg`, `g`, `par`, `caja`. `bajoStock` = `stockMinimo > 0 && stock <= stockMinimo`; `valorEnStock` = `round(stock x costoUnitario)`.
+
+- `GET /api/admin/insumos?q=&bajoStock=true&activo=true|false|todos&limit=&offset=` -> `200 { insumos, total, bajoStock, valorTotal }`. Por omisión solo activos; orden: stock bajo primero y después por nombre; `limit` 1 a 100 (50). `bajoStock` y `valorTotal` son de **todo el inventario activo**, no del filtro ni de la página. `q` (2 a 80) busca en nombre y categoría sin distinguir mayúsculas ni acentos; los comodines se buscan como texto.
+- `POST /api/admin/insumos { nombre (1-80), categoria? (1-40), unidad, stockInicial?, stockMinimo?, costoUnitario? }` -> `201 { insumo }`. Un `stockInicial > 0` deja un ajuste "Stock inicial". Nombre repetido entre activos (sin distinguir mayúsculas) -> `409 CONFLICT` con `fields.nombre`.
+- `PATCH /api/admin/insumos/:id { nombre?, categoria? (null vacía), unidad?, stockMinimo?, costoUnitario? (null vacía), activo? }` -> `200 { insumo }` (al menos un campo; reactivar o renombrar con el nombre de otro activo -> `409`). No se borran: se desactivan.
+- `GET /api/admin/insumos/:id/movimientos?limit=&offset=` -> `200 { movimientos, total }`, más nuevos primero. `Movimiento` = `{ id, tipo, cantidad (con signo), costoTotal: int|null, proveedor, nota, persona: { id, nombre }|null, turnoId, createdAt }`.
+- `POST /api/admin/insumos/:id/movimientos` -> `201 { insumo, movimiento }`:
+  - `{ tipo: "uso", cantidad, nota?, turnoId? }` (todos): resta. Si no alcanza -> `409 STOCK_INSUFICIENTE` con `fields.cantidad` ("Solo quedan 0,3 litros."). `turnoId` inexistente -> `400 fields.turnoId`.
+  - `{ tipo: "compra", cantidad, costoTotal?, proveedor?, nota? }` (admin): suma. Con `costoTotal > 0` crea el **gasto** (`categoria insumos`, `origen inventario`, fecha de hoy en La Rioja, descripcion `Compra: <nombre> (<cantidad> <unidad>)`) vinculado al movimiento (`gasto_id`) y fija `costoUnitario = round(costoTotal / cantidad)`. Todo en una transacción.
+  - `{ tipo: "ajuste", stockReal, nota? }` (admin): conteo físico; guarda la diferencia con signo. **Si la diferencia es 0 devuelve `200 { insumo }` sin `movimiento`** y no crea nada.
+  - Cantidades: hasta 2 decimales, `> 0` (`uso` y `compra`), `<= 999999`; `stockReal` entre 0 y 999999.
+- **Stock concurrente:** cada movimiento corre en una transacción con `pg_advisory_xact_lock(7340010, hashtext(insumo_id))` + `SELECT ... FOR UPDATE`; el uso descuenta con `UPDATE ... WHERE stock >= cantidad` y el `CHECK (stock >= 0)` de la tabla es la red. Dos usos que no caben juntos: uno entra (`201`) y el otro es `409`.
+
+#### Presupuestos
+
+`Presupuesto` = `{ id, numero, codigo: "P-0007", clienteNombre, clienteTelefono: string|null, vehiculo: string|null, items: [{ descripcion, cantidad, precioUnitario }], descuento, subtotal, total, validezDias, venceEl, estado, vencido, notas, turnoId, creadoPor, createdAt, updatedAt }`. Cuentas (en `domain/presupuestos.ts`, nunca en el cliente): importe de un ítem = `round(cantidad x precioUnitario)` (.5 hacia arriba, con enteros: sin errores de coma flotante); `subtotal` = suma de importes; `total = max(0, subtotal - descuento)` (un descuento mayor al subtotal deja 0); `venceEl` = fecha de creación **en La Rioja** + `validezDias`; `vencido` = `borrador` o `enviado` con `venceEl` anterior a hoy (el día de vencimiento todavía vale). `numero` es una identidad de la base: nunca se reutiliza.
+
+- `GET /api/admin/presupuestos?estado=&q=&limit=&offset=` -> `200 { presupuestos, total }` (más nuevos primero; `q` busca en cliente, vehículo y código).
+- `POST /api/admin/presupuestos { clienteNombre (1-80), clienteTelefono?, vehiculo? (<=80), items (1 a 30), descuento? (0 a 999.999.999), validezDias? (1-90, por omisión 7), notas? (<=500), turnoId? }` -> `201 { presupuesto }`. Ítem: `descripcion` 1-120, `cantidad` > 0, <= 999, 2 decimales, `precioUnitario` entero 0 a 99.999.999. Los errores de los ítems llevan su posición: `fields["items.2.cantidad"]`, `items.0.descripcion`, `items.1.precioUnitario`. Un subtotal mayor a 999.999.999 -> `400 fields.items`. El teléfono se guarda **normalizado** (solo dígitos, con `549` si es celular argentino); uno ilegible -> `400 fields.clienteTelefono`. Los vacíos/`null` se omiten.
+- `GET /api/admin/presupuestos/:id`, `PATCH` (cualquier campo; `items` se reemplaza entero; `clienteTelefono`, `vehiculo`, `notas` y `turnoId` aceptan `null` para vaciar; `estado` cambia libremente entre `borrador`, `enviado`, `aceptado`, `rechazado`; el total se recalcula con lo guardado) y `DELETE` -> `204`; **aceptado -> `409 PRESUPUESTO_ACEPTADO`**.
+- `GET /api/admin/presupuestos/:id/pdf` (ver "PDF").
+
+#### Comprobantes
+
+`Comprobante` = `{ id, numero, codigo: "R-0001", fechaEmision, formaPago, monto, clienteNombre, servicioNombre, vehiculo, notas }`. Es una **foto** del momento: copia nombre, servicio, vehículo (el modelo; si no hay, el tipo: "Camioneta") y monto del turno, y no cambia si después se edita el turno. Formas de pago: `efectivo`, `transferencia`, `debito`, `credito`, `otro`.
+
+- `POST /api/admin/bookings/:id/comprobante { formaPago, notas? (<=200) }` -> `201 { comprobante }` la primera vez y **`200` con el existente** si el turno ya tenía (idempotente, con bloqueo por turno: no se emite otro). Turno no completado o sin `monto` -> `400` "Primero cargá el cobro del trabajo."; turno inexistente -> `404`.
+- `GET /api/admin/bookings/:id/comprobante` -> `200 { comprobante }` o `404` si todavía no hay.
+- `GET /api/admin/comprobantes/:id/pdf` (ver "PDF").
+- Un turno con comprobante **no se puede borrar**: `DELETE /api/admin/bookings/:id` -> `409 TURNO_CON_COMPROBANTE` (la FK es `ON DELETE RESTRICT`).
+
+#### PDF
+
+Se arma en el backend con `pdfkit` (única dependencia nueva, más sus tipos) a partir de lo guardado y los datos de `TallerService`; **nunca se guarda**. Fuentes estándar (Helvetica, WinAnsi): acentos y ñ salen bien. Código: `src/pdf/documentos.ts`.
+
+- Respuesta: `200`, `Content-Type: application/pdf`, `Content-Disposition: inline; filename="Presupuesto-P-0007.pdf"` (o `Comprobante-R-0001.pdf`; el nombre solo tiene `[A-Za-z0-9._-]`), `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`. `404` si no existe, `403` al empleado, `401` sin sesión.
+- Contenido: logo (`backend/assets/logo.png`, copia de `frontend/public/marca/logo-fondo-claro.png`; se resuelve desde la raíz del backend, igual desde `src/` que desde `dist/`: **el despliegue tiene que llevar la carpeta `assets/`** junto a `dist/`, como `supabase/migrations`), datos del taller, código y fecha, cliente y vehículo, tabla de ítems (descripción, cantidad, precio unitario, importe) con paginado y encabezado repetido, subtotal, descuento, **total**, notas y las leyendas "Presupuesto no vinculante hasta su aceptación. No es una factura." / "Comprobante de pago interno. No es una factura ni tiene validez fiscal." más `leyendaPdf` del taller. Montos `$ 12.500`, fechas `dd/mm/aaaa`, hora de La Rioja.
+- Seguridad: el texto de personas pasa por `limpiar()` (sin controles ni caracteres de formato/bidireccionales; lo que Helvetica no dibuja sale como `?`); es solo texto, sin enlaces ni acciones ni scripts. Las descripciones y nombres largos envuelven en su celda.
+- Para los tests, `generarPdfPresupuesto(p, taller, { comprimir: false })` deja los textos legibles dentro del archivo.
+
+#### Modelo de datos (M2/M3)
+
+| Tabla | Para qué | Restricciones |
+|---|---|---|
+| `insumos` | Insumos con stock decimal | `stock numeric(12,2)` CHECK 0 a 9.999.999,99; `stock_minimo` 0 a 999.999; `costo_unitario` entero 0 a 99.999.999 o null; `unidad` CHECK (7 valores); índice único parcial `lower(btrim(nombre)) WHERE activo`. `mgdetailing_app`: SELECT, INSERT y UPDATE por columna (sin DELETE). |
+| `movimientos_stock` | Historial inmutable | `insumo_id` FK `RESTRICT`; `tipo` CHECK; `cantidad` con signo (CHECK por tipo: compra > 0, uso < 0, ajuste <> 0); `costo_total`/`proveedor`/`gasto_id` solo en compras; `nota` <= 200; `turno_id`, `perfil_id` `ON DELETE SET NULL`; `gasto_id` único `SET NULL`. `mgdetailing_app`: SELECT e INSERT. |
+| `presupuestos` | Presupuestos | `numero` identidad única; `items jsonb` validado por `mgdetailing.presupuesto_items_validos` (IMMUTABLE: 1 a 30 ítems con claves exactas); `total` 0 a 999.999.999; `validez_dias` 1 a 90; `estado` CHECK; `cliente_telefono` 8 a 15 dígitos. `mgdetailing_app`: SELECT, DELETE, INSERT/UPDATE por columna (nunca `id` ni `numero`). |
+| `comprobantes` | Comprobantes de pago | `numero` identidad única; `booking_id` único, FK `RESTRICT`; `forma_pago` CHECK; foto de nombre/servicio/vehículo/monto. `mgdetailing_app`: SELECT e INSERT (sin UPDATE ni DELETE). |
+
+Todas con RLS, `REVOKE` a `public`, `anon`, `authenticated` y `service_role`, y policies solo para `mgdetailing_app`. `verifyPostgresSchema` exige las cuatro tablas.

@@ -10,7 +10,18 @@ import { ZONA_HORARIA } from './fechas';
 
 /* ---------- Vista inicial (?vista=) ---------- */
 
-export const VISTAS = ['hoy', 'estadisticas', 'turnos', 'agenda', 'disponibilidad', 'servicios', 'usuarios'] as const;
+export const VISTAS = [
+  'hoy',
+  'turnos',
+  'agenda',
+  'estadisticas',
+  'finanzas',
+  'presupuestos',
+  'inventario',
+  'disponibilidad',
+  'servicios',
+  'usuarios',
+] as const;
 export type Vista = (typeof VISTAS)[number];
 
 /**
@@ -31,6 +42,9 @@ export function masViejos(turnos: readonly Turno[], cuantos: number): Turno[] {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .slice(0, Math.max(0, cuantos));
 }
+
+/** "1 insumo con stock bajo", "3 insumos con stock bajo". */
+export const textoStockBajo = (n: number) => (n === 1 ? '1 insumo con stock bajo' : `${String(n)} insumos con stock bajo`);
 
 /** "1 pendiente", "4 pendientes". */
 export const textoPendientes = (n: number) => (n === 1 ? '1 pendiente' : `${String(n)} pendientes`);

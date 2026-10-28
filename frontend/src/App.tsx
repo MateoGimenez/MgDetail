@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
+import { ErrorBoundary } from './ErrorBoundary';
 import { Landing } from './landing/Landing';
 import { NoEncontrada } from './NoEncontrada';
 
@@ -7,6 +8,8 @@ import { NoEncontrada } from './NoEncontrada';
 const PanelAdmin = lazy(() => import('./admin/AdminApp'));
 // El seguimiento de un turno llega por un enlace suelto: tampoco carga la landing.
 const Seguimiento = lazy(() => import('./seguimiento/PaginaSeguimiento'));
+// Una página por servicio (/servicios/:id): también se descarga aparte, con su SEO propio.
+const PaginaServicio = lazy(() => import('./landing/PaginaServicio'));
 
 function CargandoPanel() {
   return (
@@ -18,6 +21,7 @@ function CargandoPanel() {
 
 export function App() {
   return (
+    <ErrorBoundary>
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route
@@ -36,7 +40,16 @@ export function App() {
           </Suspense>
         }
       />
+      <Route
+        path="/servicios/:id"
+        element={
+          <Suspense fallback={<div className="cargando-pagina" role="status">Cargando el servicio…</div>}>
+            <PaginaServicio />
+          </Suspense>
+        }
+      />
       <Route path="*" element={<NoEncontrada />} />
     </Routes>
+    </ErrorBoundary>
   );
 }

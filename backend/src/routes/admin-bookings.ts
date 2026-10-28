@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { BookingRepository } from '../domain/booking.js';
+import { TurnoConComprobanteError } from '../domain/comprobantes.js';
 import { puedeBorrarTurnos, vistaDeTurno } from '../domain/permisos.js';
 import { AppError } from '../lib/errors.js';
 import { getUsuario } from '../middleware/require-session.js';
@@ -61,8 +62,11 @@ export function adminBookingsRouter(deps: { bookings: BookingRepository; agenda:
       throw AppError.forbidden('Con tu rol no podés borrar turnos.');
     }
     const id = parseBookingId(req.params.id);
-    if (!(await bookings.delete(id))) {
-      throw AppError.notFound(NOT_FOUND_MESSAGE);
+    try {
+      if (!(await bookings.delete(id))) throw AppError.notFound(NOT_FOUND_MESSAGE);
+    } catch (error) {
+      if (error instanceof TurnoConComprobanteError) throw AppError.turnoConComprobante();
+      throw error;
     }
     res.status(204).end();
   });

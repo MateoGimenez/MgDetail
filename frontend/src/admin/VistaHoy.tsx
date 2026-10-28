@@ -13,13 +13,15 @@ import {
   resumenDelDia,
   saludoSegunHora,
   textoPendientes,
+  textoStockBajo,
   type FranjaDelDia,
-  type Vista,
 } from '../lib/hoy';
 import './cobro/cobro.css';
 import { EsqueletoHoy } from './Esqueleto';
-import { puedeRegistrarCobro } from './permisos';
-import type { Filtro } from './useTurnos';
+import { TarjetaDelMes } from './finanzas/TarjetaDelMes';
+import { useStockBajo } from './finanzas/useStockBajo';
+import { puedeRegistrarCobro, puedeVerFinanzas } from './permisos';
+import type { PropsSeccion } from './secciones';
 import { useHoy } from './useHoy';
 
 const conMayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
@@ -31,7 +33,7 @@ interface Props {
   nombreServicio: (id: string) => string;
   alVencerSesion: (mensaje: string) => void;
   /** Lleva a otra vista del panel; `busqueda` abre Turnos con ese texto buscado. */
-  irA: (vista: Vista, busqueda?: string, filtro?: Filtro) => void;
+  irA: PropsSeccion['irA'];
 }
 
 /** Primer nombre para el saludo ("Mateo Giménez" → "Mateo"; de un email se usa lo de antes de la arroba). */
@@ -48,6 +50,9 @@ function primerNombre(nombre: string | null): string | null {
  */
 export function VistaHoy({ rol, nombre, nombreServicio, alVencerSesion, irA }: Props) {
   const h = useHoy(alVencerSesion, puedeRegistrarCobro(rol));
+  const conFinanzas = puedeVerFinanzas(rol);
+  // Insumos con stock bajo: lo ven todos los roles; si Inventario no responde, simplemente no hay aviso.
+  const stockBajo = useStockBajo(alVencerSesion, h.version);
   const tituloRef = useRef<HTMLHeadingElement>(null);
   const datos = h.datos;
   const quien = primerNombre(nombre);
@@ -145,6 +150,27 @@ export function VistaHoy({ rol, nombre, nombreServicio, alVencerSesion, irA }: P
             </ul>
           )}
 
+          {stockBajo > 0 && (
+            <ul role="list" className="hoy__avisos">
+              <li className="hoy__aviso hoy__aviso--cobro">
+                <span className="hoy__aviso-texto">
+                  <Icono nombre="alerta" tamano={18} />
+                  {textoStockBajo(stockBajo)}
+                </span>
+                <button
+                  type="button"
+                  className="boton boton--secundario boton--chico"
+                  onClick={() => {
+                    irA('inventario', undefined, undefined, 'bajo-stock');
+                  }}
+                >
+                  Ver el inventario
+                  <Icono nombre="flecha" tamano={18} />
+                </button>
+              </li>
+            </ul>
+          )}
+
           {avisos.length > 0 && (
             <ul role="list" className="hoy__avisos">
               {avisos.map((aviso) => (
@@ -154,6 +180,12 @@ export function VistaHoy({ rol, nombre, nombreServicio, alVencerSesion, irA }: P
                 </li>
               ))}
             </ul>
+          )}
+
+          {conFinanzas && (
+            <div className="hoy__mes-fila">
+              <TarjetaDelMes alVencerSesion={alVencerSesion} irA={irA} version={h.version} />
+            </div>
           )}
 
           <div className="hoy__cuerpo">

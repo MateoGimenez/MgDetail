@@ -17,6 +17,7 @@ import {
   TurnoCerradoError,
   VEHICULO_TIPOS,
 } from '../../domain/booking.js';
+import { TurnoConComprobanteError } from '../../domain/comprobantes.js';
 import { verificarLugar } from '../../domain/disponibilidad.js';
 import { telefonoWhatsapp } from '../../domain/telefono.js';
 import { cuposEntre } from './disponibilidad.js';
@@ -414,6 +415,9 @@ export class PostgresBookingRepository implements BookingRepository {
 
   async delete(id: string): Promise<boolean> {
     if (!isUuid(id)) return false;
+    // Un turno con comprobante emitido no se borra (la FK es ON DELETE RESTRICT): se avisa con un error de negocio.
+    const emitido = await this.sql.query('SELECT 1 AS ok FROM mgdetailing.comprobantes WHERE booking_id = $1::uuid', [id]);
+    if (emitido.rows.length > 0) throw new TurnoConComprobanteError();
     const { rowCount } = await this.sql.query('DELETE FROM mgdetailing.bookings WHERE id = $1::uuid', [id]);
     return rowCount > 0;
   }

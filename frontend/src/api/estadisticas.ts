@@ -1,4 +1,5 @@
 import * as z from 'zod/mini';
+import { CATEGORIAS } from '../lib/finanzas';
 import { esFechaValida } from '../lib/fechas';
 import { requestAdmin } from './sesion';
 
@@ -20,7 +21,8 @@ export type Granularidad = (typeof GRANULARIDADES)[number];
 
 const rangoSchema = z.strictObject({ desde: fecha, hasta: fecha });
 
-const montosSchema = z.strictObject({ completados: entero, ingresos: entero });
+/** `ganancia` = ingresos − gastos del tramo; puede ser negativa. */
+const montosSchema = z.strictObject({ completados: entero, ingresos: entero, gastos: entero, ganancia: z.int() });
 const comparacionSchema = z.strictObject({ actual: montosSchema, anterior: montosSchema });
 
 const periodoSchema = z.strictObject({
@@ -31,6 +33,11 @@ const periodoSchema = z.strictObject({
   completados: entero,
   cancelados: entero,
   ingresos: entero,
+  /** Objetivo 10: lo gastado en el período y lo que queda (ingresos − gastos, puede ser negativo). */
+  gastos: entero,
+  gananciaNeta: z.int(),
+  /** gananciaNeta ÷ ingresos; null si no hubo ingresos. Puede ser negativo. */
+  margen: z.nullable(z.number()),
   ticketPromedio: z.nullable(z.number()),
   completadosSinMonto: entero,
   tasaCancelacion: z.nullable(z.number()),
@@ -41,7 +48,7 @@ export const estadisticasSchema = z.strictObject({
   granularidad: z.enum(GRANULARIDADES),
   resumen: z.strictObject({ hoy: comparacionSchema, mes: comparacionSchema, anio: comparacionSchema }),
   periodo: periodoSchema,
-  serie: z.array(z.strictObject({ clave: claveDeSerie, completados: entero, ingresos: entero })),
+  serie: z.array(z.strictObject({ clave: claveDeSerie, completados: entero, ingresos: entero, gastos: entero })),
   porServicio: z.array(
     z.strictObject({ servicioId: z.string(), nombre: z.string(), pedidos: entero, completados: entero, ingresos: entero }),
   ),
@@ -52,6 +59,8 @@ export const estadisticasSchema = z.strictObject({
     z.strictObject({ dia: z.int().check(z.gte(0), z.lte(6)), manana: entero, tarde: entero }),
   ),
   completadosSinTrabajador: entero,
+  /** Monto descendente, solo categorías con gastos (> 0). */
+  gastosPorCategoria: z.array(z.strictObject({ categoria: z.enum(CATEGORIAS), monto: z.int().check(z.gte(1)) })),
 });
 
 export const misTrabajosSchema = z.strictObject({
@@ -69,6 +78,7 @@ export type PuntoDeSerie = Estadisticas['serie'][number];
 export type FilaServicio = Estadisticas['porServicio'][number];
 export type FilaTrabajador = Estadisticas['porTrabajador'][number];
 export type FilaDiaSemana = Estadisticas['porDiaSemana'][number];
+export type FilaGastoCategoria = Estadisticas['gastosPorCategoria'][number];
 export type RangoPedido = z.infer<typeof rangoSchema>;
 
 const consulta = (rango: RangoPedido) => new URLSearchParams({ desde: rango.desde, hasta: rango.hasta }).toString();

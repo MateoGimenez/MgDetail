@@ -349,14 +349,14 @@ describe('GET /api/admin/estadisticas', () => {
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     const body = response.body;
     expect(Object.keys(body).sort()).toEqual(
-      ['completadosSinTrabajador', 'granularidad', 'periodo', 'porDiaSemana', 'porServicio', 'porTrabajador', 'rango', 'resumen', 'serie'],
+      ['completadosSinTrabajador', 'gastosPorCategoria', 'granularidad', 'periodo', 'porDiaSemana', 'porServicio', 'porTrabajador', 'rango', 'resumen', 'serie'],
     );
     expect(body.rango).toEqual({ desde: '2026-10-01', hasta: '2026-10-16' });
     expect(body.granularidad).toBe('dia');
     expect(body.resumen).toEqual({
-      hoy: { actual: { completados: 1, ingresos: 50000 }, anterior: { completados: 1, ingresos: 30000 } },
-      mes: { actual: { completados: 3, ingresos: 80000 }, anterior: { completados: 1, ingresos: 20000 } },
-      anio: { actual: { completados: 5, ingresos: 199999 }, anterior: { completados: 1, ingresos: 10000 } },
+      hoy: { actual: { completados: 1, ingresos: 50000, gastos: 0, ganancia: 50000 }, anterior: { completados: 1, ingresos: 30000, gastos: 0, ganancia: 30000 } },
+      mes: { actual: { completados: 3, ingresos: 80000, gastos: 0, ganancia: 80000 }, anterior: { completados: 1, ingresos: 20000, gastos: 0, ganancia: 20000 } },
+      anio: { actual: { completados: 5, ingresos: 199999, gastos: 0, ganancia: 199999 }, anterior: { completados: 1, ingresos: 10000, gastos: 0, ganancia: 10000 } },
     });
     expect(body.periodo).toEqual({
       turnos: 6,
@@ -366,14 +366,18 @@ describe('GET /api/admin/estadisticas', () => {
       completados: 3,
       cancelados: 1,
       ingresos: 80000,
+      gastos: 0,
+      gananciaNeta: 80000,
+      margen: 1,
       ticketPromedio: 40000,
       completadosSinMonto: 1,
       tasaCancelacion: 0.1667,
     });
     expect(body.serie).toHaveLength(16);
-    expect(body.serie[0]).toEqual({ clave: '2026-10-01', completados: 0, ingresos: 0 });
-    expect(body.serie[15]).toEqual({ clave: '2026-10-16', completados: 1, ingresos: 50000 });
-    expect(body.serie[1]).toEqual({ clave: '2026-10-02', completados: 1, ingresos: 0 });
+    expect(body.serie[0]).toEqual({ clave: '2026-10-01', completados: 0, ingresos: 0, gastos: 0 });
+    expect(body.gastosPorCategoria).toEqual([]);
+    expect(body.serie[15]).toEqual({ clave: '2026-10-16', completados: 1, ingresos: 50000, gastos: 0 });
+    expect(body.serie[1]).toEqual({ clave: '2026-10-02', completados: 1, ingresos: 0, gastos: 0 });
     expect(body.porServicio[0]).toEqual({ servicioId: 'pulido', nombre: 'Pulido', pedidos: 3, completados: 2, ingresos: 50000 });
     expect(body.porTrabajador).toEqual([
       { id: adminId, nombre: 'Ana', completados: 1, ingresos: 50000 },
@@ -416,10 +420,10 @@ describe('GET /api/admin/estadisticas', () => {
   it('período vacío: ceros, ticket y tasa null, serie completa; también un rango en el futuro', async () => {
     const { admin } = await equipo();
     const { body } = await admin.get('/api/admin/estadisticas?desde=2027-03-01&hasta=2027-03-03');
-    expect(body.periodo).toMatchObject({ turnos: 0, ingresos: 0, ticketPromedio: null, tasaCancelacion: null, completadosSinMonto: 0 });
-    expect(body.serie).toEqual(['2027-03-01', '2027-03-02', '2027-03-03'].map((clave) => ({ clave, completados: 0, ingresos: 0 })));
+    expect(body.periodo).toMatchObject({ turnos: 0, ingresos: 0, ticketPromedio: null, tasaCancelacion: null, completadosSinMonto: 0, gastos: 0, gananciaNeta: 0, margen: null });
+    expect(body.serie).toEqual(['2027-03-01', '2027-03-02', '2027-03-03'].map((clave) => ({ clave, completados: 0, ingresos: 0, gastos: 0 })));
     expect(body.porTrabajador).toEqual([]);
-    expect(body.resumen.hoy).toEqual({ actual: { completados: 0, ingresos: 0 }, anterior: { completados: 0, ingresos: 0 } });
+    expect(body.resumen.hoy).toEqual({ actual: { completados: 0, ingresos: 0, gastos: 0, ganancia: 0 }, anterior: { completados: 0, ingresos: 0, gastos: 0, ganancia: 0 } });
   });
 
   it('granularidad: por día hasta 62 días y por mes con más, con todos los meses', async () => {
@@ -433,20 +437,21 @@ describe('GET /api/admin/estadisticas', () => {
     const mes = await admin.get('/api/admin/estadisticas?desde=2026-01-01&hasta=2026-03-04'); // 63 días
     expect(mes.body.granularidad).toBe('mes');
     expect(mes.body.serie).toEqual([
-      { clave: '2026-01', completados: 1, ingresos: 100 },
-      { clave: '2026-02', completados: 1, ingresos: 200 },
-      { clave: '2026-03', completados: 0, ingresos: 0 },
+      { clave: '2026-01', completados: 1, ingresos: 100, gastos: 0 },
+      { clave: '2026-02', completados: 1, ingresos: 200, gastos: 0 },
+      { clave: '2026-03', completados: 0, ingresos: 0, gastos: 0 },
     ]);
     const anio = await admin.get('/api/admin/estadisticas?desde=2026-01-01&hasta=2026-12-31');
     expect(anio.body.serie).toHaveLength(12);
-    expect(anio.body.serie[5]).toEqual({ clave: '2026-06', completados: 1, ingresos: 400 });
+    expect(anio.body.serie[5]).toEqual({ clave: '2026-06', completados: 1, ingresos: 400, gastos: 0 });
     // meses parciales: solo cuenta lo que cae en el rango
     const parcial = await admin.get('/api/admin/estadisticas?desde=2026-01-31&hasta=2026-04-30');
-    expect(parcial.body.serie[0]).toEqual({ clave: '2026-01', completados: 1, ingresos: 100 });
+    expect(parcial.body.serie[0]).toEqual({ clave: '2026-01', completados: 1, ingresos: 100, gastos: 0 });
     expect((await admin.get('/api/admin/estadisticas?desde=2026-02-01&hasta=2026-04-30')).body.serie[0]).toEqual({
       clave: '2026-02',
       completados: 1,
       ingresos: 200,
+      gastos: 0,
     });
   });
 
@@ -481,12 +486,12 @@ describe('GET /api/admin/estadisticas', () => {
       await turno(context, { fecha: '2026-10-17', monto: 5000, trabajador: adminId });
       const { body } = await admin.get('/api/admin/estadisticas');
       expect(body.rango).toEqual({ desde: '2026-10-01', hasta: '2026-10-16' });
-      expect(body.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 1000 });
+      expect(body.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 1000, gastos: 0, ganancia: 1000 });
       expect(body.periodo.ingresos).toBe(1000);
       // pasada la medianoche de La Rioja (03:00 UTC) cambia el día
       context.clock.current = new Date('2026-10-17T03:00:00.000Z');
       const manana = await loginClient(context, 'ana@t.test');
-      expect((await manana.get('/api/admin/estadisticas')).body.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 5000 });
+      expect((await manana.get('/api/admin/estadisticas')).body.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 5000, gastos: 0, ganancia: 5000 });
     } finally {
       if (tz === undefined) delete process.env.TZ;
       else process.env.TZ = tz;
@@ -540,8 +545,8 @@ describe('fechas de los períodos de comparación', () => {
     await turno(context, { fecha: '2028-03-01', monto: 300 });
     await turno(context, { fecha: '2028-03-02', monto: 9 }); // fuera
     const { body } = await admin.get('/api/admin/estadisticas');
-    expect(body.resumen.anio.anterior).toEqual({ completados: 2, ingresos: 1000 });
-    expect(body.resumen.hoy.anterior).toEqual({ completados: 0, ingresos: 0 }); // el 28/02/2029
+    expect(body.resumen.anio.anterior).toEqual({ completados: 2, ingresos: 1000, gastos: 0, ganancia: 1000 });
+    expect(body.resumen.hoy.anterior).toEqual({ completados: 0, ingresos: 0, gastos: 0, ganancia: 0 }); // el 28/02/2029
   });
 
   it('resolverRango: valores por omisión', () => {

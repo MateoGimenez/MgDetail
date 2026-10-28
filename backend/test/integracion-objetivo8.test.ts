@@ -43,7 +43,7 @@ describe('flujo completo: cobro, estadísticas, empleado, baja de la persona y v
     let s = await stats();
     expect(s.periodo).toMatchObject({ completados: 1, ingresos: 60000, ticketPromedio: 60000, completadosSinMonto: 0 });
     expect(s.porTrabajador).toEqual([{ id: carla, nombre: 'Carla', completados: 1, ingresos: 60000 }]);
-    expect(s.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 60000 });
+    expect(s.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 60000, gastos: 0, ganancia: 60000 });
 
     // 2. el empleado completa otro: queda él, sin monto
     const r2 = await empleado.patch(`/api/admin/bookings/${t2}`, { estado: 'completado' });
@@ -80,7 +80,7 @@ describe('flujo completo: cobro, estadísticas, empleado, baja de la persona y v
     s = await stats();
     expect(s.periodo).toMatchObject({ completados: 1, ingresos: 40000, ticketPromedio: 40000 });
     expect(s.completadosSinTrabajador).toBe(0);
-    expect(s.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 40000 });
+    expect(s.resumen.hoy.actual).toEqual({ completados: 1, ingresos: 40000, gastos: 0, ganancia: 40000 });
   });
 });
 
@@ -130,6 +130,31 @@ describe('respuestas reales del backend para los esquemas del frontend', () => {
     cap('error403EmpleadoCorrige', await empleado.patch(`/api/admin/bookings/${a}`, { notasInternas: 'x', trabajadorId: ana }));
     cap('error403EstadisticasEmpleado', await empleado.get('/api/admin/estadisticas'));
 
+    // Objetivo 10 (M1): gastos, metas y datos del taller. Los gastos van ANTES de las estadísticas que los suman.
+    cap('gastoCrea', await admin.post('/api/admin/gastos', { fecha: '2026-10-14', categoria: 'insumos', descripcion: 'Cera en pasta y paños', monto: 12500, proveedor: 'Distribuidora Norte' }));
+    cap('gastoCreaSinProveedor', await admin.post('/api/admin/gastos', { fecha: '2026-10-02', categoria: 'alquiler', descripcion: 'Alquiler del local', monto: 90000 }));
+    await admin.post('/api/admin/gastos', { fecha: '2026-09-20', categoria: 'servicios', descripcion: 'Luz y agua', monto: 8000 });
+    await context.db.sql.query(
+      "INSERT INTO mgdetailing.gastos (fecha, categoria, descripcion, monto, origen) VALUES ('2026-10-10', 'insumos', 'Compra: Shampoo (5 litro)', 6000, 'inventario')",
+    );
+    cap('error400GastoFechaFutura', await admin.post('/api/admin/gastos', { fecha: '2026-10-17', categoria: 'otros', descripcion: 'x', monto: 5 }));
+    cap('error400GastoMonto', await admin.post('/api/admin/gastos', { fecha: '2026-10-14', categoria: 'otros', descripcion: 'x', monto: 0 }));
+    cap('gastosLista', await admin.get('/api/admin/gastos'));
+    cap('gastosFiltrados', await admin.get('/api/admin/gastos?categoria=insumos&q=cera&limit=1'));
+    const inventario = (capturas.gastosLista?.body as { gastos: { id: string; origen: string }[] }).gastos.find((g) => g.origen === 'inventario');
+    cap('error409GastoDeInventario', await admin.patch(`/api/admin/gastos/${String(inventario?.id)}`, { monto: 1 }));
+    cap('error403GastosEmpleado', await empleado.get('/api/admin/gastos'));
+    cap('metaPut', await admin.put('/api/admin/metas/2026-10', { ingresosObjetivo: 1500000, trabajosObjetivo: 40 }));
+    await admin.put('/api/admin/metas/2026-09', { ingresosObjetivo: 50000 });
+    cap('error400MetaVacia', await admin.put('/api/admin/metas/2026-08', {}));
+    cap('metasActual', await admin.get('/api/admin/metas/actual'));
+    cap('metasAnio', await admin.get('/api/admin/metas?anio=2026'));
+    cap('error403MetasEmpleado', await empleado.get('/api/admin/metas/actual'));
+    cap('tallerGet', await admin.get('/api/admin/taller'));
+    cap('tallerPut', await admin.put('/api/admin/taller', { nombre: 'MgDetailing', telefono: '5493804781737', direccion: 'Calle Olta Pasaje N2, La Rioja', instagram: 'mgdetailing', cuit: '20-12345678-9', leyendaPdf: 'Gracias por confiar en nosotros.' }));
+    cap('error400Taller', await admin.put('/api/admin/taller', { nombre: '', telefono: '380-478', instagram: '@mgdetailing', cuit: '123' }));
+    cap('error403TallerEmpleado', await empleado.get('/api/admin/taller'));
+
     cap('listaAdmin', await admin.get('/api/admin/bookings'));
     cap('listaEmpleado', await empleado.get('/api/admin/bookings'));
     cap('agendaAdmin', await admin.get('/api/admin/agenda?desde=2026-10-14&hasta=2026-10-16'));
@@ -142,6 +167,58 @@ describe('respuestas reales del backend para los esquemas del frontend', () => {
     cap('misTrabajosAnio', await empleado.get('/api/admin/estadisticas/mias?desde=2026-01-01&hasta=2026-12-31'));
     cap('permisosEmpleado', await empleado.get('/api/admin/permisos'));
     cap('permisosAdmin', await admin.get('/api/admin/permisos'));
+
+    // Objetivo 10 (M2/M3): inventario, presupuestos y comprobantes. Van al FINAL: una compra con costo crea un gasto del
+    // mes, y las capturas de gastos y estadísticas de arriba no tienen que cambiar.
+    cap('insumoCrea', await admin.post('/api/admin/insumos', { nombre: 'Shampoo ph neutro', categoria: 'Lavado', unidad: 'litro', stockInicial: 5, stockMinimo: 2, costoUnitario: 1200 }));
+    cap('insumoCreaSinCosto', await admin.post('/api/admin/insumos', { nombre: 'Cera en pasta', unidad: 'unidad', stockInicial: 1, stockMinimo: 3 }));
+    cap('error400Insumo', await admin.post('/api/admin/insumos', { nombre: '', unidad: 'galon', stockInicial: 1.234 }));
+    cap('error409InsumoRepetido', await admin.post('/api/admin/insumos', { nombre: 'SHAMPOO PH NEUTRO', unidad: 'litro' }));
+    cap('error403InsumoEmpleado', await empleado.post('/api/admin/insumos', { nombre: 'Paño', unidad: 'unidad' }));
+    const shampoo = (capturas.insumoCrea?.body as { insumo: { id: string } }).insumo.id;
+    const cera = (capturas.insumoCreaSinCosto?.body as { insumo: { id: string } }).insumo.id;
+    cap('insumoPatch', await admin.patch(`/api/admin/insumos/${shampoo}`, { categoria: 'Lavado exterior', stockMinimo: 1.5 }));
+    cap('movimientoUsoAdmin', await admin.post(`/api/admin/insumos/${shampoo}/movimientos`, { tipo: 'uso', cantidad: 0.5, nota: 'Auto de Juan', turnoId: a }));
+    cap('movimientoUsoEmpleado', await empleado.post(`/api/admin/insumos/${shampoo}/movimientos`, { tipo: 'uso', cantidad: 1.25 }));
+    cap('movimientoCompra', await admin.post(`/api/admin/insumos/${cera}/movimientos`, { tipo: 'compra', cantidad: 5, costoTotal: 12500, proveedor: 'Distribuidora Norte', nota: 'Factura 0001' }));
+    cap('movimientoAjuste', await admin.post(`/api/admin/insumos/${cera}/movimientos`, { tipo: 'ajuste', stockReal: 4.5, nota: 'Conteo del sábado' }));
+    cap('movimientoAjusteSinCambio', await admin.post(`/api/admin/insumos/${cera}/movimientos`, { tipo: 'ajuste', stockReal: 4.5 }));
+    cap('error409Stock', await empleado.post(`/api/admin/insumos/${shampoo}/movimientos`, { tipo: 'uso', cantidad: 10 }));
+    cap('error400Movimiento', await admin.post(`/api/admin/insumos/${shampoo}/movimientos`, { tipo: 'uso', cantidad: 0 }));
+    cap('error403CompraEmpleado', await empleado.post(`/api/admin/insumos/${shampoo}/movimientos`, { tipo: 'compra', cantidad: 1, costoTotal: 100 }));
+    cap('error403AjusteEmpleado', await empleado.post(`/api/admin/insumos/${shampoo}/movimientos`, { tipo: 'ajuste', stockReal: 1 }));
+    cap('movimientosAdmin', await admin.get(`/api/admin/insumos/${cera}/movimientos`));
+    cap('movimientosEmpleado', await empleado.get(`/api/admin/insumos/${cera}/movimientos`));
+    cap('insumosAdmin', await admin.get('/api/admin/insumos'));
+    cap('insumosEmpleado', await empleado.get('/api/admin/insumos'));
+    cap('insumosBajoStock', await admin.get('/api/admin/insumos?bajoStock=true'));
+    cap('presupuestoCrea', await admin.post('/api/admin/presupuestos', {
+      clienteNombre: 'María Núñez', clienteTelefono: '380 412-3456', vehiculo: 'Ford Ka 2019',
+      items: [{ descripcion: 'Pulido completo', cantidad: 1, precioUnitario: 25000 }, { descripcion: 'Encerado', cantidad: 1.5, precioUnitario: 10001 }],
+      descuento: 3000, validezDias: 10, notas: 'Incluye lavado previo.',
+    }));
+    cap('presupuestoCreaMinimo', await admin.post('/api/admin/presupuestos', { clienteNombre: 'Pedro', items: [{ descripcion: 'Lavado', cantidad: 1, precioUnitario: 8000 }] }));
+    const presu = (capturas.presupuestoCrea?.body as { presupuesto: { id: string } }).presupuesto.id;
+    cap('error400Presupuesto', await admin.post('/api/admin/presupuestos', { clienteNombre: '', items: [{ descripcion: 'ok', cantidad: 1, precioUnitario: 1 }, { descripcion: '', cantidad: 0, precioUnitario: 1.5 }] }));
+    cap('presupuestoPatch', await admin.patch(`/api/admin/presupuestos/${presu}`, { estado: 'aceptado', clienteTelefono: null }));
+    cap('error409PresupuestoAceptado', await admin.delete(`/api/admin/presupuestos/${presu}`));
+    cap('presupuestosLista', await admin.get('/api/admin/presupuestos'));
+    cap('error403PresupuestosEmpleado', await empleado.get('/api/admin/presupuestos'));
+    cap('error404Comprobante', await admin.get(`/api/admin/bookings/${a}/comprobante`));
+    cap('error400ComprobanteSinCobro', await admin.post(`/api/admin/bookings/${c}/comprobante`, { formaPago: 'efectivo' }));
+    cap('comprobanteCrea', await admin.post(`/api/admin/bookings/${a}/comprobante`, { formaPago: 'transferencia', notas: 'Alias mg.detailing' }));
+    cap('comprobanteExistente', await admin.post(`/api/admin/bookings/${a}/comprobante`, { formaPago: 'efectivo' }));
+    cap('comprobanteGet', await admin.get(`/api/admin/bookings/${a}/comprobante`));
+    cap('error403ComprobanteEmpleado', await empleado.post(`/api/admin/bookings/${a}/comprobante`, { formaPago: 'efectivo' }));
+    // Revisión de los objetivos 9 y 10: más errores reales que el panel tiene que manejar.
+    cap('error400ComprobanteFormaPago', await admin.post(`/api/admin/bookings/${a}/comprobante`, { formaPago: 'bitcoin' }));
+    cap('error409TurnoConComprobante', await admin.delete(`/api/admin/bookings/${a}`));
+    cap('error404Gasto', await admin.delete('/api/admin/gastos/22222222-2222-4222-8222-222222222222'));
+    cap('error404Presupuesto', await admin.get('/api/admin/presupuestos/22222222-2222-4222-8222-222222222222'));
+    cap('error404Insumo', await admin.post('/api/admin/insumos/22222222-2222-4222-8222-222222222222/movimientos', { tipo: 'uso', cantidad: 1 }));
+    cap('error400MetaMes', await admin.put('/api/admin/metas/2030-01', { ingresosObjetivo: 1000 }));
+    cap('error400CompraCostoAlto', await admin.post(`/api/admin/insumos/${cera}/movimientos`, { tipo: 'compra', cantidad: 0.01, costoTotal: 5000000 }));
+    cap('error400PresupuestoTotal', await admin.post('/api/admin/presupuestos', { clienteNombre: 'Pedro', items: [{ descripcion: 'x', cantidad: 999, precioUnitario: 99999999 }] }));
 
     const generadas = normalizar(capturas);
     if (process.env.ACTUALIZAR_FIXTURES === '1') {

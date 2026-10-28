@@ -59,7 +59,7 @@ main:focus {
 
 .cabecera__nav ul {
   display: flex;
-  gap: clamp(18px, 2.2vw, 32px);
+  gap: clamp(16px, 1.8vw, 30px);
 }
 
 .cabecera__nav a {
@@ -85,12 +85,21 @@ main:focus {
   transition: transform var(--t-media) var(--ease-pincel);
 }
 
-.cabecera__nav a:hover {
+.cabecera__nav a:hover,
+.cabecera__nav a[aria-current='location'] {
   color: var(--texto);
 }
 
-.cabecera__nav a:hover::after {
+.cabecera__nav a:hover::after,
+.cabecera__nav a[aria-current='location']::after {
   transform: scaleX(1);
+}
+
+/* Menú del celular: la sección que se está viendo lleva el filete a la izquierda y el color de acento */
+.menu-movil a[aria-current='location'] {
+  padding-left: 14px;
+  color: var(--acento-texto);
+  box-shadow: inset 3px 0 0 var(--filete);
 }
 
 .cabecera__cta {
@@ -271,7 +280,8 @@ main:focus {
   }
 }
 
-@media (min-width: 1000px) {
+/* Seis secciones en el nav: la barra completa recién entra cómoda desde 1100 px */
+@media (min-width: 1100px) {
   .cabecera__nav {
     display: block;
     margin-right: var(--e-5);
@@ -747,10 +757,34 @@ legend.arranque__etiqueta + * {
   font-size: 0.95rem;
 }
 
+/* Galería: cada foto conserva su formato (vertical 4:5 u horizontal 4:3). Cada fila se arma con --columnas fotos y la
+   fila incompleta queda centrada: 3 fotos verticales se ven parejas en el celular, la tablet y la compu. */
 .galeria {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  gap: var(--e-4);
+  --columnas: 2;
+  --separacion: var(--e-3);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--e-4) var(--separacion);
+}
+
+.galeria__item {
+  flex: 0 0 calc((100% - (var(--columnas) - 1) * var(--separacion)) / var(--columnas));
+  min-width: 0;
+}
+
+@media (min-width: 700px) {
+  .galeria {
+    --columnas: 3;
+    --separacion: var(--e-4);
+  }
+}
+
+@media (min-width: 1060px) {
+  .galeria {
+    --columnas: 4;
+  }
 }
 
 .galeria__boton {
@@ -768,11 +802,10 @@ legend.arranque__etiqueta + * {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  transition: transform 0.6s var(--ease-salida);
 }
 
-.galeria__boton:hover img {
-  transform: scale(1.03);
+.galeria__item[data-formato='vertical'] .galeria__boton img {
+  aspect-ratio: 4 / 5;
 }
 
 .visor {
@@ -789,15 +822,20 @@ legend.arranque__etiqueta + * {
   background: var(--velo-modal);
 }
 
+/* Entera, sin recortar: las verticales se ajustan al alto de la pantalla y quedan centradas */
 .visor__foto {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  height: auto;
   max-height: calc(100svh - 180px);
+  margin-inline: auto;
   object-fit: contain;
 }
 
 .visor__pie {
   margin-top: 10px;
   color: var(--texto-2);
+  text-align: center;
 }
 
 .visor__controles {
@@ -1465,62 +1503,10 @@ legend.arranque__etiqueta + * {
 
 /* ---------- Contacto ---------- */
 
-.contacto__grilla {
-  display: grid;
-  gap: var(--e-7);
-}
-
-.contacto__lugar {
-  display: grid;
-  justify-items: start;
-  gap: var(--e-4);
-}
-
-.contacto__ciudad {
-  font-family: var(--f-acento);
-  font-size: clamp(2rem, 1.5rem + 2vw, 3rem);
-  line-height: 1.2;
-  color: var(--texto);
-}
-
-.contacto__dato {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  color: var(--texto-2);
-}
-
-.contacto__dato .icono {
-  flex: none;
-  margin-top: 3px;
-  color: var(--acento);
-}
-
-.contacto__canales {
-  display: grid;
-  gap: var(--e-6);
-  align-content: start;
-}
-
 .contacto__bloque {
   display: grid;
-  gap: var(--e-3);
+  gap: var(--e-4);
   justify-items: start;
-  padding-top: var(--e-5);
-  border-top: 1px solid var(--borde);
-}
-
-.contacto__subtitulo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--f-display);
-  font-weight: 800;
-  font-size: 1.5rem;
-}
-
-.contacto__subtitulo .icono {
-  color: var(--acento);
 }
 
 .contacto__texto {
@@ -1528,23 +1514,10 @@ legend.arranque__etiqueta + * {
   color: var(--texto-2);
 }
 
-.contacto__horarios {
-  display: grid;
-  gap: 4px;
-  color: var(--texto-2);
-}
-
 .contacto__botones {
   display: flex;
   flex-wrap: wrap;
   gap: var(--e-3);
-}
-
-@media (min-width: 900px) {
-  .contacto__grilla {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: clamp(40px, 6vw, 96px);
-  }
 }
 
 /* ---------- Pie ---------- */

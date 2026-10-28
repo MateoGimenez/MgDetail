@@ -25,6 +25,11 @@ export const PG_SCHEMA = 'mgdetailing';
 const REQUIRED_TABLES = ['servicios', 'bookings', 'roles', 'perfiles'] as const;
 /** Lo que agrega la migración disponibilidad_seguimiento (tablas y la columna del recordatorio). */
 const DISPONIBILIDAD_TABLES = ['horario_semanal', 'dias_especiales'] as const;
+/** Lo que agrega la migración finanzas_gastos_metas_taller (gastos, metas mensuales y datos del taller). */
+const FINANZAS_TABLES = ['gastos', 'metas_mensuales', 'taller'] as const;
+/** Lo que agregan las migraciones de inventario y de presupuestos y comprobantes. */
+const INVENTARIO_TABLES = ['insumos', 'movimientos_stock'] as const;
+const DOCUMENTOS_TABLES = ['presupuestos', 'comprobantes'] as const;
 /** Lo que agrega la migración push_suscripciones (avisos push al celular). */
 const PUSH_COLUMNS = ['perfil_id', 'endpoint', 'p256dh', 'auth', 'agente', 'ultimo_aviso_at'] as const;
 /** Columnas que agrega la migración catalogo_editable (las que lee el repositorio de servicios). */
@@ -254,6 +259,38 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
       `Faltan columnas en mgdetailing.bookings (${missingCobro.join(', ')}). ` +
         'Aplicá la migración estadisticas_cobro_trabajador de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
+  }
+
+  // Finanzas (migración finanzas_gastos_metas_taller): gastos, metas mensuales y datos del taller.
+  const finanzas = await client.query(
+    'SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1 AND tablename = ANY($2::text[])',
+    [PG_SCHEMA, FINANZAS_TABLES],
+  );
+  const presentFinanzas = new Set(finanzas.rows.map((row) => row.tablename));
+  const missingFinanzas = FINANZAS_TABLES.filter((table) => !presentFinanzas.has(table));
+  if (missingFinanzas.length > 0) {
+    throw new Error(
+      `Faltan tablas de la migración de finanzas en mgdetailing (${missingFinanzas.join(', ')}). ` +
+        'Aplicá la migración finanzas_gastos_metas_taller de backend/supabase/migrations/ (ver README, "Migraciones").',
+    );
+  }
+
+  for (const [tablas, migracion] of [
+    [INVENTARIO_TABLES, 'inventario'],
+    [DOCUMENTOS_TABLES, 'presupuestos_comprobantes'],
+  ] as const) {
+    const presentes = await client.query(
+      'SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1 AND tablename = ANY($2::text[])',
+      [PG_SCHEMA, tablas],
+    );
+    const nombres = new Set(presentes.rows.map((row) => row.tablename));
+    const faltan = tablas.filter((tabla) => !nombres.has(tabla));
+    if (faltan.length > 0) {
+      throw new Error(
+        `Faltan tablas de la migración ${migracion} en mgdetailing (${faltan.join(', ')}). ` +
+          `Aplicá la migración ${migracion} de backend/supabase/migrations/ (ver README, "Migraciones").`,
+      );
+    }
   }
 
   // Avisos push (migración push_suscripciones): la tabla de dispositivos.

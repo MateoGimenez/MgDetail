@@ -48,18 +48,6 @@
     stroke-dashoffset: 1;
   }
 
-  /* Tabla de la comparativa: cada ✓ aparece creciendo, fila por fila */
-  [data-revelar] .revelar-marca {
-    transition:
-      opacity 420ms var(--ease-salida) calc(var(--i, 0) * 55ms + 120ms),
-      transform 420ms var(--ease-salida) calc(var(--i, 0) * 55ms + 120ms);
-  }
-
-  [data-revelar='pendiente'] .revelar-marca {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-
   /* Carrusel del celular: la lista entera sube (solo en vertical); las cards que quedan a la derecha no se ocultan.
      Desde 700 px es al revés: cada card entra sola y la lista no se anima. */
   @media (max-width: 699px) {

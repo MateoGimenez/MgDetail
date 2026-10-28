@@ -110,3 +110,28 @@ export function puedeRegistrarCobro(rol: Rol): boolean {
 export function puedeVerEstadisticas(rol: Rol): boolean {
   return rol === 'superadmin' || rol === 'admin';
 }
+
+/**
+ * Finanzas: ver y cargar los gastos del taller y fijar las metas mensuales; también ve la ganancia neta y la meta en
+ * Hoy y en Estadísticas. El empleado recibe 403 en todo eso. Espejo del backend (reportes/2026-10-27_17).
+ */
+export function puedeVerFinanzas(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
+}
+
+/**
+ * Inventario: ver y registrar el uso de insumos lo hacen todos los roles; crear y editar insumos, cargar compras y
+ * ajustar el stock (y ver costos y valores en pesos) solo superadmin y admin. Espejo del backend
+ * (reportes/2026-10-27_17).
+ */
+export function puedeGestionarInventario(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
+}
+
+/**
+ * Presupuestos, comprobantes de pago y datos del taller que salen en los PDF: superadmin y admin. El empleado recibe
+ * 403. Espejo del backend (reportes/2026-10-27_17).
+ */
+export function puedeEmitirDocumentos(rol: Rol): boolean {
+  return rol === 'superadmin' || rol === 'admin';
+}

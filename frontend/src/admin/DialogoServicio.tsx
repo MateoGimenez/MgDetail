@@ -359,7 +359,6 @@ function FormularioServicio({
         <ListaEditable
           titulo="Incluye"
           ayuda={`Un ítem por renglón, hasta ${String(L.incluye.items)}.`}
-          ayudaExtra={'Si incluye todo lo de otro servicio, escribí "Todo lo del <nombre>" y la comparativa de la web lo cuenta.'}
           idAgregar={`${campo('incluye')}-agregar`}
           error={errorDe('incluye')}
           idError={`${campo('incluye')}-error`}
@@ -580,7 +579,6 @@ function mover<T>(lista: readonly T[], desde: number, hasta: number): T[] {
 function ListaEditable({
   titulo,
   ayuda,
-  ayudaExtra,
   idAgregar,
   error,
   idError,
@@ -592,8 +590,6 @@ function ListaEditable({
 }: {
   titulo: string;
   ayuda: string;
-  /** Una segunda línea de ayuda, si hace falta. */
-  ayudaExtra?: string;
   idAgregar: string;
   error: string | undefined;
   idError: string;
@@ -610,7 +606,6 @@ function ListaEditable({
         {titulo} <span className="campo__opcional">({cantidad === 0 ? 'vacío' : `${String(cantidad)} de ${String(maximo)}`})</span>
       </legend>
       <p className="campo__ayuda">{ayuda}</p>
-      {ayudaExtra && <p className="campo__ayuda">{ayudaExtra}</p>}
       {cantidad > 0 && (
         <ol className="lista-editable__items" role="list">
           {children}

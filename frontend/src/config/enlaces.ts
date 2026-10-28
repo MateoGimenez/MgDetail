@@ -1,4 +1,4 @@
-import { sitio } from './sitio';
+import { negocio, sitio } from './sitio';
 
 /**
  * Enlaces y datos de contacto ya listos para usar. Cada función devuelve null
@@ -13,10 +13,23 @@ function armarWhatsapp(numero: string, mensaje?: string): string {
   return mensaje ? `${base}?text=${encodeURIComponent(mensaje)}` : base;
 }
 
+/** Enlace de WhatsApp para un número cargado tal cual (se quedan solo los dígitos). null si no parece un número. */
+export function whatsappUrlDe(numero: string, mensaje?: string): string | null {
+  const digitos = soloDigitos(numero);
+  return digitos.length >= 8 ? armarWhatsapp(digitos, mensaje) : null;
+}
+
 /** WhatsApp del taller con un mensaje prellenado opcional. */
 export function whatsappUrl(mensaje?: string): string | null {
-  const numero = soloDigitos(sitio.whatsapp);
-  return numero.length >= 8 ? armarWhatsapp(numero, mensaje) : null;
+  return whatsappUrlDe(sitio.whatsapp, mensaje);
+}
+
+/** Mensaje del botón flotante de WhatsApp en la landing. */
+export const MENSAJE_CONSULTA_TURNO = `Hola ${negocio.nombre}, quiero consultar por un turno.`;
+
+/** Mensaje del botón flotante en la página de un servicio: nombra el servicio. */
+export function mensajeConsultaServicio(nombreServicio: string): string {
+  return `Hola ${negocio.nombre}, quiero consultar por el servicio ${nombreServicio}.`;
 }
 
 /**
@@ -64,6 +77,12 @@ export function mapsUrl(): string | null {
   return /^https:\/\//i.test(url) ? url : null;
 }
 
+/** Mapa embebido: solo se acepta un `src` de Google Maps (lo único que permite la CSP del servidor). */
+export function mapaEmbedUrl(): string | null {
+  const url = (sitio.mapaEmbedUrl ?? '').trim();
+  return url.startsWith('https://www.google.com/maps/') ? url : null;
+}
+
 export function direccionDelTaller(): string | null {
   const direccion = sitio.direccion.trim();
   return direccion === '' ? null : direccion;
@@ -71,6 +90,11 @@ export function direccionDelTaller(): string | null {
 
 export function horariosDelTaller(): readonly string[] {
   return sitio.horarios.map((h) => h.trim()).filter((h) => h !== '');
+}
+
+/** Hay algo que mostrar en "Dónde estamos": dirección, horarios o el enlace de Maps. */
+export function hayUbicacion(): boolean {
+  return direccionDelTaller() !== null || horariosDelTaller().length > 0 || mapsUrl() !== null;
 }
 
 export function logoUrl(): string | null {

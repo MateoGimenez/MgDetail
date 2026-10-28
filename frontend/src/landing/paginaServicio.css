@@ -1,0 +1,205 @@
+/* ==========================================================================
+   Página de un servicio (/servicios/:id). Mobile-first, solo variables semánticas (los dos temas).
+   Reusa las piezas de las cards (datos, incluye, glosario) y de las preguntas frecuentes.
+   ========================================================================== */
+
+.servicio {
+  padding-block: var(--e-5) clamp(64px, 8vw, 112px);
+}
+
+.migas ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  padding-block: var(--e-3);
+  color: var(--texto-3);
+  font-size: 0.9375rem;
+}
+
+.migas li {
+  display: flex;
+  align-items: center;
+}
+
+.migas li + li::before {
+  content: '/';
+  margin-inline: 10px;
+  color: var(--borde);
+}
+
+.migas a {
+  display: inline-block;
+  padding-block: 10px; /* objetivo táctil de 44 px de alto */
+  color: var(--texto-2);
+}
+
+.migas a:hover {
+  color: var(--texto);
+}
+
+.migas [aria-current='page'] {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.servicio__cabeza {
+  display: grid;
+  justify-items: start;
+  gap: var(--e-3);
+  max-width: 46rem;
+  padding-block: var(--e-4) var(--e-6);
+}
+
+.servicio__titulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(2.6rem, 1.7rem + 4vw, 4.5rem);
+  line-height: 0.98;
+  letter-spacing: var(--display-tracking);
+  text-wrap: balance;
+}
+
+.servicio__filete {
+  width: min(220px, 60%);
+}
+
+.servicio__resumen {
+  max-width: 40rem;
+  font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+  color: var(--texto-2);
+  text-wrap: pretty;
+}
+
+.servicio__datos {
+  width: min(100%, 26rem);
+  margin-top: var(--e-2);
+}
+
+.servicio__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  margin-top: var(--e-3);
+}
+
+.servicio__acciones .boton {
+  flex: 1 1 15rem;
+}
+
+.servicio__cuerpo {
+  display: grid;
+  gap: var(--e-6);
+  padding-top: var(--e-5);
+  border-top: 1px solid var(--borde);
+}
+
+.servicio__bloque {
+  display: grid;
+  gap: var(--e-3);
+  align-content: start;
+  margin-top: var(--e-6);
+}
+
+.servicio__cuerpo .servicio__bloque {
+  margin-top: 0;
+}
+
+.servicio__subtitulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.7rem, 1.35rem + 1.5vw, 2.4rem);
+  line-height: 1.05;
+}
+
+.servicio__texto {
+  max-width: 42rem;
+  color: var(--texto-2);
+  text-wrap: pretty;
+}
+
+.servicio__incluye {
+  padding-top: 0;
+  max-width: 42rem;
+  font-size: 1.0625rem;
+}
+
+.servicio__preguntas {
+  max-width: 48rem;
+}
+
+.servicio__cargando {
+  padding-block: var(--e-8);
+  color: var(--texto-2);
+}
+
+.servicio__vacio {
+  display: grid;
+  justify-items: start;
+  gap: var(--e-4);
+  padding-block: var(--e-7);
+}
+
+/* Otros servicios: una lista de enlaces grandes, fáciles de tocar */
+.otros {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.otros__enlace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--e-3);
+  min-height: 64px;
+  padding: 14px 16px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+  text-decoration: none;
+}
+
+.otros__enlace:hover {
+  border-color: var(--campo-borde-hover);
+}
+
+.otros__nombre {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.4rem;
+  line-height: 1.1;
+}
+
+.otros__resumen {
+  grid-column: 1;
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.otros__flecha {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--acento);
+}
+
+@media (min-width: 760px) {
+  .otros {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .servicio__cuerpo {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    column-gap: clamp(40px, 6vw, 96px);
+    row-gap: var(--e-6);
+  }
+
+  .servicio__cuerpo .servicio__bloque:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .servicio__acciones .boton {
+    flex: 0 1 auto;
+  }
+}

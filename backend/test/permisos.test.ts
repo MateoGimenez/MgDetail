@@ -7,7 +7,16 @@ import {
   puedeBorrarTurnos,
   puedeCambiarEstado,
   puedeCorregirCobro,
+  puedeArmarPresupuestos,
   puedeEditarCatalogo,
+  puedeEditarTaller,
+  puedeEmitirComprobantes,
+  puedeGestionarGastos,
+  puedeGestionarInventario,
+  puedeGestionarMetas,
+  puedeRegistrarUsoInsumos,
+  puedeVerCostosInventario,
+  puedeVerInventario,
   puedeEditarDisponibilidad,
   puedeGestionarUsuarios,
   puedeRegistrarCobro,
@@ -55,6 +64,15 @@ describe('matriz de permisos (CAPACIDADES) y funciones puede*', () => {
       ['estadisticas.completas', puedeVerEstadisticas],
       ['cobro.registrar', puedeRegistrarCobro],
       ['cobro.corregir', puedeCorregirCobro],
+      ['finanzas.gastos', puedeGestionarGastos],
+      ['finanzas.metas', puedeGestionarMetas],
+      ['documentos.presupuestos', puedeArmarPresupuestos],
+      ['documentos.comprobantes', puedeEmitirComprobantes],
+      ['documentos.taller', puedeEditarTaller],
+      ['inventario.ver', puedeVerInventario],
+      ['inventario.usar', puedeRegistrarUsoInsumos],
+      ['inventario.gestionar', puedeGestionarInventario],
+      ['inventario.gestionar', puedeVerCostosInventario],
     ];
     for (const [id, funcion] of pares) {
       const capacidad = CAPACIDADES.find((c) => c.id === id);
@@ -84,6 +102,53 @@ describe('matriz de permisos (CAPACIDADES) y funciones puede*', () => {
     for (const id of ['turnos.ver', 'turnos.estado', 'cobro.registrar', 'catalogo.editar', 'disponibilidad.editar', 'estadisticas.completas', 'estadisticas.propias', 'usuarios.gestionar', 'push.activar']) {
       expect(ids).toContain(id);
     }
+  });
+});
+
+describe('capacidades de Finanzas, Documentos e Inventario (objetivo 10)', () => {
+  it('la verdad escrita a mano: finanzas y documentos solo admin y superadmin; inventario se ve y se usa siempre', () => {
+    for (const rol of ROLES) {
+      const gestor = rol !== 'empleado';
+      expect(puedeGestionarGastos(rol), rol).toBe(gestor);
+      expect(puedeGestionarMetas(rol), rol).toBe(gestor);
+      expect(puedeArmarPresupuestos(rol), rol).toBe(gestor);
+      expect(puedeEmitirComprobantes(rol), rol).toBe(gestor);
+      expect(puedeEditarTaller(rol), rol).toBe(gestor);
+      expect(puedeVerInventario(rol), rol).toBe(true);
+      expect(puedeRegistrarUsoInsumos(rol), rol).toBe(true);
+      expect(puedeGestionarInventario(rol), rol).toBe(gestor);
+      expect(puedeVerCostosInventario(rol), rol).toBe(gestor);
+    }
+  });
+
+  it('están en la matriz con sus grupos y textos del contrato', () => {
+    const porId = new Map<string, (typeof CAPACIDADES)[number]>(CAPACIDADES.map((c) => [c.id, c]));
+    const esperado: [string, string, string][] = [
+      ['finanzas.gastos', 'Finanzas', 'Ver y cargar los gastos del taller'],
+      ['finanzas.metas', 'Finanzas', 'Fijar y seguir las metas mensuales'],
+      ['documentos.presupuestos', 'Documentos', 'Armar presupuestos y descargarlos en PDF'],
+      ['documentos.comprobantes', 'Documentos', 'Emitir comprobantes de pago en PDF'],
+      ['documentos.taller', 'Documentos', 'Editar los datos del taller que salen en los PDF'],
+      ['inventario.ver', 'Inventario', 'Ver el inventario'],
+      ['inventario.usar', 'Inventario', 'Registrar el uso de insumos'],
+      ['inventario.gestionar', 'Inventario', 'Crear insumos, cargar compras y ajustar el stock'],
+    ];
+    for (const [id, grupo, texto] of esperado) {
+      expect(porId.get(id), id).toMatchObject({ grupo, texto });
+      expect(Object.values(porId.get(id)?.roles ?? {}).every((n) => n !== 'parcial'), id).toBe(true);
+    }
+  });
+
+  it('las descripciones de los roles de la base mencionan lo nuevo, sin pasarse del tope de 300', async () => {
+    const context = await createTestContext();
+    const { client } = await loginAs(context, 'empleado');
+    const roles = (await client.get('/api/admin/permisos')).body.roles as { id: string; descripcion: string }[];
+    const texto = (id: string) => roles.find((r) => r.id === id)?.descripcion ?? '';
+    expect(texto('admin')).toMatch(/gastos/);
+    expect(texto('admin')).toMatch(/inventario/);
+    expect(texto('empleado')).toMatch(/uso de insumos/);
+    expect(texto('empleado')).toMatch(/No ve gastos ni metas/);
+    for (const r of roles) expect(r.descripcion.length).toBeLessThanOrEqual(300);
   });
 });
 

@@ -22,11 +22,39 @@ const de = (nombre: string): Captura => {
   return captura;
 };
 
+/**
+ * Las capturas de estadísticas anteriores al objetivo 10 no traen gastos. Mientras el backend no las regenere
+ * (ACTUALIZAR_FIXTURES=1), se completan en cero para poder probar el resto; las que ya traen `gastosPorCategoria`
+ * (las regeneradas) se usan tal cual, sin tocar.
+ */
+function conGastos(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null || !('resumen' in body) || 'gastosPorCategoria' in body) return body;
+  const b = structuredClone(body) as {
+    resumen: Record<string, Record<string, Record<string, number>>>;
+    periodo: Record<string, number | null> & { ingresos: number };
+    serie: Record<string, number>[];
+    gastosPorCategoria?: unknown[];
+  };
+  for (const tramo of Object.values(b.resumen)) {
+    for (const lado of Object.values(tramo)) {
+      lado.gastos = 0;
+      lado.ganancia = lado.ingresos ?? 0;
+    }
+  }
+  b.periodo.gastos = 0;
+  b.periodo.gananciaNeta = b.periodo.ingresos;
+  b.periodo.margen = b.periodo.ingresos > 0 ? 1 : null;
+  for (const punto of b.serie) punto.gastos = 0;
+  b.gastosPorCategoria = [];
+  return b;
+}
+
 function responder(nombre: string) {
   const { status, body } = de(nombre);
+  const cuerpo = conGastos(body);
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))),
+    vi.fn(() => Promise.resolve(new Response(JSON.stringify(cuerpo), { status, headers: { 'Content-Type': 'application/json' } }))),
   );
 }
 

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { cerrarSesion } from '../api/admin';
 import { type UsuarioSesion } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
@@ -6,10 +6,12 @@ import { Logo } from '../components/Logo';
 import { nombreDeServicio } from '../data/servicios';
 import { BotonAjustes } from '../pwa/AjustesApp';
 import { desuscribirDispositivo } from '../pwa/avisos';
-import { VISTAS, resolverVista, type Vista } from '../lib/hoy';
+import { resolverVista, type Vista } from '../lib/hoy';
 import { ContextoCobro } from './cobro/contextoCobro';
+import { NavegacionPanel } from './NavegacionPanel';
 import { BotonTuRol } from './permisos/BotonTuRol';
 import { puedeEditarCatalogo, puedeEditarDisponibilidad, puedeGestionarUsuarios } from './permisos';
+import { gruposVisibles, seccionDe, vistasPermitidas, type PropsSeccion } from './secciones';
 import { useServicios } from './useServicios';
 import type { Filtro } from './useTurnos';
 import { VistaAgenda } from './VistaAgenda';
@@ -18,9 +20,6 @@ import { VistaHoy } from './VistaHoy';
 import { VistaServicios } from './VistaServicios';
 import { VistaTurnos } from './VistaTurnos';
 import { VistaUsuarios } from './VistaUsuarios';
-
-// Estadísticas se descarga aparte: quien no la abre no paga el peso de los gráficos.
-const VistaEstadisticas = lazy(() => import('./estadisticas/VistaEstadisticas'));
 
 interface Props {
   usuario: UsuarioSesion;
@@ -33,10 +32,7 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
   const gestionaUsuarios = puedeGestionarUsuarios(usuario.rol);
   // Se abre en Hoy, o en la vista de `?vista=` (accesos directos de la app) si es válida y este rol la puede ver.
   const [vista, setVista] = useState<Vista>(() =>
-    resolverVista(
-      new URLSearchParams(window.location.search).get('vista'),
-      VISTAS.filter((v) => v !== 'usuarios' || gestionaUsuarios),
-    ),
+    resolverVista(new URLSearchParams(window.location.search).get('vista'), vistasPermitidas(usuario.rol)),
   );
   // Desde Hoy, "Abrir" lleva a Turnos con el nombre ya buscado; se cambia de `key` para que Turnos arranque de cero.
   const [busquedaTurnos, setBusquedaTurnos] = useState<{
@@ -45,10 +41,13 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
     filtro?: Filtro;
   } | null>(null);
   // `filtro` abre Turnos en esa pestaña (el aviso de Hoy "sin cobro cargado" lleva a Completadas).
-  const irA = (destino: Vista, busqueda?: string, filtro?: Filtro) => {
+  // `abrirCon` es un pedido para la sección de destino (por ejemplo 'bajo-stock' al ir a Inventario desde Hoy).
+  const [pedido, setPedido] = useState<{ vista: Vista; valor: string; clave: number } | null>(null);
+  const irA = (destino: Vista, busqueda?: string, filtro?: Filtro, abrirCon?: string) => {
     setBusquedaTurnos((previa) =>
       busqueda || filtro ? { texto: busqueda ?? '', clave: (previa?.clave ?? 0) + 1, filtro } : null,
     );
+    setPedido((previo) => (abrirCon ? { vista: destino, valor: abrirCon, clave: (previo?.clave ?? 0) + 1 } : null));
     setVista(destino);
   };
   const quien = usuario.nombre ?? usuario.email ?? 'Tu usuario';
@@ -62,15 +61,19 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
     alVencerSesion,
   };
 
-  const secciones: readonly (readonly [Vista, string])[] = [
-    ['hoy', 'Hoy'],
-    ['estadisticas', 'Estadísticas'],
-    ['turnos', 'Turnos'],
-    ['agenda', 'Agenda'],
-    ['disponibilidad', 'Disponibilidad'],
-    ['servicios', 'Servicios'],
-    ...(gestionaUsuarios ? ([['usuarios', 'Usuarios']] as const) : []),
-  ];
+  // Las diez secciones salen del registro (secciones.ts), agrupadas y filtradas por rol.
+  const grupos = gruposVisibles(usuario.rol);
+  const seccionActual = seccionDe(vista);
+  const Diferida = seccionActual.puede(usuario.rol) ? seccionActual.componente : undefined;
+  const propsSeccion: PropsSeccion = {
+    rol: usuario.rol,
+    usuarioId: usuario.id,
+    alVencerSesion,
+    irA,
+    catalogo,
+    nombreServicio,
+    abrirCon: pedido?.vista === vista ? pedido.valor : undefined,
+  };
 
   const salir = async () => {
     // Este dispositivo deja de recibir avisos y se limpia el globito (antes de cerrar la sesión: hace falta estar
@@ -111,32 +114,15 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
               </button>
             </div>
           </div>
-          <nav className="panel__secciones" aria-label="Secciones del panel">
-            <ul role="list" className="panel__secciones-lista">
-              {secciones.map(([valor, texto]) => (
-                <li key={valor}>
-                  <button
-                    type="button"
-                    className={vista === valor ? 'panel__seccion activa' : 'panel__seccion'}
-                    aria-current={vista === valor ? 'page' : undefined}
-                    onClick={() => {
-                      if (valor !== vista) irA(valor);
-                    }}
-                  >
-                    {texto}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <NavegacionPanel grupos={grupos} vista={vista} alElegir={irA} />
         </header>
 
         <main className="panel__trabajo">
           {vista === 'usuarios' && gestionaUsuarios ? (
             <VistaUsuarios idPropio={usuario.id} alVencerSesion={alVencerSesion} />
-          ) : vista === 'estadisticas' ? (
-            <Suspense fallback={<p className="panel__cargando">Cargando las estadísticas…</p>}>
-              <VistaEstadisticas rol={usuario.rol} alVencerSesion={alVencerSesion} irA={irA} />
+          ) : Diferida ? (
+            <Suspense fallback={<p className="panel__cargando">Cargando {seccionActual.etiqueta.toLowerCase()}…</p>}>
+              <Diferida key={pedido?.vista === vista ? pedido.clave : 0} {...propsSeccion} />
             </Suspense>
           ) : vista === 'agenda' ? (
             <VistaAgenda rol={usuario.rol} nombreServicio={nombreServicio} alVencerSesion={alVencerSesion} />

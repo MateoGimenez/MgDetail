@@ -45,9 +45,11 @@ export function Trabajos() {
       <div className="contenedor">
         <CabeceraSeccion id="trabajos-titulo" titulo="Trabajos reales">
           <p className="seccion__bajada">
-            {hayFotos
+            {antesDespues.length > 0
               ? 'Antes y después de vehículos que pasaron por el taller. Deslizá la manija para comparar.'
-              : 'Recién abrimos. Acá vas a ver fotos de nuestros trabajos, antes y después, a medida que los hagamos.'}
+              : hayFotos
+                ? 'Fotos de vehículos que pasaron por el taller.'
+                : 'Recién abrimos. Acá vas a ver fotos de nuestros trabajos, antes y después, a medida que los hagamos.'}
           </p>
         </CabeceraSeccion>
         {hayFotos ? (

@@ -1,0 +1,217 @@
+/* ==========================================================================
+   Efectos sutiles de la landing (y de las páginas que la acompañan).
+   Contrato: reportes/2026-10-27_16_landing-whatsapp-mapa-servicios.md, punto 6.
+   Reglas: solo transform y opacity (nada que mueva el layout); todo bajo `prefers-reduced-motion: no-preference`;
+   los de puntero, además, con `(hover: hover) and (pointer: fine)`; sin librerías ni parallax; colores solo con
+   variables semánticas, así andan igual en el tema oscuro y en el claro.
+     1. Cabecera: sombra y logo más chico al scrollear (240 ms).
+     2. Cards: se elevan 4 px (la destacada 6) con su filete que se enciende (260 ms / 360 ms).
+     3. Botones rojos: se corren hasta 4 px hacia el mouse (160 ms; useMagnetico.ts).
+     4. Fotos: aparecen con un fundido al cargar (500 ms; el lugar ya está reservado con width/height).
+     5. "Abierto ahora": un aro que late cada 2,4 s.
+     6. Botón de WhatsApp: entra subiendo 12 px con un fundido (320 ms).
+   ========================================================================== */
+
+/* ---------- Botón flotante de WhatsApp (el estado base no es una animación) ---------- */
+
+.whatsapp-flotante {
+  --boton-alto: 56px;
+  position: fixed;
+  z-index: 40;
+  right: calc(var(--e-4) + env(safe-area-inset-right));
+  bottom: calc(var(--e-4) + env(safe-area-inset-bottom));
+  width: 56px;
+  padding: 0;
+  border-radius: 999px;
+  visibility: hidden;
+  opacity: 0;
+}
+
+.whatsapp-flotante[data-visible='true'] {
+  visibility: visible;
+  opacity: 1;
+}
+
+.whatsapp-flotante__texto {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .whatsapp-flotante {
+    width: auto;
+    padding: 0 24px 0 20px;
+  }
+
+  .whatsapp-flotante__texto {
+    display: inline;
+  }
+}
+
+/* ---------- Cabecera: la sombra de "estoy scrolleada" ---------- */
+
+.cabecera::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  box-shadow: var(--sombra-1);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cabecera[data-desplazado='true']::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* 1. Cabecera */
+  .cabecera::after {
+    transition: opacity 240ms var(--ease-salida);
+  }
+
+  .cabecera__marca {
+    transform-origin: left center;
+    transition: transform 240ms var(--ease-salida);
+  }
+
+  .cabecera[data-desplazado='true'] .cabecera__marca {
+    transform: scale(0.88);
+  }
+
+  /* 6. WhatsApp: entra desde abajo; sale por el mismo camino y recién después deja de ser tocable */
+  .whatsapp-flotante {
+    transform: translateY(12px) scale(0.92);
+    transition:
+      opacity 320ms var(--ease-salida),
+      transform 320ms var(--ease-salida),
+      visibility 0s 320ms,
+      background-color var(--t-rapida),
+      box-shadow var(--t-rapida),
+      translate 160ms var(--ease-salida);
+  }
+
+  .whatsapp-flotante[data-visible='true'] {
+    transform: none;
+    transition:
+      opacity 320ms var(--ease-salida),
+      transform 320ms var(--ease-salida),
+      visibility 0s,
+      background-color var(--t-rapida),
+      box-shadow var(--t-rapida),
+      translate 160ms var(--ease-salida);
+  }
+
+  /* 4. Fotos: fundido al cargar. Sin JavaScript o ya cacheadas no llevan data-carga y se ven de entrada. */
+  .galeria__boton img,
+  .visor__foto {
+    transition:
+      opacity 500ms var(--ease-salida),
+      transform 600ms var(--ease-salida);
+  }
+
+  img[data-carga='pendiente'] {
+    opacity: 0;
+  }
+
+  /* 5. "Abierto ahora": un aro suave que late (la transparencia llega a 0: no queda nada pegado) */
+  .donde__estado--abierto .donde__punto::after {
+    animation: aro-latido 2400ms ease-out infinite;
+  }
+}
+
+@keyframes aro-latido {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(2.8);
+  }
+}
+
+/* ---------- Efectos de puntero: solo con mouse ---------- */
+
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  /* 2. Cards: se elevan y el filete se enciende */
+  .tarjeta {
+    transition: transform 260ms var(--ease-salida);
+  }
+
+  .tarjeta::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: var(--sombra-2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 260ms var(--ease-salida);
+  }
+
+  /* Las que no son destacadas estrenan el filete: crece de izquierda a derecha como un pincelazo */
+  .tarjeta:not(.tarjeta--destacada)::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 20px;
+    right: 20px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--filete);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 360ms var(--ease-pincel);
+  }
+
+  .tarjeta--destacada::before {
+    transform-origin: top;
+    transition: transform 260ms var(--ease-salida);
+  }
+
+  .tarjeta:hover {
+    transform: translateY(-4px);
+  }
+
+  .tarjeta--destacada:hover {
+    transform: translateY(-6px);
+  }
+
+  .tarjeta:hover::after {
+    opacity: 1;
+  }
+
+  .tarjeta:not(.tarjeta--destacada):hover::before {
+    transform: scaleX(1);
+  }
+
+  .tarjeta--destacada:hover::before {
+    transform: scaleY(1.7);
+  }
+
+  /* 3. Botones rojos: magnéticos (useMagnetico.ts pone --mx y --my). El de WhatsApp queda quieto: ya se mueve al entrar. */
+  .boton--primario:not(.whatsapp-flotante) {
+    translate: var(--mx, 0) var(--my, 0);
+    transition:
+      background-color var(--t-rapida),
+      border-color var(--t-rapida),
+      color var(--t-rapida),
+      box-shadow var(--t-rapida),
+      transform var(--t-rapida) var(--ease-salida),
+      translate 160ms var(--ease-salida);
+  }
+
+  /* Con la card de 24 px de relleno (desde 1060 px) el filete acompaña */
+  @media (min-width: 1060px) {
+    .tarjeta:not(.tarjeta--destacada)::before {
+      left: 24px;
+      right: 24px;
+    }
+  }
+
+  /* Las miniaturas de la galería se acercan apenas */
+  .galeria__boton:hover img {
+    transform: scale(1.03);
+  }
+}

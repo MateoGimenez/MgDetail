@@ -127,6 +127,8 @@ export interface AppConfig {
     loginFailures: RateLimitRule;
     /** Consultas de seguimiento de un turno (GET /api/turnos/:id), por IP. */
     seguimiento: RateLimitRule;
+    /** Descarga de PDF (presupuestos y comprobantes), por IP: generarlos cuesta CPU. */
+    pdf: RateLimitRule;
   };
   whatsapp: WhatsappConfig;
   recordatorios: RecordatoriosConfig;
@@ -148,6 +150,8 @@ export const DEFAULT_RATE_LIMITS: AppConfig['rateLimits'] = {
   loginFailures: { windowMs: 15 * 60 * 1000, limit: 5 },
   // Una persona mira su turno unas pocas veces; un barrido de ids necesitaría millones de pedidos.
   seguimiento: { windowMs: 15 * 60 * 1000, limit: 60 },
+  // Generar un PDF cuesta CPU: 30 por minuto por IP alcanzan de sobra para un panel con 2 o 3 personas.
+  pdf: { windowMs: 60 * 1000, limit: 30 },
 };
 
 /** Largo mínimo de CRON_SECRET: suficiente entropía para que no se pueda adivinar por fuerza bruta. */

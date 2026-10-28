@@ -1,71 +1,27 @@
-import { SubrayadoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
-import {
-  direccionDelTaller,
-  horariosDelTaller,
-  instagramArroba,
-  instagramUrl,
-  mapsUrl,
-  whatsappUrl,
-} from '../config/enlaces';
+import { instagramArroba, instagramUrl, whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
+import { CabeceraSeccion } from './CabeceraSeccion';
 import { useCatalogo } from './catalogo-contexto';
 import { useReserva } from './reserva-contexto';
 import { revelar } from './useRevelar';
 
+/** Contacto: solo los canales. La dirección, los horarios y el mapa viven en "Dónde estamos" (DondeEstamos.tsx). */
 export function Contacto() {
   const { reservar } = useReserva();
   const { estado } = useCatalogo();
-  const direccion = direccionDelTaller();
-  const horarios = horariosDelTaller();
-  const mapa = mapsUrl();
   const whatsapp = whatsappUrl(`¡Hola ${negocio.nombre}! Quiero hacer una consulta.`);
   const instagram = instagramUrl();
   const arroba = instagramArroba();
 
   return (
     <section id="contacto" className="seccion contacto" aria-labelledby="contacto-titulo">
-      <div className="contenedor contacto__grilla">
-        <div ref={revelar} className="contacto__lugar revelar revelar--sutil">
-          <h2 id="contacto-titulo" className="seccion__titulo">
-            Dónde estamos
-          </h2>
-          <SubrayadoFilete className="seccion__filete" />
-          <p className="contacto__ciudad">
-            {negocio.ciudad}, {negocio.pais}
-          </p>
-          {direccion && (
-            <p className="contacto__dato">
-              <Icono nombre="ubicacion" />
-              {direccion}
-            </p>
-          )}
-          {mapa && (
-            <a className="boton boton--secundario" href={mapa} target="_blank" rel="noopener noreferrer">
-              <Icono nombre="externo" tamano={18} />
-              Cómo llegar
-            </a>
-          )}
-        </div>
-
-        <div ref={revelar} className="contacto__canales revelar revelar--sutil">
-          {horarios.length > 0 && (
-            <div className="contacto__bloque">
-              <h3 className="contacto__subtitulo">
-                <Icono nombre="reloj" />
-                Horarios
-              </h3>
-              <ul className="contacto__horarios" role="list">
-                {horarios.map((horario) => (
-                  <li key={horario}>{horario}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="contacto__bloque">
-            <h3 className="contacto__subtitulo">Hablemos</h3>
-            {whatsapp || instagram ? (
+      <div className="contenedor">
+        <CabeceraSeccion id="contacto-titulo" titulo="Hablemos" />
+        <div ref={revelar} className="contacto__bloque revelar revelar--sutil">
+          {whatsapp || instagram ? (
+            <>
+              <p className="contacto__texto">Si preferís charlarlo antes de reservar, escribinos.</p>
               <div className="contacto__botones">
                 {whatsapp && (
                   <a className="boton boton--primario" href={whatsapp} target="_blank" rel="noopener noreferrer">
@@ -80,27 +36,25 @@ export function Contacto() {
                   </a>
                 )}
               </div>
-            ) : estado === 'vacio' ? (
-              // Sin servicios activos no hay formulario al que llevar (ver SinTurnosOnline).
-              <p className="contacto__texto">Por ahora no estamos tomando turnos online.</p>
-            ) : (
-              <>
-                <p className="contacto__texto">
-                  Dejanos tu pedido con el formulario y te contactamos para coordinar.
-                </p>
-                <button
-                  type="button"
-                  className="boton boton--primario"
-                  onClick={() => {
-                    reservar();
-                  }}
-                >
-                  Reservá tu turno
-                  <Icono nombre="flecha" />
-                </button>
-              </>
-            )}
-          </div>
+            </>
+          ) : estado === 'vacio' ? (
+            // Sin servicios activos no hay formulario al que llevar (ver SinTurnosOnline).
+            <p className="contacto__texto">Por ahora no estamos tomando turnos online.</p>
+          ) : (
+            <>
+              <p className="contacto__texto">Dejanos tu pedido con el formulario y te contactamos para coordinar.</p>
+              <button
+                type="button"
+                className="boton boton--primario"
+                onClick={() => {
+                  reservar();
+                }}
+              >
+                Reservá tu turno
+                <Icono nombre="flecha" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </section>

@@ -1,6 +1,7 @@
 import type { Comparacion, Estadisticas } from '../../api/estadisticas';
 import { Icono } from '../../components/Icono';
 import { pesos, textoVariacion, trabajos, variacion, type Variacion } from '../../lib/estadisticas';
+import { pesosConSigno } from '../../lib/finanzas';
 
 interface Tarjeta {
   clave: keyof Estadisticas['resumen'];
@@ -38,8 +39,21 @@ function TarjetaDePeriodo({ tarjeta, datos }: { tarjeta: Tarjeta; datos: Compara
       <p className="est-kpi__sub">
         {trabajos(actual.completados)} {actual.completados === 1 ? 'completado' : 'completados'}
       </p>
+      <dl className="est-kpi__neta">
+        <div>
+          <dt>Gastos</dt>
+          <dd>{pesos(actual.gastos)}</dd>
+        </div>
+        <div>
+          <dt>Ganancia neta</dt>
+          <dd className={actual.ganancia < 0 ? 'est-kpi__neta-valor est-kpi__neta-valor--negativa' : 'est-kpi__neta-valor'}>
+            {pesosConSigno(actual.ganancia)}
+          </dd>
+        </div>
+      </dl>
       <ul className="est-kpi__cambios" role="list">
         <Cambio nombre="Ingresos" v={variacion(actual.ingresos, anterior.ingresos)} contra={tarjeta.contra} />
+        <Cambio nombre="Ganancia" v={variacion(actual.ganancia, anterior.ganancia)} contra={tarjeta.contra} />
         <Cambio nombre="Trabajos" v={variacion(actual.completados, anterior.completados)} contra={tarjeta.contra} />
       </ul>
     </article>
@@ -62,7 +76,7 @@ export function TarjetasDePeriodo({ resumen }: { resumen: Estadisticas['resumen'
         ))}
       </div>
       <p className="est-kpis__nota">
-        Se comparan con los mismos días del período anterior: hoy con ayer, este mes con el mes pasado hasta el mismo día y este año con el
+        La ganancia neta es lo cobrado menos lo gastado. Se comparan con los mismos días del período anterior: hoy con ayer, este mes con el mes pasado hasta el mismo día y este año con el
         año pasado hasta el mismo día.
       </p>
     </section>

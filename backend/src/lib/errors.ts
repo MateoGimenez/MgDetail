@@ -19,6 +19,10 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'SERVICIO_EXISTE'
+  | 'GASTO_DE_INVENTARIO'
+  | 'STOCK_INSUFICIENTE'
+  | 'PRESUPUESTO_ACEPTADO'
+  | 'TURNO_CON_COMPROBANTE'
   | 'FRANJA_LLENA'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR'
@@ -79,6 +83,38 @@ export class AppError extends Error {
   static servicioExiste(): AppError {
     const message = 'Ya existe un servicio con ese identificador. Elegí otro.';
     return new AppError(409, 'SERVICIO_EXISTE', message, { id: message });
+  }
+
+  /** PATCH o DELETE de un gasto que creó una compra de inventario: se corrige desde Inventario. */
+  static gastoDeInventario(): AppError {
+    return new AppError(
+      409,
+      'GASTO_DE_INVENTARIO',
+      'Este gasto viene de una compra de inventario: corregilo desde Inventario.',
+    );
+  }
+
+  /** POST de un uso de insumo que supera lo que queda: fields.cantidad dice cuánto hay. */
+  static stockInsuficiente(message: string): AppError {
+    return new AppError(409, 'STOCK_INSUFICIENTE', message, { cantidad: message });
+  }
+
+  /** DELETE de un presupuesto aceptado: no se borra. */
+  static presupuestoAceptado(): AppError {
+    return new AppError(
+      409,
+      'PRESUPUESTO_ACEPTADO',
+      'Este presupuesto está aceptado: no se puede borrar. Cambiale el estado si hace falta.',
+    );
+  }
+
+  /** DELETE de un turno que ya tiene un comprobante emitido. */
+  static turnoConComprobante(): AppError {
+    return new AppError(
+      409,
+      'TURNO_CON_COMPROBANTE',
+      'Este turno tiene un comprobante de pago emitido: no se puede borrar.',
+    );
   }
 
   /** POST /api/bookings: la franja se llenó (o tiene cupo 0) mientras el cliente completaba el formulario. */

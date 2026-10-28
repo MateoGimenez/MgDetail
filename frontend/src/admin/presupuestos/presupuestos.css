@@ -1,0 +1,299 @@
+/* =========================================================================
+   Presupuestos (reportes/2026-10-27_17_finanzas-inventario-documentos.md). Solo variables de color del panel; los
+   sellos de estado reusan los de los turnos. El total siempre en tipografía de cifras fijas.
+   ========================================================================= */
+
+.pres-lista {
+  margin-top: var(--e-4);
+}
+
+.pres-taller {
+  margin-top: var(--e-4);
+}
+
+.pres-taller__form {
+  display: grid;
+  gap: var(--e-4);
+}
+
+.pres-taller__corto {
+  max-width: 17rem;
+}
+
+.pres-taller__falta {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+  padding: 10px 14px;
+  border: 1px dashed var(--acento-texto);
+  border-radius: var(--radio-2);
+  background: var(--acento-fondo);
+  color: var(--acento-texto);
+  font-weight: 600;
+}
+
+.pres-taller__falta svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.pres-taller__estado {
+  color: var(--texto-2);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.pres-taller__estado:empty {
+  display: none;
+}
+
+/* ---------- Tarjeta ---------- */
+
+.pres {
+  gap: var(--e-3);
+}
+
+.pres__sellos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.pres__total dd {
+  font-size: 1.375rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.pres__descuento {
+  display: block;
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.pres__vencio {
+  color: var(--acento-texto);
+  font-weight: 700;
+}
+
+.pres__items {
+  border-top: 1px solid var(--borde-suave);
+  padding-top: var(--e-2);
+}
+
+.pres__items summary {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 44px;
+  color: var(--texto-2);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pres__items summary::-webkit-details-marker {
+  display: none;
+}
+
+.pres__items summary:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+  border-radius: var(--radio-1);
+}
+
+.pres__items[open] .pres__flecha {
+  rotate: 180deg;
+}
+
+.pres__lista {
+  display: grid;
+  gap: 0;
+}
+
+.pres__renglon {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--e-3);
+  padding: var(--e-2) 0;
+  border-bottom: 1px solid var(--borde-suave);
+}
+
+.pres__renglon-que {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pres__renglon-cuenta {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.pres__renglon-importe {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.pres__notas {
+  margin-top: var(--e-2);
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.pres__acciones {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.pres__whatsapp {
+  display: grid;
+  gap: 4px;
+  max-width: 34ch;
+}
+
+.pres__whatsapp-ayuda {
+  color: var(--texto-3);
+  font-size: 0.8125rem;
+}
+
+.pres__extra {
+  flex-wrap: wrap;
+}
+
+.pres--esqueleto {
+  min-height: 190px;
+}
+
+/* ---------- Editor ---------- */
+
+.pres-items {
+  display: grid;
+  gap: var(--e-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pres-items__lista {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.pres-item {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-3);
+  background: var(--fondo-hundido);
+}
+
+.pres-item__cuenta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  grid-template-areas:
+    'cant precio quitar'
+    'importe importe importe';
+  align-items: end;
+  gap: var(--e-2) var(--e-3);
+}
+
+.pres-item__cuenta > .campo:nth-child(1) {
+  grid-area: cant;
+}
+
+.pres-item__cuenta > .campo:nth-child(2) {
+  grid-area: precio;
+}
+
+.pres-item__cuenta > .boton-icono {
+  grid-area: quitar;
+}
+
+.pres-item__importe {
+  grid-area: importe;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pres-item__importe-titulo {
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+.pres-item__numero {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pres-agregar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-3);
+}
+
+.pres-agregar__catalogo {
+  display: flex;
+  flex: 1 1 18rem;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+.pres-agregar__catalogo .desplegable {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Total en vivo: a la vista aunque la lista de ítems sea larga, junto a Guardar. */
+.pres-barra {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.pres-barra__total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--e-3);
+}
+
+.pres-barra__titulo {
+  color: var(--texto-2);
+  font-size: 0.875rem;
+}
+
+.pres-barra__monto {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+@media (min-width: 560px) {
+  .pres-item__cuenta {
+    grid-template-columns: 7rem minmax(0, 11rem) minmax(0, 1fr) auto;
+    grid-template-areas: 'cant precio importe quitar';
+  }
+
+  .pres-item__importe {
+    justify-content: flex-end;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+  }
+
+  .pres-barra {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}

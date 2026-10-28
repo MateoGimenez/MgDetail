@@ -6,7 +6,9 @@ import { consultarTurno } from '../api/turnos';
 import { MarcoFilete, SubrayadoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { Logo } from '../components/Logo';
-import { instagramArroba, instagramUrl, whatsappUrl } from '../config/enlaces';
+import { instagramArroba, instagramUrl, MENSAJE_CONSULTA_TURNO, whatsappUrl } from '../config/enlaces';
+import { BotonWhatsapp } from '../landing/BotonWhatsapp';
+import '../landing/efectos.css';
 import { negocio } from '../config/sitio';
 import { fechaLarga, momentoEnLaRioja } from '../lib/fechas';
 import { ETIQUETA_FECHA_SEGUIMIENTO, pasosDelTurno } from '../lib/seguimiento';
@@ -236,6 +238,7 @@ export default function PaginaSeguimiento() {
           </Link>
         </p>
       </main>
+      <BotonWhatsapp mensaje={MENSAJE_CONSULTA_TURNO} />
     </div>
   );
 }

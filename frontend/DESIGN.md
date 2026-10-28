@@ -180,18 +180,42 @@ Esquinas casi rectas, como una chapa pintada: 4px en paneles, 6px en botones y c
 - **Celular (< 700 px): carrusel horizontal** (`ListaTarjetas.tsx`): cada card mide `min(84vw, 340px)` y la siguiente se asoma; `scroll-snap-type: x mandatory`, `overscroll-behavior-x: contain` y la lista llega hasta los bordes de la pantalla, así que solo ella se desplaza de costado, no la página. La región tiene `aria-label` y `tabindex="0"` (flechas del teclado) y un indicador "2 de 5" (`aria-live="polite"`) que sigue al scroll. Desde 700 px, grilla de 2 columnas y desde 1060 px de 3. Cada card (`TarjetaServicio.tsx`, `servicios.css`) lleva sello (solo el destacado), nombre en Barlow, resumen, chapa de datos (precio y duración, siempre en el mismo lugar), las 3 primeras cosas de "Incluye" con rombos, "Ver qué incluye" y el botón de reservar. Plegada, en el celular apunta a ~380 px de alto.
 - "Ver qué incluye" es un botón real con `aria-expanded` y `aria-controls`. Lo que despliega (descripción completa, "Incluye" completo y "En palabras simples") no se desmonta: la grilla va de `0fr` a `1fr` en 280 ms (`--t-media`, `--ease-salida`) y plegado queda `inert` y `visibility: hidden`. Al abrir, las 3 cosas de la vista previa se pliegan para no repetirse. Con una card abierta las demás no se estiran (`:has`).
 - La destacada usa `--destacada-fondo` y `--destacada-borde`, un filete rojo sobre el borde superior, `--sombra-2`, el sello "Recomendado por el taller" y el botón primario; desde 1060 px se eleva 12 px (`translate`, independiente del transform del revelado).
+- Debajo de los botones, el enlace "Ver el servicio completo" lleva a su página (`/servicios/:id`).
 - Precio cargando: brillo de `--esqueleto` en el mismo lugar. Catálogo vacío: `SinTurnosOnline`. Respaldo: "Consultá".
-
-### Comparativa "¿Cuál te conviene?"
-- Debajo de las cards (`Comparativa.tsx`, lógica pura en `src/lib/comparativa.ts`). Dos `<select>` (por defecto el primer servicio y el destacado; si se elige el del otro lado se intercambian). No se muestra con menos de dos servicios ni sin destacado. Desde 900 px es de dos columnas: título, selectores y resumen a la izquierda (5fr) y la tabla a la derecha (7fr); en el celular todo va apilado.
-- Resumen con filete rojo a la izquierda, en una o dos líneas: "Por $ X más, el … suma N cosas." (la cifra en Barlow y `--acento-texto`). Solo con los dos precios cargados y diferencia positiva; si no, "Sumás N cosas con el …. Consultá el precio de cada uno." Nunca se estima un precio. Los extras no se listan acá: ya están en la tabla.
-- `<table>` real: `caption`, `th scope`, precio y duración lado a lado y una fila por cosa que DISTINGUE a un servicio del otro. Lo que incluyen los dos se junta en una fila desplegable ("Incluyen los dos · 6 cosas", botón con `aria-expanded` y `aria-controls`, `<tbody hidden>` cerrado); sin ítems en común no hay fila. ✓ (ícono) y — (guion) con texto "Incluido" / "No incluido": se distinguen por forma, no solo por color; el ✓ de un extra va en `--acento-texto`. Tres columnas legibles a 390 px (`table-layout: fixed`); la fila de nombres es `position: sticky` bajo la cabecera, con filete rojo. Debajo de cada columna, "Elegir …" (reserva con el servicio preseleccionado).
-- Convención "Todo lo del <nombre>" en "Incluye": se expande a la lista del otro servicio (sin importar mayúsculas ni acentos).
 
 ### Revelado al hacer scroll
 - `useRevelar.ts` + `revelar.css`. Solo se anima lo que está fuera de pantalla al montar (`data-revelar="pendiente"` y luego `"visto"`, una sola vez, con `IntersectionObserver`); lo demás nunca se oculta. Sin `IntersectionObserver` o sin JS no queda nada oculto. Todo dentro de `prefers-reduced-motion: no-preference`. Anima solo `transform` y `opacity`; el filete se dibuja con `stroke-dashoffset`, como el resto del filete de la marca.
-- Tiempos (`--ease-salida`, salvo el filete): el encabezado de sección sube 20 px en 640 ms y su filete se dibuja en 800 ms (`--ease-pincel`, 220 ms de demora); la card sube 28 px en 700 ms con 90 ms de paso por columna (`--i`); las secciones que acompañan (pasos, beneficios, trabajos, preguntas, contacto) usan `revelar--sutil`: 12 px en 520 ms; en la comparativa cada ✓ crece de 0,5 a 1 en 420 ms, fila por fila (55 ms por fila, hasta la 8.ª), y el resumen entra al final. El hero no se anima.
+- Tiempos (`--ease-salida`, salvo el filete): el encabezado de sección sube 20 px en 640 ms y su filete se dibuja en 800 ms (`--ease-pincel`, 220 ms de demora); la card sube 28 px en 700 ms con 90 ms de paso por columna (`--i`); las secciones que acompañan (pasos, beneficios, trabajos, preguntas, contacto) usan `revelar--sutil`: 12 px en 520 ms. El hero no se anima.
 - Dónde: `CabeceraSeccion.tsx` (todos los encabezados), `.revelar` en cada ítem, `.revelar-hijo` y `.revelar-marca` para lo que escalona dentro de un contenedor revelado. En el celular la lista del carrusel sube como un bloque (solo en vertical, así ninguna card queda oculta a la derecha); desde 700 px entra cada card sola.
+
+### Cabecera y scrollspy
+- La barra fija marca la sección que se está viendo (`useSeccionActiva.ts` + `lib/seccionActiva.ts`): un `IntersectionObserver` vigila una franja de 1 px pegada debajo de la cabecera (la "línea de lectura") y gana la sección que la ocupa; en el hero y entre secciones del menú no hay ninguna. En el escritorio el enlace activo lleva `aria-current="location"`, texto pleno y el filete rojo subrayado (el mismo que aparece al pasar el mouse); en el menú del celular, el filete a la izquierda y el color de acento (`--acento-texto`). Al tocar un enlace se marca enseguida y el observador espera a que termine el scroll (`scrollend`, tope de 1,2 s). Seis secciones: Servicios, Cómo trabajamos, Trabajos, Preguntas, Dónde estamos y Contacto; la barra completa entra desde 1100 px.
+- En las páginas de servicio los enlaces llevan a `/#sección` y no hay ninguno marcado.
+
+### Dónde estamos
+- `DondeEstamos.tsx` + `donde.css`, sección `#donde` entre la reserva y el contacto. Celular: título, ciudad en Kaushan, estado, dirección, horarios y el mapa abajo. Desde 900 px: dos columnas (5fr texto, 7fr mapa) del mismo alto.
+- **Estado** ("Abierto ahora · hasta las 13 h" / "Cerrado ahora · abrimos hoy a las 18 h"): una píldora con borde y punto; el color suma (`--exito` en abierto, `--texto-3` en cerrado) pero lo que informa es el texto. Se calcula en hora de La Rioja (`lib/horarioTaller.ts`) con `sitio.horariosSemana`, se refresca cada minuto y no se muestra si ese dato falta.
+- **Mapa:** una tarjeta con el marco de filete y "Ver el mapa acá"; recién al tocar se crea el `iframe` (`loading="lazy"`, `title`, `referrerpolicy`): no se le manda nada a Google antes. Sin `mapaEmbedUrl`, la tarjeta muestra la dirección y "Cómo llegar". Contacto ya no repite dirección ni horarios.
+
+### Botón flotante de WhatsApp
+- `BotonWhatsapp.tsx`: fijo abajo a la derecha (`env(safe-area-inset-*)`), 56 px, con el estilo del botón primario (rojo, filete de la marca; no el verde de WhatsApp, que rompería la paleta). Desde 900 px suma el texto "Escribinos". Aparece pasados 320 px de scroll y se oculta mientras se ve el formulario de reserva, para no tapar "Enviar". Fuera de pantalla queda `visibility: hidden` (sin foco). Está en la landing, en `/turno/:id` y en las páginas de servicio; el mensaje nombra el servicio en estas últimas. No existe en `/admin`.
+
+### Página de un servicio
+- `/servicios/:id` (`PaginaServicio.tsx`, `paginaServicio.css`, carga diferida): migas, título en Barlow con el filete, resumen, chapa de precio y duración (la misma de las cards), "Reservá este servicio" y "Consultar por WhatsApp", "De qué se trata", "Qué incluye", "En palabras simples", preguntas del servicio (`servicioId` en `preguntas.ts`), fotos del servicio y "Otros servicios". Desde 900 px, "Qué incluye" y el glosario van en dos columnas. Solo con datos del catálogo; los bloques sin datos no se emiten. Un id inexistente o inactivo muestra "No encontramos ese servicio" con los que sí hay y `noindex`.
+- Enlace profundo: `/?servicio=<id>#reservar` abre la landing en el formulario con el servicio elegido (`useIrAlHash.ts`).
+- SEO: `lib/seoServicio.ts` arma título, descripción, Open Graph, canonical (solo con `sitio.url`) y JSON-LD `Service` + `BreadcrumbList`; `useSeo.ts` lo aplica al `head` y lo restaura al salir.
+
+### Galería de trabajos
+- `Galeria.tsx`: fotos con `<picture>` (WebP de 480, 800 y 1080 px y JPG de respaldo, `npm run fotos`), `width` y `height` para reservar el lugar. Cada foto conserva su formato: las verticales en 4:5 y las horizontales en 4:3; la grilla es de 2 columnas en el celular, 3 desde 700 px y 4 desde 1060 px, y la fila incompleta queda centrada (3 fotos verticales se ven parejas en cualquier ancho). El visor las muestra enteras (`object-fit: contain`, alto máximo de la pantalla).
+
+### Efectos sutiles
+- `efectos.css`; solo `transform` y `opacity`, todo bajo `prefers-reduced-motion: no-preference` y los de puntero además con `(hover: hover) and (pointer: fine)`. Sin librerías ni parallax.
+  1. **Cabecera:** al pasar 8 px de scroll gana sombra (`--sombra-1`, opacidad, 240 ms) y el logo se achica a 0,88 (240 ms, `--ease-salida`).
+  2. **Cards:** se elevan 4 px (la destacada 6) en 260 ms con la sombra `--sombra-2` que aparece; el filete rojo crece de izquierda a derecha en 360 ms (`--ease-pincel`) y el de la destacada se engrosa de 3 a 5 px.
+  3. **Botones rojos:** se corren hasta 4 px hacia el mouse (`useMagnetico.ts`, 160 ms); no en táctil ni con teclado.
+  4. **Fotos:** aparecen con un fundido de 500 ms al terminar de cargar; el lugar está reservado, así que nada salta.
+  5. **"Abierto ahora":** un aro que late (escala de 1 a 2,8 y opacidad de 0,55 a 0, 2,4 s en bucle).
+  6. **WhatsApp:** entra subiendo 12 px con un fundido de 320 ms.
 
 ### Comparador antes/después
 - `<input type="range">` nativo y transparente sobre las dos fotos; divisor de filete con manija medallón. Accesible con teclado.
@@ -283,6 +307,11 @@ Contrato: `reportes/2026-10-26_15_estadisticas-y-permisos.md`. SVG propio en `sr
 - **Accesibles:** cada gráfico es un `role="img"` con nombre y descripción, y trae "Ver los números" (tabla real en `<details>`). El movimiento corre solo con `prefers-reduced-motion: no-preference`; con `forced-colors` las columnas toman `CanvasText`.
 - **Cambio de período:** el contenido queda atenuado (55 %) mientras llega lo nuevo, sin saltar a un esqueleto.
 
+### Navegación del panel y Finanzas
+- **Navegación:** tres grupos en el riel (Operación, Negocio, Ajustes). El grupo abierto se une a su fila de secciones como una solapa (fondo `--grafito-800`); la sección actual lleva el filete rojo y el grupo que la contiene, un rombo rojo. Desde 1240 px, una sola fila con divisores entre grupos.
+- **Finanzas:** tarjetas planas; la ganancia neta va al frente en display y en `#a3221b` con signo menos si es negativa. Metas: barra de 14 px (tinta `--texto-3`, verde de sello al cumplirse) con porcentaje y lectura escritos; estado como sello con ícono y palabras.
+- **Ingresos vs. gastos:** dos columnas finas por día o mes; ingresos en tinta lisa, gastos en rojo del panel con rayas y leyenda siempre visible. La paleta no pasa CVD solo por color (protan ΔE 6,6): la diferencia la cargan la trama, la leyenda y el dato escrito.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -296,3 +325,7 @@ Contrato: `reportes/2026-10-26_15_estadisticas-y-permisos.md`. SVG propio en `sr
 - **Don't** poner rótulos o "eyebrows" encima de los títulos.
 - **Don't** extender el cromo a títulos de sección ni a textos largos.
 - **Don't** agregar halos de color, vidrio desenfocado ni tarjetas iguales con íconos.
+
+## Panel: inventario, presupuestos y comprobantes
+
+Componentes nuevos, solo con variables del panel. **Barra de stock** (`.inv-barra`): el relleno mide el stock y la marca vertical el mínimo; el aviso es la etiqueta de texto (Stock bajo en acento sobre `--acento-fondo`, Sin stock sólida en `--error`). **Tarjeta de presupuesto** (`.pres`): reusa `.turno` y los sellos de estado de los turnos (borrador gris, enviado ámbar, aceptado verde, rechazado rojo) más el sello «Vencido». **Total en vivo** (`.pres-barra`): fijo abajo del diálogo, junto a Guardar. **Botones de PDF** (`.pdf`): Descargar y Compartir. **Comprobante** (`.comp`): panel con el recuadro de cobro y formas de pago como radios en recuadros.
