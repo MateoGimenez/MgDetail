@@ -34,7 +34,7 @@ export const sitio: DatosSitio = {
   mapaEmbedUrl: '',
   // COMPLETAR: dirección pública de la web, sin barra final. Ej.: 'https://mgdetailing.com.ar'
   // (se usa para canonical, og:url y, más adelante, og:image; vacía, esas etiquetas no se emiten)
-  url: '',
+  url: 'https://mgdetail.com.ar',
   // Logo plano para fondo oscuro, versión liviana generada con `npm run marca` (vacío: wordmark tipográfico).
   logo: '/marca/logo-fondo-oscuro.png',
   logoAncho: 303,

@@ -1,0 +1,56 @@
+# Render Blueprint: un solo servicio web (la API de Node también sirve la web y el panel).
+# Uso: en Render, New > Blueprint, elegir este repo. Las variables con `sync: false` se cargan a mano en el panel de
+# Render (son secretos o datos tuyos): nunca van al repo. Detalle de cada una en backend/.env.example.
+services:
+  - type: web
+    name: mgdetailing
+    runtime: node
+    # Poné la región más cercana a tu proyecto de Supabase (menos demora entre la API y la base).
+    region: virginia
+    # Plan que NO se duerme: con el gratis se pierden avisos y recordatorios, y el primer visitante espera ~30 s.
+    plan: starter
+    # NODE_ENV=production hace que `npm ci` salte las devDependencies (typescript, vite), que el build necesita.
+    buildCommand: npm --prefix frontend ci --include=dev && npm --prefix backend ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      # Render llega al proceso desde afuera: hay que escuchar en todas las interfaces.
+      - key: HOST
+        value: 0.0.0.0
+      # La API sirve el build del frontend (un solo proceso, mismo origen).
+      - key: SERVE_FRONTEND
+        value: "true"
+      # Un proxy inverso (el de Render) entre el visitante y la API: para que el límite de pedidos vea la IP real.
+      - key: TRUST_PROXY
+        value: "1"
+      # Origen exacto que ve el navegador (esquema + host, sin barra final). Para probar antes de apuntar el dominio,
+      # sumá la URL provisoria separada por coma: https://mgdetail.com.ar,https://TU-SERVICIO.onrender.com
+      - key: FRONTEND_ORIGIN
+        value: https://mgdetail.com.ar
+      - key: PUBLIC_URL
+        value: https://mgdetail.com.ar
+      # El certificado raíz de Supabase ya está en el repo (backend/certs).
+      - key: DATABASE_SSL_CA_FILE
+        value: ./certs/supabase-ca.crt
+      # --- Secretos / datos tuyos: se cargan en el panel de Render ---
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      # Opcional: que el superadmin cree y elimine usuarios desde el panel.
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      # Avisos push al celular (las tres juntas o ninguna).
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
