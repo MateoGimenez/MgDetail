@@ -55,6 +55,8 @@ export function sitemapRouter(deps: {
         loc: `${publicUrl}/servicios/${encodeURIComponent(servicio.id)}`,
         lastmod: fechas[i] ?? null,
       })),
+      // Página fija (política de privacidad): sin lastmod, porque no sale del catálogo.
+      { loc: `${publicUrl}/privacidad`, lastmod: null },
     ];
     const xml =
       '<?xml version="1.0" encoding="UTF-8"?>\n' +

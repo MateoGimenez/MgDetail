@@ -1,0 +1,58 @@
+/* Política de privacidad (/privacidad): texto largo para leer, columna angosta. Solo variables semánticas. */
+
+.privacidad__fecha {
+  color: var(--texto-3);
+  font-size: 0.9375rem;
+}
+
+.privacidad__cuerpo {
+  display: grid;
+  gap: var(--e-6);
+  max-width: 44rem;
+  padding-top: var(--e-5);
+  border-top: 1px solid var(--borde);
+}
+
+.privacidad__seccion {
+  display: grid;
+  gap: var(--e-3);
+  align-content: start;
+}
+
+.privacidad__subtitulo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 1.25rem + 1.1vw, 2rem);
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.privacidad__lista {
+  display: grid;
+  gap: var(--e-2);
+  padding: 0;
+  color: var(--texto-2);
+  list-style: none;
+}
+
+.privacidad__lista li {
+  position: relative;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.privacidad__lista li::before {
+  content: '';
+  position: absolute;
+  top: 0.7em;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--acento);
+  transform: rotate(45deg);
+}
+
+.privacidad .servicio__texto {
+  overflow-wrap: anywhere;
+}

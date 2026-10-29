@@ -6,6 +6,9 @@ import { negocio, sitio } from './sitio';
  * `if (url)` y nunca escriben números, usuarios ni URLs a mano.
  */
 
+/** Ruta de la política de privacidad. */
+export const RUTA_PRIVACIDAD = '/privacidad';
+
 const soloDigitos = (texto: string) => texto.replace(/\D/g, '');
 
 function armarWhatsapp(numero: string, mensaje?: string): string {

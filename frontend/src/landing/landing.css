@@ -1519,6 +1519,17 @@ legend.arranque__etiqueta + * {
   line-height: 1.5;
 }
 
+/* Enlace a la política dentro de textos chicos (pie y formulario). */
+.enlace-privacidad {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.enlace-privacidad:hover {
+  color: var(--texto);
+}
+
 @media (min-width: 1000px) {
   .reserva__form {
     grid-template-columns: minmax(0, 1fr) 340px;

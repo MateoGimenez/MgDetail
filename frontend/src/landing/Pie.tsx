@@ -1,5 +1,6 @@
+import { Link } from 'react-router';
 import { Logo } from '../components/Logo';
-import { hayUbicacion, instagramArroba, instagramUrl, whatsappUrl } from '../config/enlaces';
+import { hayUbicacion, RUTA_PRIVACIDAD,instagramArroba, instagramUrl, whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 import { EnlaceSeccion } from './EnlaceSeccion';
 
@@ -58,7 +59,10 @@ export function Pie({ enPagina = false }: { enPagina?: boolean }) {
       </div>
       <div className="contenedor pie__legal">
         <p>
-          Usamos tus datos solo para coordinar tu turno (Ley 25.326 de Protección de Datos Personales).
+          Usamos tus datos solo para coordinar tu turno (Ley 25.326 de Protección de Datos Personales).{' '}
+          <Link className="enlace-privacidad" to={RUTA_PRIVACIDAD}>
+            Política de privacidad
+          </Link>
         </p>
         <p>
           © {ANIO} {negocio.nombre} · {negocio.ciudad}, {negocio.pais}

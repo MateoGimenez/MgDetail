@@ -41,6 +41,7 @@ describe('GET /sitemap.xml', () => {
       `${URL_PUBLICA}/servicios/lavado-premium`,
       `${URL_PUBLICA}/servicios/pulido`,
       `${URL_PUBLICA}/servicios/restauracion-opticas`,
+      `${URL_PUBLICA}/privacidad`,
     ]);
     expect(r.text).not.toContain('encerado'); // inactivo
     expect(r.text).not.toMatch(/admin|turno\//);
@@ -48,7 +49,7 @@ describe('GET /sitemap.xml', () => {
     expect(r.text).toContain(`<url><loc>${URL_PUBLICA}/servicios/lavado-basico</loc><lastmod>2026-10-01</lastmod></url>`);
     // la home tiene la fecha del cambio más reciente del catálogo
     expect(r.text).toContain(`<url><loc>${URL_PUBLICA}/</loc><lastmod>2026-10-19</lastmod></url>`);
-    expect((r.text.match(/<lastmod>/g) ?? []).length).toBe(locs.length);
+    expect((r.text.match(/<lastmod>/g) ?? []).length).toBe(locs.length - 1); // /privacidad no lleva lastmod
   });
 
   it('sin servicios activos: solo la home, sin lastmod', async () => {
@@ -57,6 +58,7 @@ describe('GET /sitemap.xml', () => {
     const r = await request(app).get('/sitemap.xml');
     expect(r.status).toBe(200);
     expect(r.text).toContain(`<url><loc>${URL_PUBLICA}/</loc></url>`);
+    expect(r.text).toContain(`<url><loc>${URL_PUBLICA}/privacidad</loc></url>`);
     expect(r.text).not.toContain('lastmod');
     expect(r.text).not.toContain('/servicios/');
   });

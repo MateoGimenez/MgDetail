@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
 import { ETIQUETA_FRANJA, ETIQUETA_VEHICULO, esFranja, esVehiculoTipo } from '../api/contract';
 import { Icono } from '../components/Icono';
-import { whatsappUrl } from '../config/enlaces';
+import { RUTA_PRIVACIDAD, whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 import { useCatalogo } from './catalogo-contexto';
 import { fechaLarga } from '../lib/fechas';
@@ -95,7 +96,11 @@ export function ResumenPedido({ valores, errores, validarEnVivo, envio }: Props)
         {envio.fase !== 'enviando' && <Icono nombre="flecha" />}
       </button>
       <p className="reserva__privacidad">
-        Usamos tus datos solo para coordinar tu turno (Ley 25.326 de Protección de Datos Personales).
+        Usamos tus datos solo para gestionar tu turno. Más info en la{' '}
+        <Link className="enlace-privacidad" to={RUTA_PRIVACIDAD}>
+          política de privacidad
+        </Link>
+        .
       </p>
     </div>
   );

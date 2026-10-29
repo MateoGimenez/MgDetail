@@ -10,6 +10,8 @@ const PanelAdmin = lazy(() => import('./admin/AdminApp'));
 const Seguimiento = lazy(() => import('./seguimiento/PaginaSeguimiento'));
 // Una página por servicio (/servicios/:id): también se descarga aparte, con su SEO propio.
 const PaginaServicio = lazy(() => import('./landing/PaginaServicio'));
+// La política de privacidad (/privacidad): texto largo, también aparte.
+const PaginaPrivacidad = lazy(() => import('./landing/PaginaPrivacidad'));
 
 function CargandoPanel() {
   return (
@@ -45,6 +47,14 @@ export function App() {
         element={
           <Suspense fallback={<div className="cargando-pagina" role="status">Cargando el servicio…</div>}>
             <PaginaServicio />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/privacidad"
+        element={
+          <Suspense fallback={<div className="cargando-pagina" role="status">Cargando la política…</div>}>
+            <PaginaPrivacidad />
           </Suspense>
         }
       />
