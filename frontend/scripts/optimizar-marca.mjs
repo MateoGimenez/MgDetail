@@ -52,33 +52,50 @@ await guardar(
   'og.jpg',
 );
 
-// Favicon: el monograma recortado del logo 3D, sobre su fondo grafito.
-const monograma = sharp(origen('MgDetailing-logo-3D.png'))
-  .flatten({ background: '#0b0d10' })
-  .extract({ left: 280, top: 200, width: 800, height: 800 });
-const base = await monograma.png().toBuffer();
-await guardar(sharp(base).resize(180, 180).png({ compressionLevel: 9 }), 'apple-touch-icon.png');
-await guardar(sharp(base).resize(48, 48).png({ compressionLevel: 9 }), 'favicon-48.png');
-
-// Íconos de la app instalable del panel (/admin), sobre el fondo oscuro de la marca.
-// "any": el logo ocupa todo el cuadro; "maskable": queda dentro del 80 % central (zona segura
-// que ningún sistema recorta) y el fondo llega hasta los bordes.
-// Se parte del avatar cuadrado (logo completo, fondo transparente): el cuadro se ve igual que en la web.
-const monogramaApp = await sharp(origen('MgDetailing-avatar-3D-1080.png')).flatten({ background: '#0b0d10' }).png().toBuffer();
-// El avatar ya trae su propio fondo con viñeta casi negra: el margen del maskable repite sus bordes
-// (sin franjas ni cuadro visible).
-const iconoApp = async (lado, proporcion) => {
-  const interior = Math.round(lado * proporcion);
-  const imagen = sharp(monogramaApp).resize(interior, interior);
-  if (interior === lado) return imagen.png({ compressionLevel: 9 });
-  const margen = lado - interior;
-  const bajo = Math.floor(margen / 2);
-  return sharp(await imagen.png().toBuffer())
-    .extend({ top: bajo, bottom: margen - bajo, left: bajo, right: margen - bajo, extendWith: 'copy' })
+// Favicon e íconos de la app (celular, panel instalable): SOLO el monograma "Mg", sin "Detailing" ni la línea roja.
+// Se recorta del logo 3D horizontal con un polígono ajustado al contorno del monograma (en coordenadas del recorte
+// de abajo: la "D" de Detailing casi toca el borde derecho y la línea roja pasa por debajo) y se centra sobre un
+// fondo oscuro de la marca. Si cambia el logo, hay que revisar este polígono mirando public/marca/app-512.png.
+const RECORTE = { left: 240, top: 200, width: 1000, height: 800 };
+const POLIGONO = [
+  [283, 37], [822, 60], [742, 432], [726, 470], [712, 505], [724, 516], [600, 690], [480, 695], [372, 694],
+  [405, 528], [60, 528], [145, 147],
+];
+const CAJA = { x: 56, y: 34, ancho: 772, alto: 664 }; // el monograma dentro del recorte
+const monogramaSolo = async () => {
+  const recorte = await sharp(origen('MgDetailing-logo-3D.png')).flatten({ background: '#0b0d10' }).extract(RECORTE).png().toBuffer();
+  const puntos = POLIGONO.map(([x, y]) => `${String(x)},${String(y)}`).join(' ');
+  const mascara = await sharp(
+    Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${String(RECORTE.width)}" height="${String(RECORTE.height)}"><polygon points="${puntos}" fill="#fff"/></svg>`),
+  )
+    .blur(1.2)
+    .extractChannel(0)
+    .png()
+    .toBuffer();
+  const recortado = await sharp(recorte).joinChannel(mascara).png().toBuffer();
+  return sharp(recortado).extract({ left: CAJA.x, top: CAJA.y, width: CAJA.ancho, height: CAJA.alto }).png().toBuffer();
+};
+const monograma = await monogramaSolo();
+// Fondo cuadrado: grafito con una viñeta suave, como el del avatar de la marca.
+const fondo = (lado) =>
+  sharp(
+    Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${String(lado)}" height="${String(lado)}"><defs><radialGradient id="g" cx="50%" cy="46%" r="75%"><stop offset="0" stop-color="#16191d"/><stop offset="1" stop-color="#090b0d"/></radialGradient></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>`,
+    ),
+  ).png();
+// `proporcion` = qué parte del ancho del cuadro ocupa el monograma (el maskable queda dentro de la zona segura).
+const iconoMonograma = async (lado, proporcion) => {
+  const ancho = Math.round(lado * proporcion);
+  const alto = Math.round((ancho * CAJA.alto) / CAJA.ancho);
+  const pieza = await sharp(monograma).resize(ancho, alto).png().toBuffer();
+  return sharp(await fondo(lado).toBuffer())
+    .composite([{ input: pieza, left: Math.round((lado - ancho) / 2), top: Math.round((lado - alto) / 2) }])
     .png({ compressionLevel: 9 });
 };
-await guardar(await iconoApp(192, 1), 'app-192.png');
-await guardar(await iconoApp(512, 1), 'app-512.png');
-await guardar(await iconoApp(512, 0.8), 'app-maskable-512.png');
+await guardar(await iconoMonograma(180, 0.76), 'apple-touch-icon.png');
+await guardar(await iconoMonograma(48, 0.84), 'favicon-48.png');
+await guardar(await iconoMonograma(192, 0.76), 'app-192.png');
+await guardar(await iconoMonograma(512, 0.76), 'app-512.png');
+await guardar(await iconoMonograma(512, 0.58), 'app-maskable-512.png');
 
 console.log(salidas.join('\n'));
