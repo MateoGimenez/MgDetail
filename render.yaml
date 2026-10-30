@@ -7,8 +7,10 @@ services:
     runtime: node
     # Poné la región más cercana a tu proyecto de Supabase (menos demora entre la API y la base).
     region: virginia
-    # Plan que NO se duerme: con el gratis se pierden avisos y recordatorios, y el primer visitante espera ~30 s.
-    plan: starter
+    # Plan gratis para arrancar: se duerme tras 15 min sin visitas (la primera visita espera ~30-60 s). Un monitor
+    # gratis (UptimeRobot, cada 5 min a /api/health) lo mantiene despierto. Cuando haya clientes, cambiá a `starter`
+    # (~US$7/mes, no se duerme) y volvé a sincronizar el Blueprint.
+    plan: free
     # NODE_ENV=production hace que `npm ci` salte las devDependencies (typescript, vite), que el build necesita.
     buildCommand: npm --prefix frontend ci --include=dev && npm --prefix backend ci --include=dev && npm run build
     startCommand: npm start
