@@ -230,6 +230,14 @@ describe('esquema Postgres (migraciones de supabase/migrations/ aplicadas en PGl
     await expect(verifyPostgresSchema(sql)).rejects.toThrow(/Faltan columnas en mgdetailing\.servicios \(glosario\)/);
   });
 
+  it('verifyPostgresSchema: sin la migración de precios por vehículo falla con un mensaje claro que nombra las columnas y la migración', async () => {
+    const { pg, sql } = await pglite();
+    await pg.exec('ALTER TABLE mgdetailing.servicios DROP COLUMN precio_desde_camioneta, DROP COLUMN precio_desde_moto');
+    await expect(verifyPostgresSchema(sql)).rejects.toThrow(
+      /Faltan columnas en mgdetailing\.servicios \(precio_desde_camioneta, precio_desde_moto\).*precios_por_vehiculo/,
+    );
+  });
+
   it('agenda: la migración se aplica sobre una base con turnos (los conserva sin confirmada y siguen en la agenda)', async () => {
     // Como en producción: la base ya tiene todas las migraciones anteriores y turnos en todos los estados.
     const AGENDA = '20261023120000_agenda_fecha_confirmada.sql';

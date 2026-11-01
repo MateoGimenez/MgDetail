@@ -100,6 +100,8 @@ export const LIMITES_SERVICIO = {
   glosario: { items: 10, termino: 60, significado: 300 },
   duracion: { max: 60 },
   precioDesde: { max: 99_999_999 },
+  precioDesdeCamioneta: { max: 99_999_999 },
+  precioDesdeMoto: { max: 99_999_999 },
 } as const;
 
 /** 409 de POST /api/admin/servicios cuando el id ya existe. */
@@ -120,6 +122,8 @@ export interface NuevoServicio {
   glosario: TerminoGlosario[];
   duracion: string | null;
   precioDesde: number | null;
+  precioDesdeCamioneta: number | null;
+  precioDesdeMoto: number | null;
   destacado: boolean;
   activo: boolean;
 }

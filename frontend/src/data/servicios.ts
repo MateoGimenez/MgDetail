@@ -6,14 +6,14 @@ import type { Servicio } from '../types';
  *  - mientras la web carga el catálogo, y
  *  - si la API no responde: la web nunca queda sin servicios, pero sin precios (muestra "Consultá").
  *
- * Por eso no lleva `precioDesde`: los precios se cargan en el panel. Conviene que los textos de acá sigan
+ * Por eso no lleva precios (`precioDesde`, `precioDesdeCamioneta`, `precioDesdeMoto`): los precios se cargan en el panel. Conviene que los textos de acá sigan
  * parecidos a los de la base (la migración del catálogo copió estos mismos), para que no "salte" el contenido
  * cuando llega la respuesta.
  *
  * PROVISIONAL: descripciones, lo que incluye cada servicio y las duraciones son una propuesta inicial que el
  * dueño todavía no confirmó (buscá "COMPLETAR: confirmar con el taller").
  */
-type ServicioDeRespaldo = Omit<Servicio, 'precioDesde' | 'duracion'> & { readonly duracion: string };
+type ServicioDeRespaldo = Omit<Servicio, 'precioDesde' | 'precioDesdeCamioneta' | 'precioDesdeMoto' | 'duracion'> & { readonly duracion: string };
 
 const respaldo = [
   {
@@ -177,8 +177,13 @@ const respaldo = [
 /** Ids del respaldo: con ellos, las preguntas frecuentes pueden nombrar servicios con control en compilación. */
 export type IdDeRespaldo = (typeof respaldo)[number]['id'];
 
-/** El respaldo con la forma del catálogo público: siempre sin precio. */
-export const serviciosDeRespaldo: readonly Servicio[] = respaldo.map((servicio) => ({ ...servicio, precioDesde: null }));
+/** El respaldo con la forma del catálogo público: siempre sin precios (los de auto, camioneta y moto). */
+export const serviciosDeRespaldo: readonly Servicio[] = respaldo.map((servicio) => ({
+  ...servicio,
+  precioDesde: null,
+  precioDesdeCamioneta: null,
+  precioDesdeMoto: null,
+}));
 
 const PRECIO = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -186,9 +191,14 @@ const PRECIO = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 0,
 });
 
+/** "$ 25.000" (solo el monto, para listas compactas). */
+export function textoPesos(monto: number): string {
+  return PRECIO.format(monto);
+}
+
 /** "Desde $ 25.000", o "Consultá" si todavía no hay precio cargado. */
 export function textoPrecio(precioDesde: number | null): string {
-  return precioDesde === null ? 'Consultá' : `Desde ${PRECIO.format(precioDesde)}`;
+  return precioDesde === null ? 'Consultá' : `Desde ${textoPesos(precioDesde)}`;
 }
 
 /** Servicio de una lista por id (undefined si no está). */

@@ -38,8 +38,12 @@ export interface Servicio {
   glosario: TerminoGlosario[];
   /** Texto libre ("2 a 3 h"). null = sin confirmar. */
   duracion: string | null;
-  /** Entero en ARS. null = "Consultá". */
+  /** Precio para AUTO. Entero en ARS. null = "Consultá". */
   precioDesde: number | null;
+  /** Precio para CAMIONETA. Entero en ARS. null = "Consultá" (nunca se cae al de auto). */
+  precioDesdeCamioneta: number | null;
+  /** Precio para MOTO. Entero en ARS. null = "Consultá" (nunca se cae al de auto). */
+  precioDesdeMoto: number | null;
   /** A lo sumo uno en true. */
   destacado: boolean;
   /** false = ya no se ofrece (no se borra: hay turnos que lo referencian). */
@@ -123,6 +127,8 @@ export function servicioPublico(servicio: Servicio): ServicioPublico {
     glosario: servicio.glosario,
     duracion: servicio.duracion,
     precioDesde: servicio.precioDesde,
+    precioDesdeCamioneta: servicio.precioDesdeCamioneta,
+    precioDesdeMoto: servicio.precioDesdeMoto,
     destacado: servicio.destacado,
   };
 }

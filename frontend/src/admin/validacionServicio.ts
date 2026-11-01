@@ -22,9 +22,20 @@ export interface FormularioServicio {
   duracion: string;
   /** Tal como lo escribió: "25000", "25.000" o "$ 25.000". Vacío = "Consultá". */
   precio: string;
+  precioCamioneta: string;
+  precioMoto: string;
   destacado: boolean;
   activo: boolean;
 }
+
+/** Campos de precio de la API, en el orden auto, camioneta, moto, y el campo del formulario de cada uno. */
+export const CAMPOS_PRECIO = ['precioDesde', 'precioDesdeCamioneta', 'precioDesdeMoto'] as const;
+const CLAVE_FORMULARIO = {
+  precioDesde: 'precio',
+  precioDesdeCamioneta: 'precioCamioneta',
+  precioDesdeMoto: 'precioMoto',
+} as const satisfies Record<(typeof CAMPOS_PRECIO)[number], keyof FormularioServicio>;
+const textoDePrecio = (precio: number | null) => (precio === null ? '' : String(precio));
 
 export type ErroresServicio = Readonly<Record<string, string>>;
 
@@ -38,6 +49,14 @@ const CONTROL_UNA_LINEA = /\p{Cc}/u;
 const CONTROL_VARIAS_LINEAS = /[^\P{Cc}\t\n\r]/u;
 const SIN_SALTOS = 'Escribilo en una sola línea, sin saltos de línea ni caracteres especiales.';
 const SIN_CONTROL = 'Tiene caracteres que no se permiten.';
+
+/** Precio en pesos: entero de 0 al tope, o null ("Consultá"). Mismos mensajes para los tres tipos de vehículo. */
+const precioOpcional = (max: number) =>
+  z.nullable(
+    z
+      .int('Escribí el precio en pesos, sin centavos.')
+      .check(z.gte(0, 'El precio no puede ser negativo.'), z.lte(max, `El precio puede ser hasta $ ${n(max)}.`)),
+  );
 
 const texto = (max: number, vacio: string, largo: string, variasLineas = false) =>
   z
@@ -93,11 +112,9 @@ export const esquemaServicio = z.strictObject({
       ),
     z.transform((valor) => (valor === '' ? null : valor)),
   ),
-  precioDesde: z.nullable(
-    z
-      .int('Escribí el precio en pesos, sin centavos.')
-      .check(z.gte(0, 'El precio no puede ser negativo.'), z.lte(L.precioDesde.max, `El precio puede ser hasta $ ${n(L.precioDesde.max)}.`)),
-  ),
+  precioDesde: precioOpcional(L.precioDesde.max),
+  precioDesdeCamioneta: precioOpcional(L.precioDesdeCamioneta.max),
+  precioDesdeMoto: precioOpcional(L.precioDesdeMoto.max),
   destacado: z.boolean(),
   activo: z.boolean(),
 });
@@ -118,7 +135,11 @@ export function leerPrecio(valor: string): number | null | undefined {
 export type Validacion = { ok: true; datos: NuevoServicio } | { ok: false; errores: ErroresServicio };
 
 export function validarServicio(formulario: FormularioServicio): Validacion {
-  const precio = leerPrecio(formulario.precio);
+  const precios = {
+    precioDesde: leerPrecio(formulario[CLAVE_FORMULARIO.precioDesde]),
+    precioDesdeCamioneta: leerPrecio(formulario[CLAVE_FORMULARIO.precioDesdeCamioneta]),
+    precioDesdeMoto: leerPrecio(formulario[CLAVE_FORMULARIO.precioDesdeMoto]),
+  };
   const resultado = z.safeParse(esquemaServicio, {
     id: formulario.id,
     nombre: formulario.nombre,
@@ -127,13 +148,17 @@ export function validarServicio(formulario: FormularioServicio): Validacion {
     incluye: formulario.incluye,
     glosario: formulario.glosario,
     duracion: formulario.duracion,
-    precioDesde: precio ?? null,
+    precioDesde: precios.precioDesde ?? null,
+    precioDesdeCamioneta: precios.precioDesdeCamioneta ?? null,
+    precioDesdeMoto: precios.precioDesdeMoto ?? null,
     destacado: formulario.destacado,
     activo: formulario.activo,
   });
 
   const errores: Record<string, string> = {};
-  if (precio === undefined) errores.precioDesde = 'Escribí el precio en pesos, solo números (ej.: 25000). Vacío muestra «Consultá».';
+  for (const campo of CAMPOS_PRECIO) {
+    if (precios[campo] === undefined) errores[campo] = 'Escribí el precio en pesos, solo números (ej.: 25000). Vacío muestra «Consultá».';
+  }
   if (formulario.destacado && !formulario.activo) errores.destacado = MENSAJE_DESTACADO_INACTIVO;
   if (IDS_RESERVADOS.includes(formulario.id.trim())) errores.id = 'Ese identificador está reservado. Elegí otro.';
   if (!resultado.success) {
@@ -168,6 +193,8 @@ export function formularioVacio(): FormularioServicio {
     glosario: [],
     duracion: '',
     precio: '',
+    precioCamioneta: '',
+    precioMoto: '',
     destacado: false,
     activo: true,
   };
@@ -182,7 +209,9 @@ export function formularioDesde(servicio: ServicioPanel): FormularioServicio {
     incluye: [...servicio.incluye],
     glosario: servicio.glosario.map((t) => ({ ...t })),
     duracion: servicio.duracion ?? '',
-    precio: servicio.precioDesde === null ? '' : String(servicio.precioDesde),
+    precio: textoDePrecio(servicio.precioDesde),
+    precioCamioneta: textoDePrecio(servicio.precioDesdeCamioneta),
+    precioMoto: textoDePrecio(servicio.precioDesdeMoto),
     destacado: servicio.destacado,
     activo: servicio.activo,
   };
@@ -196,6 +225,8 @@ const CAMPOS_EDITABLES = [
   'glosario',
   'duracion',
   'precioDesde',
+  'precioDesdeCamioneta',
+  'precioDesdeMoto',
   'destacado',
   'activo',
 ] as const satisfies readonly (keyof CambiosServicio)[];

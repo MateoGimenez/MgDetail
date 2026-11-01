@@ -19,6 +19,8 @@ const pulido: Servicio = {
   glosario: [],
   duracion: '4 a 6 h',
   precioDesde: 60000,
+  precioDesdeCamioneta: null,
+  precioDesdeMoto: null,
   destacado: false,
 };
 
@@ -61,8 +63,18 @@ describe('seoDeServicio', () => {
     });
   });
 
+  it('JSON-LD: lowPrice es el menor precio cargado entre auto, camioneta y moto (null no cuenta)', () => {
+    const ld = (extra: object) =>
+      seoDeServicio({ ...pulido, ...extra }, { sitio: sitioBase, negocio }).jsonLd[0] as {
+        offers?: { priceSpecification: { minPrice: number } };
+      };
+    expect(ld({ precioDesde: 60000, precioDesdeCamioneta: 80000, precioDesdeMoto: 40000 }).offers?.priceSpecification.minPrice).toBe(40000);
+    expect(ld({ precioDesde: null, precioDesdeCamioneta: 80000, precioDesdeMoto: null }).offers?.priceSpecification.minPrice).toBe(80000);
+    expect(ld({ precioDesde: 0, precioDesdeCamioneta: 5, precioDesdeMoto: null }).offers?.priceSpecification.minPrice).toBe(0);
+  });
+
   it('sin precio no hay offers; sin URL, las migas no llevan item', () => {
-    const [servicio, migas] = seoDeServicio({ ...pulido, precioDesde: null }, { sitio: sitioBase, negocio }).jsonLd;
+    const [servicio, migas] = seoDeServicio({ ...pulido, precioDesde: null, precioDesdeCamioneta: null, precioDesdeMoto: null }, { sitio: sitioBase, negocio }).jsonLd;
     expect(servicio).not.toHaveProperty('offers');
     expect(servicio).not.toHaveProperty('url');
     const items = (migas as { itemListElement: Record<string, unknown>[] }).itemListElement;

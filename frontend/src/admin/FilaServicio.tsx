@@ -1,7 +1,9 @@
 import { useId } from 'react';
 import type { ServicioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
-import { textoPrecio } from '../data/servicios';
+import { ETIQUETA_VEHICULO, VEHICULO_TIPOS } from '../api/contract';
+import { textoPesos } from '../data/servicios';
+import { precioPorVehiculo } from '../lib/precios';
 import { idBajar, idSubir } from './useServicios';
 
 interface Props {
@@ -104,10 +106,22 @@ export function FilaServicio({
           <p className="servicio__resumen">{servicio.resumen}</p>
 
           <dl className="turno__datos servicio__datos">
-            <div>
-              <dt>Precio</dt>
-              <dd className={servicio.precioDesde === null ? 'servicio__consulta' : undefined}>
-                {textoPrecio(servicio.precioDesde)}
+            <div className="servicio__precios">
+              <dt>Precio desde</dt>
+              <dd>
+                <ul className="servicio__precios-lista" role="list">
+                  {VEHICULO_TIPOS.map((tipo) => {
+                    const precio = precioPorVehiculo(servicio, tipo);
+                    return (
+                      <li key={tipo} className="servicio__precio-tipo">
+                        <span className="servicio__precio-vehiculo">{ETIQUETA_VEHICULO[tipo]}</span>
+                        <span className={precio === null ? 'servicio__consulta' : 'servicio__precio-valor'}>
+                          {precio === null ? 'Consultá' : textoPesos(precio)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
               </dd>
             </div>
             <div>

@@ -74,8 +74,11 @@ export const camposServicioPublico = {
   incluye: z.array(z.string()),
   glosario: z.array(z.object({ termino: z.string(), significado: z.string() })),
   duracion: z.nullable(z.string()),
-  /** Entero en pesos; null = "Consultá". */
+  /** Precio de AUTO: entero en pesos; null = "Consultá". */
   precioDesde: z.nullable(z.int()),
+  /** Mismo formato, para camioneta y para moto (reportes/2026-11-01_19_precios-por-vehiculo.md). */
+  precioDesdeCamioneta: z.nullable(z.int()),
+  precioDesdeMoto: z.nullable(z.int()),
   destacado: z.boolean(),
 };
 

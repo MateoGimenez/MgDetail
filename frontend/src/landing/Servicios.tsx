@@ -2,6 +2,7 @@ import { useCatalogo } from './catalogo-contexto';
 import { CabeceraSeccion } from './CabeceraSeccion';
 import { ListaTarjetas } from './ListaTarjetas';
 import { useReserva } from './reserva-contexto';
+import { SelectorVehiculo } from './SelectorVehiculo';
 import { SinTurnosOnline } from './SinTurnosOnline';
 import { TarjetaServicio } from './TarjetaServicio';
 
@@ -15,13 +16,14 @@ function bajada(n: number): string {
 }
 
 export function Servicios() {
-  const { reservar } = useReserva();
+  const { reservar, vehiculo } = useReserva();
   const { servicios, estado } = useCatalogo();
   return (
     <section id="servicios" className="seccion servicios" aria-labelledby="servicios-titulo">
       <div className="contenedor">
         <CabeceraSeccion id="servicios-titulo" titulo="Qué le hacemos a tu vehículo">
           {estado !== 'vacio' && <p className="seccion__bajada">{bajada(servicios.length)}</p>}
+          {estado !== 'vacio' && <SelectorVehiculo />}
         </CabeceraSeccion>
         {estado === 'vacio' ? (
           <SinTurnosOnline />
@@ -31,9 +33,10 @@ export function Servicios() {
               <TarjetaServicio
                 key={servicio.id}
                 servicio={servicio}
+                vehiculo={vehiculo}
                 precioCargando={estado === 'cargando'}
                 alReservar={() => {
-                  reservar({ servicioId: servicio.id });
+                  reservar({ servicioId: servicio.id, vehiculoTipo: vehiculo });
                 }}
               />
             ))}

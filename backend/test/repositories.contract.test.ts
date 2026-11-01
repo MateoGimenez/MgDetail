@@ -270,6 +270,8 @@ describe('servicios', () => {
       glosario: [{ termino: 'Cerámico', significado: 'un recubrimiento duro y brillante.' }],
       duracion: '1 día',
       precioDesde: 150000,
+      precioDesdeCamioneta: 180000,
+      precioDesdeMoto: null,
       destacado: false,
       activo: true,
       ...overrides,
@@ -300,6 +302,8 @@ describe('servicios', () => {
       glosario: expect.arrayContaining([{ termino: 'Swirls', significado: expect.any(String) }]),
       duracion: 'Alrededor de 1 día',
       precioDesde: null,
+      precioDesdeCamioneta: null,
+      precioDesdeMoto: null,
       destacado: false,
       activo: true,
       orden: 30,
@@ -393,6 +397,8 @@ describe('servicios', () => {
     expect(await servicios.update('encerado', { duracion: null, precioDesde: null }, LATER)).toMatchObject({
       duracion: null,
       precioDesde: null,
+      precioDesdeCamioneta: null,
+      precioDesdeMoto: null,
       nombre: 'Encerado premium',
     });
 
@@ -437,6 +443,13 @@ describe('servicios', () => {
         /servicios_glosario_valido/,
       ],
       ["UPDATE mgdetailing.servicios SET precio_desde = 100000000 WHERE id = 'pulido'", /servicios_precio_tope/],
+      [
+        "UPDATE mgdetailing.servicios SET precio_desde_camioneta = 100000000 WHERE id = 'pulido'",
+        /servicios_precio_camioneta_rango/,
+      ],
+      ["UPDATE mgdetailing.servicios SET precio_desde_camioneta = -1 WHERE id = 'pulido'", /servicios_precio_camioneta_rango/],
+      ["UPDATE mgdetailing.servicios SET precio_desde_moto = 100000000 WHERE id = 'pulido'", /servicios_precio_moto_rango/],
+      ["UPDATE mgdetailing.servicios SET precio_desde_moto = -1 WHERE id = 'pulido'", /servicios_precio_moto_rango/],
       ["UPDATE mgdetailing.servicios SET duracion_estimada = '  ' WHERE id = 'pulido'", /servicios_duracion_no_vacia/],
       ["UPDATE mgdetailing.servicios SET resumen = '' WHERE id = 'pulido'", /servicios_resumen_largo/],
       ["UPDATE mgdetailing.servicios SET activo = false WHERE id = 'lavado-premium'", /servicios_destacado_activo/],

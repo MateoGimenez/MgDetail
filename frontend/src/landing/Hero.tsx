@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ETIQUETA_VEHICULO, VEHICULO_TIPOS, type ServicioId, type VehiculoTipo } from '../api/contract';
+import { ETIQUETA_VEHICULO, VEHICULO_TIPOS, type ServicioId } from '../api/contract';
 import { MarcoFilete, SubrayadoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { whatsappUrl } from '../config/enlaces';
@@ -12,9 +12,8 @@ import { useReserva } from './reserva-contexto';
  * funciona: lo que se elige acá queda cargado en el formulario.
  */
 export function Hero() {
-  const { reservar } = useReserva();
+  const { reservar, vehiculo, elegirVehiculo } = useReserva();
   const { servicios, buscar } = useCatalogo();
-  const [vehiculo, setVehiculo] = useState<VehiculoTipo | ''>('');
   const [servicio, setServicio] = useState<ServicioId>('');
   // Si el catálogo cambia al llegar de la API y el elegido ya no está, el desplegable vuelve a "Elegí un servicio".
   const elegido = buscar(servicio) ? servicio : '';
@@ -24,7 +23,7 @@ export function Hero() {
     evento.preventDefault();
     reservar({
       servicioId: elegido === '' ? undefined : elegido,
-      vehiculoTipo: vehiculo === '' ? undefined : vehiculo,
+      vehiculoTipo: vehiculo,
     });
   };
 
@@ -54,7 +53,7 @@ export function Hero() {
                       value={tipo}
                       checked={vehiculo === tipo}
                       onChange={() => {
-                        setVehiculo(tipo);
+                        elegirVehiculo(tipo);
                       }}
                     />
                     <span className="selector__texto">{ETIQUETA_VEHICULO[tipo]}</span>

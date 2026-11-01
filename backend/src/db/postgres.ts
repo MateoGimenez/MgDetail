@@ -34,6 +34,8 @@ const DOCUMENTOS_TABLES = ['presupuestos', 'comprobantes'] as const;
 const PUSH_COLUMNS = ['perfil_id', 'endpoint', 'p256dh', 'auth', 'agente', 'ultimo_aviso_at'] as const;
 /** Columnas que agrega la migración catalogo_editable (las que lee el repositorio de servicios). */
 const CATALOGO_COLUMNS = ['resumen', 'descripcion', 'incluye', 'glosario', 'destacado'] as const;
+/** Columnas que agrega la migración precios_por_vehiculo (precio de camioneta y de moto). */
+const PRECIOS_COLUMNS = ['precio_desde_camioneta', 'precio_desde_moto'] as const;
 /** Columnas que agrega la migración agenda_fecha_confirmada (las que lee el repositorio de turnos). */
 const AGENDA_COLUMNS = ['fecha_confirmada', 'franja_confirmada'] as const;
 /** Columnas que agrega la migración estadisticas_cobro_trabajador (cobro de cada trabajo). */
@@ -191,6 +193,21 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     throw new Error(
       `Faltan columnas en mgdetailing.servicios (${missingColumns.join(', ')}). ` +
         'Aplicá la migración catalogo_editable de backend/supabase/migrations/ (ver README, "Migraciones").',
+    );
+  }
+
+  // Los precios por tipo de vehículo (migración precios_por_vehiculo): mismas razones que con el catálogo.
+  const preciosColumns = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = 'servicios' AND column_name = ANY($2::text[])`,
+    [PG_SCHEMA, PRECIOS_COLUMNS],
+  );
+  const presentPrecios = new Set(preciosColumns.rows.map((row) => row.column_name));
+  const missingPrecios = PRECIOS_COLUMNS.filter((column) => !presentPrecios.has(column));
+  if (missingPrecios.length > 0) {
+    throw new Error(
+      `Faltan columnas en mgdetailing.servicios (${missingPrecios.join(', ')}). ` +
+        'Aplicá la migración precios_por_vehiculo de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
   }
 

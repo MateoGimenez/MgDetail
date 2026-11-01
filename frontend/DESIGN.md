@@ -329,3 +329,9 @@ Contrato: `reportes/2026-10-26_15_estadisticas-y-permisos.md`. SVG propio en `sr
 ## Panel: inventario, presupuestos y comprobantes
 
 Componentes nuevos, solo con variables del panel. **Barra de stock** (`.inv-barra`): el relleno mide el stock y la marca vertical el mínimo; el aviso es la etiqueta de texto (Stock bajo en acento sobre `--acento-fondo`, Sin stock sólida en `--error`). **Tarjeta de presupuesto** (`.pres`): reusa `.turno` y los sellos de estado de los turnos (borrador gris, enviado ámbar, aceptado verde, rechazado rojo) más el sello «Vencido». **Total en vivo** (`.pres-barra`): fijo abajo del diálogo, junto a Guardar. **Botones de PDF** (`.pdf`): Descargar y Compartir. **Comprobante** (`.comp`): panel con el recuadro de cobro y formas de pago como radios en recuadros.
+
+## Precios por vehículo (selector y cards)
+
+- **Selector «Precios para»** (`SelectorVehiculo`): el mismo segmentado de radios de la reserva (`.selector`, chapa con filete rojo al elegir), con el rótulo en Label (650, 0.75rem, mayúsculas) encima. Va dentro de la cabecera de Servicios, bajo la bajada, con `max-width: 26rem`: en 390 px ocupa el ancho del margen (3 opciones, 48 px de alto, sin desbordar) y en pantalla ancha no se estira. Teclado nativo (flechas dentro del grupo, Tab entra y sale) y un aviso `role="status"` oculto dice «Mostrando los precios para moto».
+- **Card:** el precio sigue en la misma chapa de datos; cambia con un fundido corto de `opacity` + `transform` (220 ms, `precio-entra`), solo sin `prefers-reduced-motion`. Como el cambio no altera la altura, las cards no saltan (medido: alturas idénticas entre Auto, Camioneta y Moto a 390 y 1280). Falta el precio del tipo = «Consultá» (no el de auto).
+- **Panel:** en el diálogo, grupo «Precio desde, según el vehículo» con tres campos (una columna en celular, tres desde 40rem) y debajo de cada uno «En la web: …». En la lista, tres columnas compactas (Auto, Camioneta, Moto) con «Consultá» en gris.

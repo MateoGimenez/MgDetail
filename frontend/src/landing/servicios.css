@@ -355,3 +355,59 @@
   min-height: 44px;
   font-size: 0.9375rem;
 }
+
+/* ---------- Selector "Precios para" (Auto / Camioneta / Moto) ---------- */
+
+/* Es el mismo estado que el arranque del hero y el formulario de turno. Reusa las chapas de .selector (base.css);
+   acá solo se acota el ancho: en el celular ocupa todo el margen, en pantalla ancha no se estira de más. */
+.precios-para {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  max-width: 26rem;
+  margin: var(--e-5) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.precios-para__etiqueta {
+  padding: 0;
+  float: left;
+  width: 100%;
+  margin-bottom: 8px;
+  color: var(--texto-3);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.precios-para__etiqueta + * {
+  clear: both;
+}
+
+.precios-para .selector__opcion {
+  min-height: 48px;
+}
+
+/* El número cambia con un fundido corto; la altura de la chapa no se mueve, así las cards no saltan */
+.tarjeta__precio {
+  display: inline-block;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tarjeta__precio {
+    animation: precio-entra 220ms var(--ease-salida, ease-out) both;
+  }
+}
+
+@keyframes precio-entra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

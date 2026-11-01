@@ -948,6 +948,36 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
 }
 
+.servicio__precios {
+  grid-column: 1 / -1;
+}
+
+.servicio__precios-lista {
+  max-width: 28rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--e-2);
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.servicio__precio-tipo {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.servicio__precio-vehiculo {
+  color: var(--texto-3);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.servicio__precio-valor {
+  font-variant-numeric: tabular-nums;
+}
+
 .servicio__consulta {
   color: var(--texto-3);
   font-weight: 500 !important;
@@ -4195,4 +4225,34 @@
 .panel .entrada {
   --campo-borde: #7b838c;
   --campo-borde-hover: #4d545c;
+}
+
+/* ---------- Servicio: precio desde según el vehículo ---------- */
+
+.servicio-form__precios {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.servicio-form__precios-grilla {
+  display: grid;
+  gap: var(--e-3);
+}
+
+.servicio-form__precio-etiqueta {
+  font-weight: 600;
+}
+
+.servicio-form__precio-web {
+  min-height: 1.4em;
+}
+
+@media (min-width: 40rem) {
+  .servicio-form__precios-grilla {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .servicio-form__par--uno {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

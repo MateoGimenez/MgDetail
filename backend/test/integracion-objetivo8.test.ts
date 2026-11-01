@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BACKEND_ROOT } from '../src/config.js';
-import { type TestContext, addUser, closeAllContexts, createTestContext, loginClient } from './helpers.js';
+import { type TestContext, addUser, closeAllContexts, createClient, createTestContext, loginClient } from './helpers.js';
 
 afterEach(closeAllContexts);
 
@@ -219,6 +219,16 @@ describe('respuestas reales del backend para los esquemas del frontend', () => {
     cap('error400MetaMes', await admin.put('/api/admin/metas/2030-01', { ingresosObjetivo: 1000 }));
     cap('error400CompraCostoAlto', await admin.post(`/api/admin/insumos/${cera}/movimientos`, { tipo: 'compra', cantidad: 0.01, costoTotal: 5000000 }));
     cap('error400PresupuestoTotal', await admin.post('/api/admin/presupuestos', { clienteNombre: 'Pedro', items: [{ descripcion: 'x', cantidad: 999, precioUnitario: 99999999 }] }));
+
+    // Precios por tipo de vehículo (contrato 2026-11-01_19): catálogo público y del panel. Al final: no mueve nada de arriba.
+    cap('serviciosPublico', await createClient(context.app).get('/api/servicios'));
+    cap('serviciosAdmin', await admin.get('/api/admin/servicios'));
+    cap('servicioCrea', await admin.post('/api/admin/servicios', { id: 'tratamiento-ceramico', nombre: 'Tratamiento cerámico', resumen: 'Protección de larga duración.', descripcion: 'Una capa cerámica sobre la pintura.', precioDesde: 150000, precioDesdeCamioneta: 180000, precioDesdeMoto: null }));
+    cap('servicioPatchPrecios', await admin.patch('/api/admin/servicios/pulido', { precioDesde: 45000, precioDesdeCamioneta: 60000, precioDesdeMoto: 30000 }));
+    cap('servicioPatchBorraPrecio', await admin.patch('/api/admin/servicios/pulido', { precioDesdeMoto: null }));
+    cap('error400PrecioCamioneta', await admin.patch('/api/admin/servicios/pulido', { precioDesdeCamioneta: 100000000 }));
+    cap('error400PrecioMoto', await admin.patch('/api/admin/servicios/pulido', { precioDesdeMoto: 1.5 }));
+    cap('error403ServicioEmpleado', await empleado.patch('/api/admin/servicios/pulido', { precioDesdeMoto: 1 }));
 
     const generadas = normalizar(capturas);
     if (process.env.ACTUALIZAR_FIXTURES === '1') {

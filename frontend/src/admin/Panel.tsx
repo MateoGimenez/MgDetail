@@ -1,9 +1,11 @@
 import { Suspense, useState } from 'react';
 import { cerrarSesion } from '../api/admin';
+import type { VehiculoTipo } from '../api/contract';
 import { type UsuarioSesion } from '../api/contract-panel';
 import { Logo } from '../components/Logo';
 import { nombreDeServicio } from '../data/servicios';
 import { desuscribirDispositivo } from '../pwa/avisos';
+import { precioPorVehiculo } from '../lib/precios';
 import { resolverVista, type Vista } from '../lib/hoy';
 import { ContextoCobro } from './cobro/contextoCobro';
 import { NavegacionPanel } from './NavegacionPanel';
@@ -65,7 +67,10 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
   // Lo que la tarjeta de un turno necesita para completar con cobro: quién está logueado y el "Desde" de cada servicio.
   const datosDeCobro = {
     usuarioId: usuario.id,
-    precioDesde: (id: string) => catalogo.servicios?.find((x) => x.id === id)?.precioDesde ?? null,
+    precioDesde: (id: string, vehiculoTipo: VehiculoTipo) => {
+      const servicio = catalogo.servicios?.find((x) => x.id === id);
+      return servicio ? precioPorVehiculo(servicio, vehiculoTipo) : null;
+    },
     alVencerSesion,
   };
 

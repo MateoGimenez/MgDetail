@@ -1,4 +1,5 @@
 import { useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { ETIQUETA_VEHICULO } from '../api/contract';
 import { LIMITES_SERVICIO, type CambiosServicio, type NuevoServicio, type ServicioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { textoPrecio } from '../data/servicios';
@@ -97,6 +98,8 @@ function FormularioServicio({
   const [descripcion, setDescripcion] = useState(inicial.descripcion);
   const [duracion, setDuracion] = useState(inicial.duracion);
   const [precio, setPrecio] = useState(inicial.precio);
+  const [precioCamioneta, setPrecioCamioneta] = useState(inicial.precioCamioneta);
+  const [precioMoto, setPrecioMoto] = useState(inicial.precioMoto);
   const [destacado, setDestacado] = useState(inicial.destacado);
   const [activo, setActivo] = useState(inicial.activo);
   const [incluye, setIncluye] = useState<Renglon[]>(() => inicial.incluye.map((texto, clave) => ({ clave, texto })));
@@ -132,7 +135,11 @@ function FormularioServicio({
     });
   };
 
-  const precioLeido = leerPrecio(precio);
+  const PRECIOS = [
+    { clave: 'precioDesde', etiqueta: ETIQUETA_VEHICULO.auto, valor: precio, cambiar: setPrecio },
+    { clave: 'precioDesdeCamioneta', etiqueta: ETIQUETA_VEHICULO.camioneta, valor: precioCamioneta, cambiar: setPrecioCamioneta },
+    { clave: 'precioDesdeMoto', etiqueta: ETIQUETA_VEHICULO.moto, valor: precioMoto, cambiar: setPrecioMoto },
+  ] as const;
   const otroDestacado = destacado && destacadoActual && destacadoActual.id !== original?.id ? destacadoActual : null;
 
   const enviar = async (evento: FormEvent<HTMLFormElement>) => {
@@ -146,6 +153,8 @@ function FormularioServicio({
       glosario: glosario.map(({ termino, significado }) => ({ termino, significado })),
       duracion,
       precio,
+      precioCamioneta,
+      precioMoto,
       destacado,
       activo,
     });
@@ -280,34 +289,49 @@ function FormularioServicio({
           <ErrorCampo id={`${campo('resumen')}-error`} mensaje={errorDe('resumen')} />
         </div>
 
-        <div className="servicio-form__par">
-          <div className="campo">
-            <label className="campo__etiqueta" htmlFor={campo('precioDesde')}>
-              Precio desde <span className="campo__opcional">(opcional)</span>
-            </label>
-            <div className="servicio-form__precio">
-              <span aria-hidden="true">$</span>
-              <input
-                {...describir('precioDesde', true)}
-                className="entrada"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="Ej.: 25000"
-                value={precio}
-                onChange={(evento) => {
-                  setPrecio(evento.target.value);
-                }}
-              />
-            </div>
-            <p id={`${campo('precioDesde')}-ayuda`} className="campo__ayuda">
-              {precioLeido === undefined
-                ? 'En pesos, sin centavos.'
-                : `En la web: «${textoPrecio(precioLeido)}».${precioLeido === null ? ' Vacío = a consultar.' : ''}`}
-            </p>
-            <ErrorCampo id={`${campo('precioDesde')}-error`} mensaje={errorDe('precioDesde')} />
+        <div
+          className="servicio-form__precios"
+          role="group"
+          aria-labelledby={`${id}-precios-titulo`}
+          aria-describedby={`${id}-precios-ayuda`}
+        >
+          <p id={`${id}-precios-titulo`} className="campo__etiqueta">
+            Precio desde, según el vehículo <span className="campo__opcional">(opcional)</span>
+          </p>
+          <div className="servicio-form__precios-grilla">
+            {PRECIOS.map(({ clave, etiqueta, valor, cambiar }) => (
+              <div key={clave} className="campo">
+                <label className="campo__etiqueta servicio-form__precio-etiqueta" htmlFor={campo(clave)}>
+                  {etiqueta}
+                </label>
+                <div className="servicio-form__precio">
+                  <span aria-hidden="true">$</span>
+                  <input
+                    {...describir(clave, false)}
+                    className="entrada"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Ej.: 25000"
+                    value={valor}
+                    onChange={(evento) => {
+                      cambiar(evento.target.value);
+                    }}
+                  />
+                </div>
+                <p className="campo__ayuda servicio-form__precio-web">
+                  {leerPrecio(valor) === undefined ? 'En pesos, sin centavos.' : `En la web: «${textoPrecio(leerPrecio(valor) ?? null)}».`}
+                </p>
+                <ErrorCampo id={`${campo(clave)}-error`} mensaje={errorDe(clave)} />
+              </div>
+            ))}
           </div>
+          <p id={`${id}-precios-ayuda`} className="campo__ayuda">
+            En pesos, sin centavos. Si dejás un precio vacío, la web muestra «Consultá» para ese vehículo.
+          </p>
+        </div>
 
+        <div className="servicio-form__par servicio-form__par--uno">
           <div className="campo">
             <label className="campo__etiqueta" htmlFor={campo('duracion')}>
               Duración <span className="campo__opcional">(opcional)</span>

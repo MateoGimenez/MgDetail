@@ -88,7 +88,7 @@ const duracion = z
   .nullable();
 
 const PRECIO_MSG = 'El precio tiene que ser un número entero de pesos, de 0 a 99.999.999, o null ("Consultá").';
-const precioDesde = z
+const precio = z
   .number({ error: PRECIO_MSG })
   .int({ error: PRECIO_MSG })
   .min(0, { error: PRECIO_MSG })
@@ -116,7 +116,9 @@ export const createServicioSchema = z.strictObject({
   incluye: incluye.default([]),
   glosario: glosario.default([]),
   duracion: duracion.default(null),
-  precioDesde: precioDesde.default(null),
+  precioDesde: precio.default(null),
+  precioDesdeCamioneta: precio.default(null),
+  precioDesdeMoto: precio.default(null),
   destacado: destacado.default(false),
   activo: activo.default(true),
 }).refine((servicio) => !(servicio.destacado && !servicio.activo), {
@@ -136,7 +138,9 @@ export const updateServicioSchema = z.strictObject({
   incluye: incluye.optional(),
   glosario: glosario.optional(),
   duracion: duracion.optional(),
-  precioDesde: precioDesde.optional(),
+  precioDesde: precio.optional(),
+  precioDesdeCamioneta: precio.optional(),
+  precioDesdeMoto: precio.optional(),
   destacado: destacado.optional(),
   activo: activo.optional(),
 }).refine((cambios) => !(cambios.destacado === true && cambios.activo === false), {

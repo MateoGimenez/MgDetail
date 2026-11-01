@@ -1,4 +1,5 @@
 import type { Servicio } from '../types';
+import { menorPrecio } from './precios';
 import { jsonLdDelNegocio } from './negocioJsonLd';
 
 /**
@@ -51,14 +52,16 @@ export function seoDeServicio(servicio: Servicio, { sitio, negocio }: Contexto):
     areaServed: { '@type': 'City', name: negocio.ciudad },
   };
   if (url) servicioLd.url = url;
-  if (servicio.precioDesde !== null) {
+  // Un único "desde" para los buscadores: el menor precio cargado entre auto, camioneta y moto.
+  const precioMinimo = menorPrecio(servicio);
+  if (precioMinimo !== null) {
     servicioLd.offers = {
       '@type': 'Offer',
       priceCurrency: 'ARS',
       priceSpecification: {
         '@type': 'PriceSpecification',
         priceCurrency: 'ARS',
-        minPrice: servicio.precioDesde,
+        minPrice: precioMinimo,
       },
     };
   }

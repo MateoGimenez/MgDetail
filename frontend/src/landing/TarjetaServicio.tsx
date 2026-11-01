@@ -2,7 +2,9 @@ import { useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Rombo } from '../components/Filete';
 import { Icono } from '../components/Icono';
+import { ETIQUETA_VEHICULO, type VehiculoTipo } from '../api/contract';
 import { textoPrecio } from '../data/servicios';
+import { precioPorVehiculo } from '../lib/precios';
 import type { Servicio } from '../types';
 import { revelar } from './useRevelar';
 
@@ -38,10 +40,13 @@ function ListaIncluye({ items, etiqueta }: { items: readonly string[]; etiqueta?
 
 export function TarjetaServicio({
   servicio,
+  vehiculo,
   precioCargando,
   alReservar,
 }: {
   servicio: Servicio;
+  /** Tipo de vehículo elegido: el precio de la card es el de ese tipo. */
+  vehiculo: VehiculoTipo;
   /** El catálogo todavía no llegó: el precio espera en su lugar (sin mostrar "Consultá" de más). */
   precioCargando: boolean;
   alReservar: () => void;
@@ -76,7 +81,13 @@ export function TarjetaServicio({
                   <span className="visualmente-oculto">Cargando precio</span>
                 </span>
               ) : (
-                textoPrecio(servicio.precioDesde)
+                <>
+                  {/* La key reinicia el fundido corto al cambiar de vehículo (solo opacity y transform). */}
+                  <span key={vehiculo} className="tarjeta__precio">
+                    {textoPrecio(precioPorVehiculo(servicio, vehiculo))}
+                  </span>
+                  <span className="visualmente-oculto"> para {ETIQUETA_VEHICULO[vehiculo].toLowerCase()}</span>
+                </>
               )}
             </dd>
           </div>

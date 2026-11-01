@@ -44,6 +44,8 @@ function toServicio(row: Row): Servicio {
     glosario: glosario(row, 'glosario'),
     duracion: strOrNull(row, 'duracion_estimada'),
     precioDesde: intOrNull(row, 'precio_desde'),
+    precioDesdeCamioneta: intOrNull(row, 'precio_desde_camioneta'),
+    precioDesdeMoto: intOrNull(row, 'precio_desde_moto'),
     destacado: bool(row, 'destacado'),
     activo: bool(row, 'activo'),
     orden: int(row, 'orden'),
@@ -78,8 +80,8 @@ export class PostgresServicioRepository implements ServicioRepository {
 
   async findById(id: string): Promise<Servicio | undefined> {
     const { rows } = await this.sql.query(
-      `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde, destacado, activo,
-              orden, updated_at
+      `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
+              precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at
        FROM mgdetailing.servicios
        WHERE id = $1`,
       [id],
@@ -103,15 +105,15 @@ export class PostgresServicioRepository implements ServicioRepository {
       // Al final del orden. ON CONFLICT DO NOTHING: un id repetido no aborta con error, devuelve 0 filas.
       const { rows } = await sql.query(
         `INSERT INTO mgdetailing.servicios (
-           id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde, destacado, activo,
-           orden, updated_at
+           id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
+           precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at
          )
-         SELECT $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::integer, $9::boolean, $10::boolean,
-                coalesce(max(orden), 0) + 10, $11::timestamptz
+         SELECT $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::integer, $9::integer, $10::integer, $11::boolean,
+                $12::boolean, coalesce(max(orden), 0) + 10, $13::timestamptz
          FROM mgdetailing.servicios
          ON CONFLICT (id) DO NOTHING
-         RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde, destacado,
-                   activo, orden, updated_at`,
+         RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
+                   precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at`,
         [
           nuevo.id,
           nuevo.nombre,
@@ -121,6 +123,8 @@ export class PostgresServicioRepository implements ServicioRepository {
           JSON.stringify(nuevo.glosario),
           nuevo.duracion,
           nuevo.precioDesde,
+          nuevo.precioDesdeCamioneta,
+          nuevo.precioDesdeMoto,
           nuevo.destacado,
           nuevo.activo,
           timestamp,
@@ -153,7 +157,7 @@ export class PostgresServicioRepository implements ServicioRepository {
           [id, timestamp],
         );
       }
-      // coalesce para los campos que no admiten null; duracion y precioDesde sí (null = "sin confirmar" /
+      // coalesce para los campos que no admiten null; duracion y los tres precios sí (null = "sin confirmar" /
       // "Consultá"): ahí un flag distingue "no viene" de "viene null". Desactivar (activo = false) también
       // desmarca el destacado: un servicio que no se ve en la web no puede ser el destacado.
       const { rows } = await sql.query(
@@ -165,12 +169,14 @@ export class PostgresServicioRepository implements ServicioRepository {
              glosario = coalesce($6::jsonb, glosario),
              duracion_estimada = CASE WHEN $7::boolean THEN $8::text ELSE duracion_estimada END,
              precio_desde = CASE WHEN $9::boolean THEN $10::integer ELSE precio_desde END,
-             destacado = CASE WHEN $12::boolean IS FALSE THEN false ELSE coalesce($11::boolean, destacado) END,
-             activo = coalesce($12::boolean, activo),
-             updated_at = $13::timestamptz
+             precio_desde_camioneta = CASE WHEN $11::boolean THEN $12::integer ELSE precio_desde_camioneta END,
+             precio_desde_moto = CASE WHEN $13::boolean THEN $14::integer ELSE precio_desde_moto END,
+             destacado = CASE WHEN $16::boolean IS FALSE THEN false ELSE coalesce($15::boolean, destacado) END,
+             activo = coalesce($16::boolean, activo),
+             updated_at = $17::timestamptz
          WHERE id = $1
-         RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde, destacado,
-                   activo, orden, updated_at`,
+         RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
+                   precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at`,
         [
           id,
           cambios.nombre ?? null,
@@ -182,6 +188,10 @@ export class PostgresServicioRepository implements ServicioRepository {
           cambios.duracion ?? null,
           cambios.precioDesde !== undefined,
           cambios.precioDesde ?? null,
+          cambios.precioDesdeCamioneta !== undefined,
+          cambios.precioDesdeCamioneta ?? null,
+          cambios.precioDesdeMoto !== undefined,
+          cambios.precioDesdeMoto ?? null,
           cambios.destacado ?? null,
           cambios.activo ?? null,
           timestamp,
@@ -221,15 +231,15 @@ export class PostgresServicioRepository implements ServicioRepository {
 async function listar(sql: SqlClient, soloActivos: boolean): Promise<Servicio[]> {
   const { rows } = soloActivos
     ? await sql.query(
-        `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde, destacado, activo,
-                orden, updated_at
+        `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
+                precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at
          FROM mgdetailing.servicios
          WHERE activo
          ORDER BY orden, id COLLATE "C"`,
       )
     : await sql.query(
-        `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde, destacado, activo,
-                orden, updated_at
+        `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
+                precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at
          FROM mgdetailing.servicios
          ORDER BY orden, id COLLATE "C"`,
       );

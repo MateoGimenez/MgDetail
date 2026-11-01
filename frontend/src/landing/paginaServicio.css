@@ -203,3 +203,16 @@
     flex: 0 1 auto;
   }
 }
+
+/* Selector de vehículo sobre la chapa de precio y duración */
+.servicio__vehiculo {
+  margin-top: var(--e-4);
+}
+
+.servicio__vehiculo .precios-para {
+  margin-top: 0;
+}
+
+.servicio__vehiculo + .servicio__datos {
+  margin-top: var(--e-3);
+}

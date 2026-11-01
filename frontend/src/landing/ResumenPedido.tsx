@@ -5,7 +5,9 @@ import { Icono } from '../components/Icono';
 import { RUTA_PRIVACIDAD, whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
 import { useCatalogo } from './catalogo-contexto';
+import { textoPrecio } from '../data/servicios';
 import { fechaLarga } from '../lib/fechas';
+import { precioPorVehiculo } from '../lib/precios';
 import type { Envio, Errores, Valores } from './useFormularioTurno';
 
 interface Props {
@@ -19,7 +21,13 @@ const vacio = <span className="resumen__vacio">Sin elegir</span>;
 
 /** Columna lateral: el pedido armándose en vivo, avisos, envío y aviso de privacidad. */
 export function ResumenPedido({ valores, errores, validarEnVivo, envio }: Props) {
-  const servicio = useCatalogo().buscar(valores.servicioId);
+  const { buscar, estado } = useCatalogo();
+  const servicio = buscar(valores.servicioId);
+  // El precio del tipo de vehículo elegido; mientras llega el catálogo no se muestra (evita un "Consultá" de más).
+  const precio =
+    servicio && estado !== 'cargando' && esVehiculoTipo(valores.vehiculoTipo)
+      ? textoPrecio(precioPorVehiculo(servicio, valores.vehiculoTipo))
+      : null;
   const whatsappAyuda = whatsappUrl(`¡Hola ${negocio.nombre}! Quiero pedir un turno.`);
   const cantidadErrores = Object.keys(errores).length;
 
@@ -31,6 +39,7 @@ export function ResumenPedido({ valores, errores, validarEnVivo, envio }: Props)
         ? [ETIQUETA_VEHICULO[valores.vehiculoTipo], valores.vehiculoModelo.trim()].filter(Boolean).join(' · ')
         : vacio,
     ],
+    ...(precio !== null ? ([['Precio', precio]] as [string, ReactNode][]) : []),
     ['Día', valores.fechaPreferida ? fechaLarga(valores.fechaPreferida) : vacio],
     ['Horario', esFranja(valores.franja) ? ETIQUETA_FRANJA[valores.franja] : vacio],
   ];

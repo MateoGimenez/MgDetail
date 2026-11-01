@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ApiError } from '../api/client';
 import {
@@ -6,6 +6,7 @@ import {
   crearEsquemaTurno,
   esFranja,
   esSlugDeServicio,
+  esVehiculoTipo,
   type CampoTurno,
   type TurnoNuevo,
 } from '../api/contract';
@@ -111,16 +112,18 @@ const primerError = (errores: Errores) => ORDEN.find((campo) => errores[campo] !
 
 /** Estado, validación (mismas reglas que el backend) y envío del formulario de turno. */
 export function useFormularioTurno() {
-  const { registrar } = useReserva();
+  const { registrar, vehiculo, elegirVehiculo } = useReserva();
   const { servicios } = useCatalogo();
   const idsDeServicio = servicios.map((servicio) => servicio.id);
   const [parametros] = useSearchParams();
-  const [valores, setValores] = useState<Valores>(() => {
+  const [valoresLocales, setValores] = useState<Valores>(() => {
     const servicio = parametros.get('servicio') ?? '';
     // El catálogo puede no haber llegado todavía: se acepta cualquier id con forma válida y, si no está en el
     // catálogo que se termina mostrando, simplemente no queda elegido (y la validación lo pide).
     return { ...VACIOS, servicioId: esSlugDeServicio(servicio) ? servicio : '' };
   });
+  // El tipo de vehículo no vive acá: es el de toda la landing (cards, hero y este formulario).
+  const valores = useMemo<Valores>(() => ({ ...valoresLocales, vehiculoTipo: vehiculo }), [valoresLocales, vehiculo]);
   const [errores, setErrores] = useState<Errores>({});
   const [validarEnVivo, setValidarEnVivo] = useState(false);
   const [envio, setEnvio] = useState<Envio>({ fase: 'editando' });
@@ -158,7 +161,6 @@ export function useFormularioTurno() {
         setValores((actuales) => ({
           ...actuales,
           ...(preseleccion.servicioId ? { servicioId: preseleccion.servicioId } : {}),
-          ...(preseleccion.vehiculoTipo ? { vehiculoTipo: preseleccion.vehiculoTipo } : {}),
         }));
         requestAnimationFrame(() => {
           const form = formRef.current;
@@ -198,6 +200,7 @@ export function useFormularioTurno() {
 
   const actualizar = (campo: CampoTurno, valor: string) => {
     const siguientes = { ...valores, [campo]: valor };
+    if (campo === 'vehiculoTipo' && esVehiculoTipo(valor)) elegirVehiculo(valor);
     // Otro día: si la franja elegida no tiene lugar ahí, se borra (el selector solo deja marcar las que tienen).
     if (campo === 'fechaPreferida' && dias && esFranja(siguientes.franja) && !franjaLibre(dias.get(valor), siguientes.franja)) {
       siguientes.franja = '';

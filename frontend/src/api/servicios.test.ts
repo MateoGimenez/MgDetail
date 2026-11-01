@@ -29,6 +29,8 @@ const publico = {
   glosario: [{ termino: 'Swirls', significado: 'marcas circulares finitas.' }],
   duracion: 'Alrededor de 1 día',
   precioDesde: 25000,
+  precioDesdeCamioneta: 32000,
+  precioDesdeMoto: null,
   destacado: false,
 };
 const panel = { ...publico, activo: true, orden: 10, updatedAt: '2026-10-22T15:00:00.000Z' };
@@ -71,7 +73,9 @@ describe('catálogo público (landing)', () => {
     expect(catalogoDeLaApi([publico])).toEqual({ estado: 'api', servicios: [publico] });
     expect(CATALOGO_RESPALDO.servicios).toBe(serviciosDeRespaldo);
     expect(serviciosDeRespaldo.length).toBeGreaterThan(0);
-    expect(serviciosDeRespaldo.every((s) => s.precioDesde === null)).toBe(true);
+    expect(
+      serviciosDeRespaldo.every((s) => s.precioDesde === null && s.precioDesdeCamioneta === null && s.precioDesdeMoto === null),
+    ).toBe(true);
   });
 
   it('una lista vacía de la API NO usa el respaldo: el catálogo queda vacío (no hay turnos online)', () => {
@@ -210,10 +214,22 @@ describe('formulario de servicio', () => {
       incluye: ['Desengrase', ''],
       glosario: [{ termino: 'x'.repeat(61), significado: 'ok' }],
       precio: '100000000',
+      precioCamioneta: '1,5',
+      precioMoto: '-3',
     });
     expect(mal.ok).toBe(false);
     if (mal.ok) return;
-    expect(Object.keys(mal.errores).sort()).toEqual(['glosario.0.termino', 'id', 'incluye.1', 'nombre', 'precioDesde']);
+    expect(Object.keys(mal.errores).sort()).toEqual([
+      'glosario.0.termino',
+      'id',
+      'incluye.1',
+      'nombre',
+      'precioDesde',
+      'precioDesdeCamioneta',
+      'precioDesdeMoto',
+    ]);
+    expect(mal.errores.precioDesde).toContain('hasta $ 99.999.999');
+    expect(mal.errores.precioDesdeCamioneta).toMatch(/solo números/);
     expect(mal.errores.nombre).toMatch(/nombre/);
 
     const demasiados = validarServicio({ ...base, incluye: Array.from({ length: 16 }, (_, i) => `Ítem ${String(i)}`) });
@@ -246,6 +262,20 @@ describe('formulario de servicio', () => {
     });
     expect(!mal.ok && Object.keys(mal.errores).sort()).toEqual(['descripcion', 'glosario.0.significado', 'incluye.0', 'resumen']);
     expect(!mal.ok && mal.errores.resumen).toMatch(/una sola línea/);
+  });
+
+  it('los tres precios: vacío = null (Consultá), tope 99.999.999 y se mandan solo los que cambian', () => {
+    const base = { ...formularioVacio(), id: 'lavado-de-motor', nombre: 'Lavado de motor', resumen: 'R.', descripcion: 'D.' };
+    const ok = validarServicio({ ...base, precio: '25.000', precioCamioneta: '$ 32000', precioMoto: '' });
+    expect(ok.ok && ok.datos).toMatchObject({ precioDesde: 25000, precioDesdeCamioneta: 32000, precioDesdeMoto: null });
+    const tope = validarServicio({ ...base, precioMoto: '99999999' });
+    expect(tope.ok && tope.datos.precioDesdeMoto).toBe(99_999_999);
+    const pasado = validarServicio({ ...base, precioCamioneta: '100000000' });
+    expect(!pasado.ok && Object.keys(pasado.errores)).toEqual(['precioDesdeCamioneta']);
+
+    expect(formularioDesde(panel)).toMatchObject({ precio: '25000', precioCamioneta: '32000', precioMoto: '' });
+    const cambio = validarServicio({ ...formularioDesde(panel), precioCamioneta: '', precioMoto: '18.000' });
+    expect(cambio.ok && cambiosDe(panel, cambio.datos)).toEqual({ precioDesdeCamioneta: null, precioDesdeMoto: 18000 });
   });
 
   it('al editar, solo manda lo que cambió', () => {

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import type { CambiosTurno, Turno } from '../../api/contract';
+import { ETIQUETA_VEHICULO, type CambiosTurno, type Turno } from '../../api/contract';
 import { Icono } from '../../components/Icono';
 import { formatoPesos, leerMonto, montoParaCampo } from '../../lib/cobro';
 import { useMontado } from '../dialogo';
@@ -36,7 +36,7 @@ export function FormularioCobro({ turno, modo, alEnviar, alTerminar }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const { usuarioId, precioDesde, alVencerSesion } = useDatosDeCobro();
   const trabajadores = useTrabajadores(alVencerSesion);
-  const sugerido = precioDesde(turno.servicioId);
+  const sugerido = precioDesde(turno.servicioId, turno.vehiculoTipo);
 
   const [monto, setMonto] = useState(modo === 'editar' ? montoParaCampo(turno.monto) : '');
   const [trabajadorId, setTrabajadorId] = useState(modo === 'editar' ? (turno.trabajador?.id ?? '') : (usuarioId ?? ''));
@@ -149,7 +149,9 @@ export function FormularioCobro({ turno, modo, alEnviar, alTerminar }: Props) {
               }}
             >
               Usar {formatoPesos(sugerencia)}
-              <span className="cobro__sugerencia-aclara">el «Desde» del servicio</span>
+              <span className="cobro__sugerencia-aclara">
+                el «Desde» del servicio para {ETIQUETA_VEHICULO[turno.vehiculoTipo].toLowerCase()}
+              </span>
             </button>
           )}
         </div>

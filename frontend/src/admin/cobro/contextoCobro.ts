@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { VehiculoTipo } from '../../api/contract';
 
 /**
  * Lo que la tarjeta de un turno necesita para completar con cobro y que el panel ya sabe: quién está logueado (es el
@@ -7,8 +8,11 @@ import { createContext, useContext } from 'react';
  */
 export interface DatosDeCobro {
   usuarioId: string | null;
-  /** "Desde" del servicio en pesos, o null si no está cargado (o el servicio ya no existe). */
-  precioDesde: (servicioId: string) => number | null;
+  /**
+   * "Desde" del servicio para ese tipo de vehículo, en pesos, o null si no está cargado (o el servicio ya no existe).
+   * Nunca cae al precio de auto: si falta el del tipo del turno, no se sugiere nada.
+   */
+  precioDesde: (servicioId: string, vehiculoTipo: VehiculoTipo) => number | null;
   alVencerSesion: (mensaje: string) => void;
 }
 

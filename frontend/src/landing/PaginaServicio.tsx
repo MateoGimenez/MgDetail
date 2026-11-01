@@ -16,6 +16,10 @@ import { Comparador } from './Comparador';
 import { Galeria } from './Galeria';
 import { Pie } from './Pie';
 import { ReservaProvider } from './ReservaProvider';
+import { useReserva } from './reserva-contexto';
+import { SelectorVehiculo } from './SelectorVehiculo';
+import { ETIQUETA_VEHICULO } from '../api/contract';
+import { precioPorVehiculo } from '../lib/precios';
 import { useMagnetico } from './useMagnetico';
 import { useSeo } from './useSeo';
 import './landing.css';
@@ -85,6 +89,7 @@ function ServicioNoEncontrado() {
 function Pagina() {
   const { id = '' } = useParams();
   const { servicios, estado, buscar } = useCatalogo();
+  const { vehiculo } = useReserva();
   const servicio = buscar(id);
   const cargando = estado === 'cargando';
   const noExiste = !servicio && !cargando;
@@ -129,6 +134,9 @@ function Pagina() {
               <h1 className="servicio__titulo">{servicio.nombre}</h1>
               <SubrayadoFilete className="servicio__filete" />
               <p className="servicio__resumen">{servicio.resumen}</p>
+              <div className="servicio__vehiculo">
+                <SelectorVehiculo />
+              </div>
               <dl className="tarjeta__datos servicio__datos">
                 <div className="tarjeta__dato">
                   <dt>Precio</dt>
@@ -138,7 +146,12 @@ function Pagina() {
                         <span className="visualmente-oculto">Cargando precio</span>
                       </span>
                     ) : (
-                      textoPrecio(servicio.precioDesde)
+                      <>
+                        <span key={vehiculo} className="tarjeta__precio">
+                          {textoPrecio(precioPorVehiculo(servicio, vehiculo))}
+                        </span>
+                        <span className="visualmente-oculto"> para {ETIQUETA_VEHICULO[vehiculo].toLowerCase()}</span>
+                      </>
                     )}
                   </dd>
                 </div>
@@ -150,7 +163,7 @@ function Pagina() {
               <div className="servicio__acciones">
                 <Link
                   className="boton boton--primario boton--grande"
-                  to={`/?servicio=${encodeURIComponent(servicio.id)}#reservar`}
+                  to={`/?servicio=${encodeURIComponent(servicio.id)}&vehiculo=${vehiculo}#reservar`}
                 >
                   Reservá este servicio
                   <Icono nombre="flecha" />
