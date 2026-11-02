@@ -1,3 +1,4 @@
+import { API_BASE, API_CREDENTIALS } from './base';
 import { ApiError, esAbortado } from './client';
 import { SesionPerdidaError, esSesionPerdida, refrescarSesion } from './sesion';
 
@@ -9,7 +10,6 @@ import { SesionPerdidaError, esSesionPerdida, refrescarSesion } from './sesion';
  * Los errores del backend vienen como `{ error: { code, message } }`: se leen para mostrar el mensaje.
  */
 
-const BASE = '/api';
 const TIPO_PDF = 'application/pdf';
 
 async function leerFalla(respuesta: Response): Promise<ApiError> {
@@ -45,7 +45,7 @@ async function leerFalla(respuesta: Response): Promise<ApiError> {
 
 async function pedir(ruta: string, signal?: AbortSignal): Promise<Response> {
   try {
-    return await fetch(`${BASE}${ruta}`, { method: 'GET', headers: { Accept: TIPO_PDF }, signal, credentials: 'same-origin' });
+    return await fetch(`${API_BASE}${ruta}`, { method: 'GET', headers: { Accept: TIPO_PDF }, signal, credentials: API_CREDENTIALS });
   } catch {
     if (signal?.aborted) throw new DOMException('Pedido cancelado', 'AbortError');
     throw new ApiError(0, 'NETWORK_ERROR', 'No pudimos conectarnos. Revisá tu conexión y probá de nuevo.');

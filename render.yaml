@@ -1,21 +1,129 @@
-# Render Blueprint: un solo servicio web (la API de Node también sirve la web y el panel).
-# Uso: en Render, New > Blueprint, elegir este repo. Las variables con `sync: false` se cargan a mano en el panel de
-# Render (son secretos o datos tuyos): nunca van al repo. Detalle de cada una en backend/.env.example.
+# Render Blueprint: DOS servicios.
+#  - mgdetailing-web (Static Site): la web y el panel (React). Gratis, no se duerme nunca y sale desde el CDN de Render:
+#    la página aparece al instante aunque la API esté dormida.
+#  - mgdetailing (Web Service): la API de Node (Express). En el plan gratis se duerme tras 15 min sin pedidos; la
+#    primera visita la despierta (la landing muestra el catálogo de respaldo mientras tanto).
+# Uso: en Render, New > Blueprint, elegir este repo (o, si ya existe, "Sync" del Blueprint). Las variables con
+# `sync: false` se cargan a mano en el panel de Render (son secretos o datos tuyos): nunca van al repo. Detalle de cada
+# una en backend/.env.example.
+#
+# Dominios: mgdetail.com.ar y www.mgdetail.com.ar → mgdetailing-web; api.mgdetail.com.ar → mgdetailing.
+# Si cambia el dominio de la API, hay que cambiarlo en TRES lugares de este archivo: VITE_API_URL, el connect-src
+# de la CSP y la reescritura de /sitemap.xml.
 services:
+  # ---------------------------------------------------------------------------------------------------------------
+  # Frontend: Static Site
+  # ---------------------------------------------------------------------------------------------------------------
+  - type: web
+    runtime: static
+    name: mgdetailing-web
+    buildCommand: npm --prefix frontend ci --include=dev && npm --prefix frontend run build
+    staticPublishPath: ./frontend/dist
+    autoDeploy: true
+    # Solo se vuelve a publicar si cambia algo del frontend.
+    buildFilter:
+      paths:
+        - frontend/**
+    domains:
+      - mgdetail.com.ar
+      - www.mgdetail.com.ar
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # A dónde llama la web (se fija al compilar; no es un secreto). Sin barra final y sin /api.
+      - key: VITE_API_URL
+        value: https://api.mgdetail.com.ar
+    routes:
+      # El sitemap lo arma la API con los servicios del catálogo: se sirve desde el dominio de la web.
+      - type: rewrite
+        source: /sitemap.xml
+        destination: https://api.mgdetail.com.ar/sitemap.xml
+      # SPA: toda ruta que no sea un archivo (/, /admin, /turno/xyz, /servicios/...) carga index.html y la resuelve
+      # React Router. Render no aplica esta regla si existe un archivo en esa ruta (assets, fotos, robots.txt).
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      # Cabeceras de seguridad: las mismas que pone el backend cuando sirve la web (backend/src/middleware/security.ts).
+      # connect-src suma la API, que ahora vive en otro dominio.
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; media-src 'self'; worker-src 'self'; manifest-src 'self'; connect-src 'self' https://api.mgdetail.com.ar; frame-src https://www.google.com/maps/; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=15552000
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+      - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin
+      - path: /*
+        name: X-Permitted-Cross-Domain-Policies
+        value: none
+      # Los archivos de /assets llevan hash en el nombre (Vite): se cachean un año.
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      # Las fotos NO llevan hash: 7 días. Al reemplazar una foto hay que cambiarle el nombre.
+      - path: /fotos/*
+        name: Cache-Control
+        value: public, max-age=604800
+      # Service worker del panel: el navegador lo revisa en cada visita, y controla también /admin (sin barra).
+      - path: /admin/sw.js
+        name: Cache-Control
+        value: no-cache
+      - path: /admin/sw.js
+        name: Service-Worker-Allowed
+        value: /admin
+      - path: /admin/manifest.webmanifest
+        name: Content-Type
+        value: application/manifest+json; charset=utf-8
+      # El panel y el seguimiento de un turno no se indexan (robots.txt impide ver su <meta robots>).
+      - path: /admin
+        name: X-Robots-Tag
+        value: noindex, nofollow
+      - path: /admin/*
+        name: X-Robots-Tag
+        value: noindex, nofollow
+      - path: /turno/*
+        name: X-Robots-Tag
+        value: noindex, nofollow
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Backend: la API (Web Service)
+  # ---------------------------------------------------------------------------------------------------------------
   - type: web
     name: mgdetailing
     runtime: node
     # Poné la región más cercana a tu proyecto de Supabase (menos demora entre la API y la base).
     region: virginia
-    # Plan gratis para arrancar: se duerme tras 15 min sin visitas (la primera visita espera ~30-60 s). Un monitor
-    # gratis (UptimeRobot, cada 5 min a /api/health) lo mantiene despierto. Cuando haya clientes, cambiá a `starter`
-    # (~US$7/mes, no se duerme) y volvé a sincronizar el Blueprint.
+    # Plan gratis: se duerme tras 15 min sin pedidos (el primero espera ~30-60 s). Un monitor gratis (UptimeRobot,
+    # cada 10 min a https://api.mgdetail.com.ar/api/health) lo mantiene despierto. Cuando haya clientes, cambiá a
+    # `starter` (~US$7/mes, no se duerme) y volvé a sincronizar el Blueprint.
     plan: free
-    # NODE_ENV=production hace que `npm ci` salte las devDependencies (typescript, vite), que el build necesita.
-    buildCommand: npm --prefix frontend ci --include=dev && npm --prefix backend ci --include=dev && npm run build
+    # NODE_ENV=production hace que `npm ci` salte las devDependencies (typescript), que el build necesita.
+    buildCommand: npm --prefix backend ci --include=dev && npm --prefix backend run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
+    # Solo se vuelve a publicar si cambia algo del backend.
+    buildFilter:
+      paths:
+        - backend/**
+        - package.json
+        - .node-version
+    domains:
+      - api.mgdetail.com.ar
     envVars:
       - key: NODE_VERSION
         value: "24"
@@ -24,16 +132,18 @@ services:
       # Render llega al proceso desde afuera: hay que escuchar en todas las interfaces.
       - key: HOST
         value: 0.0.0.0
-      # La API sirve el build del frontend (un solo proceso, mismo origen).
+      # La web la sirve el Static Site: la API ya no sirve el build del frontend.
       - key: SERVE_FRONTEND
-        value: "true"
+        value: "false"
       # Un proxy inverso (el de Render) entre el visitante y la API: para que el límite de pedidos vea la IP real.
       - key: TRUST_PROXY
         value: "1"
-      # Origen exacto que ve el navegador (esquema + host, sin barra final). Para probar antes de apuntar el dominio,
-      # sumá la URL provisoria separada por coma: https://mgdetail.com.ar,https://TU-SERVICIO.onrender.com
+      # Orígenes exactos de la web (esquema + host, sin barra final), separados por coma. Los usan CORS y la defensa
+      # CSRF: un pedido desde otro origen se rechaza. Para probar con la URL provisoria del Static Site, sumala acá:
+      # ...,https://mgdetailing-web.onrender.com
       - key: FRONTEND_ORIGIN
-        value: https://mgdetail.com.ar
+        value: https://mgdetail.com.ar,https://www.mgdetail.com.ar
+      # La web pública (links al panel en los avisos y URLs del sitemap): es el dominio del Static Site, no el de la API.
       - key: PUBLIC_URL
         value: https://mgdetail.com.ar
       # El certificado raíz de Supabase ya está en el repo (backend/certs).

@@ -1,8 +1,10 @@
 import * as z from 'zod/mini';
+import { API_BASE, API_CREDENTIALS } from './base';
 
 /**
  * Único punto de salida a la red de toda la app (no usar fetch fuera de src/api/).
- * - URL relativa bajo /api (en desarrollo, Vite la pasa al backend).
+ * - URL bajo /api (en desarrollo, Vite la pasa al backend). Si la API vive en otro dominio, el origen sale de
+ *   VITE_API_URL (ver base.ts).
  * - POST, PUT, PATCH y DELETE van SIEMPRE con Content-Type: application/json,
  *   aunque no haya datos: el backend lo exige como defensa CSRF (si falta, 415).
  * - 204 sin leer el cuerpo; cuerpos que no son JSON (un 502 del proxy) y
@@ -39,7 +41,6 @@ export interface Opciones<T> {
   schema?: z.ZodMiniType<T>;
 }
 
-const BASE = '/api';
 
 function mensajePorEstado(status: number): string {
   if (status === 401) return 'Tu sesión venció. Ingresá de nuevo.';
@@ -86,7 +87,7 @@ export async function ejecutar(ruta: string, method: Metodo, body: unknown, sign
 
   let respuesta: Response;
   try {
-    respuesta = await fetch(`${BASE}${ruta}`, { method, headers, body: cuerpo, signal, credentials: 'same-origin' });
+    respuesta = await fetch(`${API_BASE}${ruta}`, { method, headers, body: cuerpo, signal, credentials: API_CREDENTIALS });
   } catch {
     if (signal?.aborted) throw new DOMException('Pedido cancelado', 'AbortError');
     throw new ApiError(0, 'NETWORK_ERROR', 'No pudimos conectarnos. Revisá tu conexión y probá de nuevo.');
