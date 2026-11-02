@@ -1,4 +1,4 @@
-import { defineConfig, type HtmlTagDescriptor, type Plugin, type ProxyOptions } from 'vite';
+import { defineConfig, loadEnv, type HtmlTagDescriptor, type UserConfig, type Plugin, type ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import { negocio, sitio } from './src/config/sitio.ts';
 import { jsonLdDelNegocio } from './src/lib/negocioJsonLd.ts';
@@ -93,7 +93,30 @@ function precargaDeFuentes(archivos: readonly string[]): Plugin {
   };
 }
 
-export default defineConfig({
+/**
+ * VITE_API_URL (opcional): origen de la API cuando el frontend se publica aparte (Static Site de Render) y la API
+ * vive en otro dominio, ej. https://api.mgdetail.com.ar. Se valida al compilar: un valor mal escrito tiene que frenar
+ * el build, no dejar la web publicada sin poder hablar con la API.
+ */
+function validarApiUrl(valor: string | undefined): void {
+  const limpio = (valor ?? '').trim();
+  if (limpio === '') return;
+  let url: URL;
+  try {
+    url = new URL(limpio);
+  } catch {
+    throw new Error(`VITE_API_URL no es una URL válida: "${limpio}". Ejemplo: https://api.mgdetail.com.ar`);
+  }
+  const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  if (url.protocol !== 'https:' && !(local && url.protocol === 'http:')) {
+    throw new Error(`VITE_API_URL tiene que usar https (las cookies de sesión son Secure): "${limpio}"`);
+  }
+  if (url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+    throw new Error(`VITE_API_URL va sin ruta (solo el origen, el /api lo agrega la app): "${limpio}"`);
+  }
+}
+
+const configuracion: UserConfig = {
   plugins: [
     react(),
     datosDelNegocio(),
@@ -109,4 +132,9 @@ export default defineConfig({
     strictPort: true,
     proxy: { '/api': proxyApi },
   },
+};
+
+export default defineConfig(({ mode }) => {
+  validarApiUrl(loadEnv(mode, process.cwd(), 'VITE_').VITE_API_URL);
+  return configuracion;
 });

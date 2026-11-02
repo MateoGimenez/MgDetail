@@ -1150,6 +1150,21 @@ navegador --HTTPS--> Caddy / PaaS --HTTP--> node dist/index.js (API + estáticos
 
 Con mismo origen no hay CORS de por medio, las cookies `SameSite=Strict` funcionan sin vueltas y el `Origin` que manda el navegador es el propio dominio. El build del frontend (`frontend/dist`) tiene que existir antes de arrancar con `SERVE_FRONTEND=true`; si no, el servidor no arranca y lo explica. Los estáticos se sirven comprimidos (gzip) y con caché larga para `/assets` (un año; nombres con hash); la API nunca se comprime. Las fotos de `/fotos` se cachean 7 días **y no llevan hash en el nombre: al reemplazar una foto hay que cambiarle el nombre** (por ejemplo `taller-2.jpg` en vez de `taller.jpg`), o los visitantes seguirán viendo la vieja hasta una semana. La CSP de la SPA es estricta: todo del mismo origen, sin scripts ni estilos inline, fuentes autoalojadas, sin iframes. Si el frontend pasa a cargar algo de otro dominio, hay que agregarlo a propósito en `src/middleware/security.ts`.
 
+### Despliegue actual en Render: web y API separadas
+
+En Render (`render.yaml` en la raíz) la web **no** la sirve este proceso: hay dos servicios.
+
+```
+navegador --HTTPS--> mgdetail.com.ar      (Static Site "mgdetailing-web": landing + panel, CDN, nunca se duerme)
+          --HTTPS--> api.mgdetail.com.ar  (Web Service "mgdetailing": esta API, SERVE_FRONTEND=false)
+```
+
+- El frontend se compila con `VITE_API_URL=https://api.mgdetail.com.ar` y llama a `https://api.mgdetail.com.ar/api/...` con `credentials: "include"` (`frontend/src/api/base.ts`). Sin esa variable sigue usando `/api` en el mismo origen, así que el despliegue de un solo proceso de arriba sigue funcionando.
+- Web y API son **orígenes distintos pero el mismo sitio** (`mgdetail.com.ar`): las cookies `SameSite=Strict` de la API viajan igual. Hacen falta CORS y el chequeo de `Origin`, que ya usan `FRONTEND_ORIGIN` (`https://mgdetail.com.ar,https://www.mgdetail.com.ar`).
+- Las cabeceras de la web (CSP, HSTS, `X-Robots-Tag`, caché de `/assets`, service worker del panel) están en `render.yaml`, copiadas de `src/middleware/security.ts` y `src/middleware/frontend.ts`; la CSP suma la API en `connect-src`. Un cambio en un lado va también en el otro.
+- `/sitemap.xml` lo sigue armando la API: el Static Site lo reescribe a `https://api.mgdetail.com.ar/sitemap.xml`. `robots.txt` es el archivo de `frontend/public` (con su línea `Sitemap:`).
+- Si la API duerme (plan gratis), la web aparece igual al instante; el primer pedido (el catálogo de la landing) la despierta y mientras tanto se ve el catálogo de respaldo.
+
 ### Variables en producción
 
 | Variable | Qué poner |
@@ -1164,7 +1179,7 @@ Con mismo origen no hay CORS de por medio, las cookies `SameSite=Strict` funcion
 | `TRUST_PROXY` | Con Caddy/nginx **en la misma máquina**: `loopback` (y `HOST=127.0.0.1`), así solo se cree el `X-Forwarded-For` que llega del proxy local. En un PaaS: `1` (el balanceador de la plataforma), siempre que el proceso no sea alcanzable sin pasar por él. Sin esto, el rate limit ve la IP del proxy y **todos los visitantes comparten el mismo cupo**; con un número y el puerto de Node expuesto a Internet, cualquiera puede conectarse directo, inventar su `X-Forwarded-For` y saltear el rate limit. |
 | `DATABASE_URL` | La cadena del Session pooler con la contraseña, en el gestor de secretos de la plataforma (nunca en el repo). |
 | `DATABASE_SSL_CA_FILE` | Ruta al certificado raíz de Supabase (obligatoria). |
-| `SERVE_FRONTEND` | `true` para el despliegue de un solo proceso. |
+| `SERVE_FRONTEND` | `true` para el despliegue de un solo proceso; `false` en Render (la web es un Static Site aparte). |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Opcionales: avisos push al celular (`npm run vapid` genera el par). La privada es un secreto: solo en el entorno del servidor. |
 
 ### Límites conocidos

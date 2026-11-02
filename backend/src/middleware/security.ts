@@ -15,6 +15,8 @@ const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()
  *   imágenes y video propios o data:, sin plugins. El único iframe permitido es el de Google Maps de "Dónde estamos"
  *   (frame-src https://www.google.com/maps/; la landing lo carga recién cuando la persona lo pide).
  *   Si el frontend pasa a cargar recursos de otro dominio, hay que agregarlos acá a propósito.
+ *   En producción la web es un Static Site de Render y sus cabeceras están en render.yaml (mgdetailing-web): ese
+ *   archivo tiene una COPIA de esta CSP (más la API en connect-src). Un cambio acá va también allá.
  */
 export function securityHeaders(config: Pick<AppConfig, 'isProduction'>): RequestHandler {
   const common = {
