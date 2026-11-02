@@ -3,17 +3,20 @@ import { Icono } from '../components/Icono';
 import type { NombreIcono } from '../components/Icono';
 import type { Vista } from '../lib/hoy';
 import { Hoja } from './navegacion/Hoja';
-import type { Seccion } from './secciones';
+import { MenuMas } from './navegacion/MenuMas';
+import type { GrupoVisible, Seccion } from './secciones';
 import './navegacion.css';
 
 interface Props {
   /** Las secciones que va a ver el rol, ya filtradas, en dos tandas (ver `navegacionPara`). */
   principales: readonly Seccion[];
   mas: readonly Seccion[];
+  /** Solo en modo 'fila': las secciones del menú «Más» agrupadas (ver `navegacionAncha`). */
+  grupos?: readonly GrupoVisible[];
   /** La sección que se está viendo. */
   vista: Vista;
   alElegir: (vista: Vista) => void;
-  /** 'barra': abajo, con Más (celular y tablet). 'fila': todas en una fila bajo el encabezado (pantalla ancha). */
+  /** 'barra': abajo, con Más (celular y tablet). 'fila': las principales en una fila bajo el encabezado y el resto en un menú «Más» agrupado (pantalla ancha). */
   modo: 'barra' | 'fila';
 }
 
@@ -33,7 +36,7 @@ const ICONOS: Partial<Record<Vista, NombreIcono>> = {
  * La sección actual lleva `aria-current="page"` y el filete rojo; si está dentro de Más, el botón Más lo marca.
  * La barra publica su alto en `--panel-barra` (en <html>) para que las barras fijas y los avisos la esquiven.
  */
-export function NavegacionPanel({ principales, mas, vista, alElegir, modo }: Props) {
+export function NavegacionPanel({ principales, mas, grupos = [], vista, alElegir, modo }: Props) {
   const [masAbierto, setMasAbierto] = useState(false);
   const idTitulo = useId();
 
@@ -55,7 +58,7 @@ export function NavegacionPanel({ principales, mas, vista, alElegir, modo }: Pro
     return (
       <nav className="panel__secciones" aria-label="Secciones del panel">
         <ul role="list" className="panel__fila">
-          {[...principales, ...mas].map((s) => (
+          {principales.map((s) => (
             <li key={s.clave}>
               <button
                 type="button"
@@ -69,6 +72,11 @@ export function NavegacionPanel({ principales, mas, vista, alElegir, modo }: Pro
               </button>
             </li>
           ))}
+          {grupos.length > 0 && (
+            <li>
+              <MenuMas grupos={grupos} vista={vista} alElegir={elegir} />
+            </li>
+          )}
         </ul>
       </nav>
     );

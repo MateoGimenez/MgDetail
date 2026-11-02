@@ -190,7 +190,7 @@ export function sugerirSlug(nombre: string): string {
     .replace(/-+$/, '');
 }
 
-export function formularioVacio(): FormularioServicio {
+export function formularioVacio(vehiculo?: VehiculoTipo): FormularioServicio {
   return {
     id: '',
     nombre: '',
@@ -202,7 +202,8 @@ export function formularioVacio(): FormularioServicio {
     precio: '',
     precioCamioneta: '',
     precioMoto: '',
-    vehiculos: [...VEHICULO_TIPOS],
+    // Desde una pestaña de vehículo, ese vehículo es el único marcado; sin pestaña, los tres.
+    vehiculos: vehiculo ? [vehiculo] : [...VEHICULO_TIPOS],
     destacado: false,
     activo: true,
   };

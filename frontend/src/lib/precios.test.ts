@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { menorPrecio, precioPorVehiculo, seOfrecePara, serviciosPara, tiposOfrecidos, type ConPrecios } from './precios';
+import { contarPorVehiculo, vehiculosSin, menorPrecio, precioPorVehiculo, seOfrecePara, serviciosPara, tiposOfrecidos, type ConPrecios } from './precios';
 import { vehiculoInicial } from './vehiculoElegido';
 import { textoPrecio } from '../data/servicios';
 
@@ -65,5 +65,27 @@ describe('servicios según el vehículo', () => {
     const s: ConPrecios = { precioDesde: 60000, precioDesdeCamioneta: 80000, precioDesdeMoto: 5000, vehiculos: ['auto', 'camioneta'] };
     expect(menorPrecio(s)).toBe(60000);
     expect(menorPrecio({ ...s, vehiculos: ['moto'] })).toBe(5000);
+  });
+});
+
+describe('servicios por vehículo (pestañas)', () => {
+  const lista = [
+    { vehiculos: ['auto', 'camioneta', 'moto'] as const },
+    { vehiculos: ['auto', 'camioneta'] as const },
+    { vehiculos: ['moto'] as const },
+  ];
+
+  it('cuenta los servicios de cada vehículo', () => {
+    expect(contarPorVehiculo(lista)).toEqual({ auto: 2, camioneta: 2, moto: 2 });
+    expect(contarPorVehiculo([])).toEqual({ auto: 0, camioneta: 0, moto: 0 });
+  });
+
+  it('quitar de un vehículo deja los otros, en orden canónico', () => {
+    expect(vehiculosSin({ vehiculos: ['auto', 'camioneta', 'moto'] }, 'camioneta')).toEqual(['auto', 'moto']);
+    expect(vehiculosSin({ vehiculos: ['auto', 'moto'] }, 'camioneta')).toEqual(['auto', 'moto']);
+  });
+
+  it('no se puede quitar el único vehículo (para eso está ocultar)', () => {
+    expect(vehiculosSin({ vehiculos: ['moto'] }, 'moto')).toBeNull();
   });
 });

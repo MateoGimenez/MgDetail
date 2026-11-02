@@ -48,3 +48,21 @@ export function serviciosPara<T extends Pick<ConPrecios, 'vehiculos'>>(servicios
 /** Los tipos para los que se ofrece, en orden canónico (auto, camioneta, moto). */
 export const tiposOfrecidos = (servicio: Pick<ConPrecios, 'vehiculos'>): VehiculoTipo[] =>
   VEHICULO_TIPOS.filter((tipo) => servicio.vehiculos.includes(tipo));
+
+/** Cuántos servicios se ofrecen para cada tipo (para el número de cada pestaña). */
+export function contarPorVehiculo(servicios: readonly Pick<ConPrecios, 'vehiculos'>[]): Record<VehiculoTipo, number> {
+  return {
+    auto: serviciosPara(servicios, 'auto').length,
+    camioneta: serviciosPara(servicios, 'camioneta').length,
+    moto: serviciosPara(servicios, 'moto').length,
+  };
+}
+
+/**
+ * Los vehículos que quedan al quitar el servicio de uno. null si no se puede: un servicio tiene que ofrecerse para
+ * al menos un vehículo (para dejar de mostrarlo en la web está «Ocultar», que no toca los vehículos).
+ */
+export function vehiculosSin(servicio: Pick<ConPrecios, 'vehiculos'>, tipo: VehiculoTipo): VehiculoTipo[] | null {
+  const quedan = VEHICULO_TIPOS.filter((t) => t !== tipo && servicio.vehiculos.includes(t));
+  return quedan.length > 0 ? quedan : null;
+}

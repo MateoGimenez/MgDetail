@@ -4283,3 +4283,55 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- Servicios por vehículo ---------- */
+.servicios-panel__panel:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 4px;
+}
+
+.servicios-panel__guia {
+  margin-top: var(--e-2);
+  color: var(--texto-2);
+  font-size: 0.9375rem;
+}
+
+.servicios-panel__guia summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--acento-texto);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.servicios-panel__guia ul {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--filete);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+}
+
+.servicio__precio-grande {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.servicio__tambien {
+  display: block;
+  margin-top: 2px;
+  color: var(--texto-3);
+  font-size: 0.875rem;
+}
+
+.servicio__nota--accion {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.servicio__quitar {
+  color: var(--acento-texto);
+}

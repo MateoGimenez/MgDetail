@@ -19,7 +19,7 @@ import {
 const L = LIMITES_SERVICIO;
 
 /** Qué abre el diálogo: el alta o la edición de un servicio. */
-export type EdicionServicio = { modo: 'crear' } | { modo: 'editar'; servicio: ServicioPanel };
+export type EdicionServicio = { modo: 'crear'; vehiculo?: VehiculoTipo } | { modo: 'editar'; servicio: ServicioPanel };
 
 interface Props {
   dialogoRef: RefObject<HTMLDialogElement | null>;
@@ -44,7 +44,7 @@ export function DialogoServicio({ dialogoRef, edicion, destacadoActual, alCrear,
     >
       {edicion && (
         <FormularioServicio
-          key={edicion.modo === 'editar' ? `${edicion.servicio.id}|${edicion.servicio.updatedAt}` : 'nuevo'}
+          key={edicion.modo === 'editar' ? `${edicion.servicio.id}|${edicion.servicio.updatedAt}` : `nuevo|${edicion.vehiculo ?? ''}`}
           edicion={edicion}
           destacadoActual={destacadoActual}
           alCrear={alCrear}
@@ -85,7 +85,7 @@ function FormularioServicio({
   const formRef = useRef<HTMLFormElement>(null);
   const esAlta = edicion.modo === 'crear';
   const original = edicion.modo === 'editar' ? edicion.servicio : null;
-  const [inicial] = useState(() => (original ? formularioDesde(original) : formularioVacio()));
+  const [inicial] = useState(() => (original ? formularioDesde(original) : formularioVacio(edicion.modo === 'crear' ? edicion.vehiculo : undefined)));
   // Los renglones iniciales usan su posición como clave; los nuevos, de 100 en adelante (las listas tienen ≤ 15).
   const proximaClave = useRef(100);
   const nuevaClave = () => (proximaClave.current += 1);
@@ -320,6 +320,8 @@ function FormularioServicio({
           </div>
           <p className="campo__ayuda">
             La web solo muestra este servicio a quien elige uno de estos vehículos. Tiene que haber al menos uno.
+            {original &&
+              ' Desmarcar uno no borra el servicio: solo deja de ofrecerse para ese vehículo (se conserva su precio). Para sacarlo de la web para todos, desmarcá «Activo» más abajo.'}
           </p>
           <ErrorCampo id={`${campo('vehiculos')}-error`} mensaje={errorDe('vehiculos')} />
         </div>

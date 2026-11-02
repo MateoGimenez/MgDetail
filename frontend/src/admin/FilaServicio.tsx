@@ -1,13 +1,17 @@
 import { useId } from 'react';
 import type { ServicioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
-import { ETIQUETA_VEHICULO, VEHICULO_TIPOS } from '../api/contract';
+import { ETIQUETA_VEHICULO, type VehiculoTipo } from '../api/contract';
 import { textoPesos } from '../data/servicios';
-import { precioPorVehiculo, seOfrecePara } from '../lib/precios';
+import { precioPorVehiculo, tiposOfrecidos } from '../lib/precios';
 import { idBajar, idSubir } from './useServicios';
 
 interface Props {
   servicio: ServicioPanel;
+  /** La pestaña desde la que se ve: el precio que se muestra es el de este vehículo. */
+  vehiculo: VehiculoTipo;
+  /** false si es el único vehículo del servicio: no se puede quitar (se oculta en su lugar). */
+  puedeQuitar: boolean;
   /** Posición en el catálogo, desde 1. */
   puesto: number;
   total: number;
@@ -20,6 +24,8 @@ interface Props {
   alSubir: () => void;
   alBajar: () => void;
   alEditar: () => void;
+  /** Pide confirmación para quitar el servicio de este vehículo (no lo elimina). */
+  alQuitar: () => void;
   alCambiarDestacado: () => void;
   alCambiarActivo: () => void;
 }
@@ -30,6 +36,8 @@ const cantidad = (n: number, uno: string, varios: string) => (n === 1 ? `1 ${uno
 /** Un servicio del catálogo: puesto (con subir y bajar), datos que se ven en la web, sellos y acciones. */
 export function FilaServicio({
   servicio,
+  vehiculo,
+  puedeQuitar,
   puesto,
   total,
   editable,
@@ -39,10 +47,13 @@ export function FilaServicio({
   alSubir,
   alBajar,
   alEditar,
+  alQuitar,
   alCambiarDestacado,
   alCambiarActivo,
 }: Props) {
   const id = useId();
+  const precio = precioPorVehiculo(servicio, vehiculo);
+  const tambien = tiposOfrecidos(servicio).filter((t) => t !== vehiculo);
   const clases = ['turno', 'servicio', servicio.activo ? '' : 'servicio--inactivo', servicio.destacado ? 'servicio--destacado' : '']
     .filter(Boolean)
     .join(' ');
@@ -107,25 +118,16 @@ export function FilaServicio({
 
           <dl className="turno__datos servicio__datos">
             <div className="servicio__precios">
-              <dt>Se ofrece para · precio desde</dt>
+              <dt>Precio desde · {ETIQUETA_VEHICULO[vehiculo]}</dt>
               <dd>
-                <ul className="servicio__precios-lista" role="list">
-                  {VEHICULO_TIPOS.map((tipo) => {
-                    const ofrece = seOfrecePara(servicio, tipo);
-                    const precio = precioPorVehiculo(servicio, tipo);
-                    return (
-                      <li key={tipo} className="servicio__precio-tipo" data-no-ofrece={!ofrece || undefined}>
-                        <span className="servicio__precio-vehiculo">{ETIQUETA_VEHICULO[tipo]}</span>
-                        <span className={!ofrece || precio === null ? 'servicio__consulta' : 'servicio__precio-valor'}>
-                          {!ofrece ? 'No se ofrece' : precio === null ? 'Consultá' : textoPesos(precio)}
-                        </span>
-                        {!ofrece && precio !== null && (
-                          <span className="servicio__precio-oculto">Tiene {textoPesos(precio)}, no se ve en la web</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                <span className={precio === null ? 'servicio__consulta' : 'servicio__precio-valor servicio__precio-grande'}>
+                  {precio === null ? 'Consultá (sin precio cargado)' : textoPesos(precio)}
+                </span>
+                <span className="servicio__tambien">
+                  {tambien.length > 0
+                    ? `También para ${tambien.map((t) => ETIQUETA_VEHICULO[t]).join(' y ')}`
+                    : `Solo para ${ETIQUETA_VEHICULO[vehiculo].toLowerCase()}`}
+                </span>
               </dd>
             </div>
             <div>
@@ -187,15 +189,30 @@ export function FilaServicio({
                 {servicio.activo ? (
                   <>
                     <Icono nombre="ojoTachado" tamano={18} />
-                    Desactivar
+                    Ocultar en la web
                   </>
                 ) : (
                   <>
                     <Icono nombre="ojo" tamano={18} />
-                    Activar
+                    Mostrar en la web
                   </>
                 )}
               </button>
+              <button
+                type="button"
+                className="boton boton--fantasma boton--chico servicio__quitar"
+                disabled={ocupado || !puedeQuitar}
+                aria-describedby={puedeQuitar ? undefined : `${id}-quitar-nota`}
+                onClick={alQuitar}
+              >
+                <Icono nombre="cerrar" tamano={18} />
+                Quitar de {ETIQUETA_VEHICULO[vehiculo].toLowerCase()}
+              </button>
+              {!puedeQuitar && (
+                <p id={`${id}-quitar-nota`} className="servicio__nota servicio__nota--accion">
+                  Es el único vehículo de este servicio. Para dejar de mostrarlo, usá «Ocultar en la web».
+                </p>
+              )}
             </div>
           ) : (
             <details className="servicio__detalle">

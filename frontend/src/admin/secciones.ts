@@ -29,9 +29,13 @@ export interface PropsSeccion {
   abrirCon?: string;
 }
 
+export type GrupoNavegacion = 'gestion' | 'admin';
+
 export interface Seccion {
   clave: Vista;
   etiqueta: string;
+  /** Grupo del menú «Más» de la pantalla ancha. Sin grupo: va siempre a mano en la fila. */
+  grupo?: GrupoNavegacion;
   /** Va siempre a mano en la barra de abajo del celular; las demás se juntan en "Más". */
   principal: boolean;
   /** Quién la ve. La regla real la aplica el backend: acá solo se esconde lo que daría 403. */
@@ -74,6 +78,7 @@ export const SECCIONES: readonly Seccion[] = [
     clave: 'inventario',
     etiqueta: 'Inventario',
     principal: false,
+    grupo: 'gestion',
     puede: todos,
     componente: diferidaSiExiste('./inventario/VistaInventario.tsx', 'VistaInventario'),
   },
@@ -81,6 +86,7 @@ export const SECCIONES: readonly Seccion[] = [
     clave: 'estadisticas',
     etiqueta: 'Estadísticas',
     principal: false,
+    grupo: 'admin',
     puede: todos,
     // Estadísticas se descarga aparte: quien no la abre no paga el peso de los gráficos.
     componente: lazy(() => import('./estadisticas/VistaEstadisticas')),
@@ -89,6 +95,7 @@ export const SECCIONES: readonly Seccion[] = [
     clave: 'finanzas',
     etiqueta: 'Finanzas',
     principal: false,
+    grupo: 'gestion',
     puede: puedeVerFinanzas,
     componente: lazy(() => import('./finanzas/VistaFinanzas')),
   },
@@ -96,6 +103,7 @@ export const SECCIONES: readonly Seccion[] = [
     clave: 'presupuestos',
     etiqueta: 'Presupuestos',
     principal: false,
+    grupo: 'gestion',
     puede: (rol) => rol === 'superadmin' || rol === 'admin',
     componente: diferidaSiExiste('./presupuestos/VistaPresupuestos.tsx', 'VistaPresupuestos'),
   },
@@ -103,6 +111,7 @@ export const SECCIONES: readonly Seccion[] = [
     clave: 'disponibilidad',
     etiqueta: 'Disponibilidad',
     principal: false,
+    grupo: 'admin',
     puede: todos,
   },
   { clave: 'servicios', etiqueta: 'Servicios', principal: false, puede: todos },
@@ -110,6 +119,7 @@ export const SECCIONES: readonly Seccion[] = [
     clave: 'usuarios',
     etiqueta: 'Usuarios',
     principal: false,
+    grupo: 'admin',
     puede: puedeGestionarUsuarios,
   },
 ];
@@ -139,4 +149,44 @@ export function navegacionPara(rol: Rol): {
     principales: visibles.filter((s) => s.principal),
     mas: visibles.filter((s) => !s.principal),
   };
+}
+
+/** Títulos de los grupos del menú «Más», en el orden en que se muestran. */
+export const GRUPOS_NAVEGACION: readonly { clave: GrupoNavegacion; titulo: string }[] = [
+  { clave: 'gestion', titulo: 'Gestión' },
+  { clave: 'admin', titulo: 'Admin' },
+];
+
+export interface GrupoVisible {
+  clave: GrupoNavegacion;
+  titulo: string;
+  secciones: Seccion[];
+}
+
+/**
+ * La navegación de la pantalla ancha: Hoy, Turnos, Agenda y Servicios siempre a la vista, y el resto en el menú
+ * «Más», agrupado. Un grupo que queda vacío para el rol no se muestra; sin grupos, no hay «Más».
+ */
+export function navegacionAncha(rol: Rol): { principales: Seccion[]; grupos: GrupoVisible[] } {
+  const visibles = seccionesVisibles(rol);
+  return {
+    principales: visibles.filter((s) => !s.grupo),
+    grupos: GRUPOS_NAVEGACION.map((g) => ({ ...g, secciones: visibles.filter((s) => s.grupo === g.clave) })).filter(
+      (g) => g.secciones.length > 0,
+    ),
+  };
+}
+
+/** ¿La vista actual está dentro del menú «Más»? (para marcarlo activo) */
+export const estaEnGrupos = (grupos: readonly { secciones: readonly Seccion[] }[], vista: Vista): boolean =>
+  grupos.some((g) => g.secciones.some((s) => s.clave === vista));
+
+/** A dónde va el foco con las flechas dentro del menú (circular); Home y End van a las puntas. */
+export function indiceConTecla(actual: number, total: number, tecla: string): number {
+  if (total <= 0) return -1;
+  if (tecla === 'Home') return 0;
+  if (tecla === 'End') return total - 1;
+  if (tecla === 'ArrowDown') return (actual + 1) % total;
+  if (tecla === 'ArrowUp') return (actual - 1 + total) % total;
+  return actual;
 }

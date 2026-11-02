@@ -11,7 +11,7 @@ import { ContextoCobro } from './cobro/contextoCobro';
 import { NavegacionPanel } from './NavegacionPanel';
 import { BotonPerfil, HojaPerfil } from './navegacion/PerfilPanel';
 import { puedeEditarCatalogo, puedeEditarDisponibilidad, puedeGestionarUsuarios } from './permisos';
-import { navegacionPara, seccionDe, vistasPermitidas, type PropsSeccion } from './secciones';
+import { navegacionAncha, navegacionPara, seccionDe, vistasPermitidas, type PropsSeccion } from './secciones';
 import { useConsulta } from './usePantallaAncha';
 import { useServicios } from './useServicios';
 import type { Filtro } from './useTurnos';
@@ -76,6 +76,8 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
 
   // Las diez secciones salen del registro (secciones.ts), filtradas por rol: las principales y las de "Más".
   const { principales, mas } = navegacionPara(usuario.rol);
+  // En pantalla ancha: Hoy, Turnos, Agenda y Servicios a la vista, y el resto agrupado en «Más».
+  const ancha = navegacionAncha(usuario.rol);
   const seccionActual = seccionDe(vista);
   const Diferida = seccionActual.puede(usuario.rol) ? seccionActual.componente : undefined;
   const propsSeccion: PropsSeccion = {
@@ -119,8 +121,9 @@ export function Panel({ usuario, alSalir, alVencerSesion }: Props) {
           </div>
           {pantallaAncha && (
             <NavegacionPanel
-              principales={principales}
-              mas={mas}
+              principales={ancha.principales}
+              mas={[]}
+              grupos={ancha.grupos}
               vista={vista}
               alElegir={irA}
               modo={pantallaAncha ? 'fila' : 'barra'}

@@ -446,3 +446,87 @@
   outline: 2px solid #ffffff;
   outline-offset: -3px;
 }
+
+/* ---------- «Más» de la fila (pantalla ancha) ---------- */
+.menu-mas {
+  position: relative;
+}
+
+.menu-mas__boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.menu-mas__panel {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: var(--e-4);
+  min-width: min(340px, calc(100vw - 2 * var(--margen)));
+  padding: var(--e-3);
+  border: 1px solid var(--grafito-600);
+  border-top: 3px solid var(--rojo-500);
+  border-radius: 0 0 var(--radio-2) var(--radio-2);
+  background: var(--grafito-900);
+  box-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.6);
+}
+
+.menu-mas__panel[hidden] {
+  display: none;
+}
+
+.menu-mas__titulo {
+  padding: 0 var(--e-2) var(--e-1);
+  color: var(--gris-300);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.menu-mas__opcion {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--e-2);
+  border: 0;
+  border-radius: var(--radio-1, 4px);
+  background: transparent;
+  color: var(--gris-200);
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-mas__opcion:hover {
+  background: var(--grafito-700);
+  color: #ffffff;
+}
+
+.menu-mas__opcion[aria-current='page'] {
+  color: #ffffff;
+  box-shadow: inset 3px 0 0 var(--rojo-500);
+  background: var(--grafito-700);
+}
+
+.menu-mas__opcion:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+}
+
+/* Si queda un solo grupo, una sola columna. */
+.menu-mas__panel:has(.menu-mas__grupo:only-child) {
+  grid-template-columns: minmax(180px, 1fr);
+  min-width: 200px;
+}
+
+@media (max-width: 480px) {
+  .menu-mas__panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

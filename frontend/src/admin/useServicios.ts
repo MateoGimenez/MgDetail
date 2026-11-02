@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { actualizarServicio, crearServicio, listarServiciosPanel, ordenarServicios } from '../api/admin';
 import { ApiError, esAbortado } from '../api/client';
+import { ETIQUETA_VEHICULO, type VehiculoTipo } from '../api/contract';
+import { serviciosPara } from '../lib/precios';
 import { CODIGO_SERVICIO_EXISTE, type CambiosServicio, type NuevoServicio, type ServicioPanel } from '../api/contract-panel';
 import { esSesionPerdida } from '../api/sesion';
 import { useAvisos } from './toast/contexto';
@@ -25,6 +27,18 @@ export function moverEnLista<T>(lista: readonly T[], desde: number, hasta: numbe
   if (elemento === undefined) return copia;
   copia.splice(hasta, 0, elemento);
   return copia;
+}
+
+/**
+ * A qué posición del catálogo completo va un servicio al subirlo o bajarlo. Con `vecinoId` (el servicio de al lado en
+ * la pestaña que se está viendo) se ubica junto a ese vecino, saltando los de otros vehículos; sin él, un puesto.
+ * -1 si no se puede mover.
+ */
+export function destinoDeMovimiento(ids: readonly string[], id: string, delta: -1 | 1, vecinoId?: string): number {
+  const desde = ids.indexOf(id);
+  if (desde < 0) return -1;
+  const hasta = vecinoId === undefined ? desde + delta : ids.indexOf(vecinoId);
+  return hasta < 0 || hasta >= ids.length || hasta === desde ? -1 : hasta;
 }
 
 /**
@@ -148,12 +162,17 @@ export function useServicios(alVencerSesion: (mensaje: string) => void) {
   };
 
   /** Sube (-1) o baja (+1) un puesto. Se ve al instante; si el servidor no lo acepta, vuelve atrás. */
-  const mover = async (servicio: ServicioPanel, delta: -1 | 1) => {
+  const mover = async (servicio: ServicioPanel, delta: -1 | 1, vecino?: { id: string; tipo: VehiculoTipo }) => {
     const actuales = resultado && 'servicios' in resultado ? resultado.servicios : null;
     if (!actuales || ordenando) return;
     const desde = actuales.findIndex((s) => s.id === servicio.id);
-    const hasta = desde + delta;
-    if (desde < 0 || hasta < 0 || hasta >= actuales.length) return;
+    const hasta = destinoDeMovimiento(
+      actuales.map((s) => s.id),
+      servicio.id,
+      delta,
+      vecino?.id,
+    );
+    if (desde < 0 || hasta < 0) return;
 
     const nuevos = moverEnLista(actuales, desde, hasta);
     cambiarLista(() => nuevos);
@@ -162,8 +181,13 @@ export function useServicios(alVencerSesion: (mensaje: string) => void) {
     try {
       const guardados = await ordenarServicios(nuevos.map((s) => s.id));
       cambiarLista(() => guardados);
-      const puesto = guardados.findIndex((s) => s.id === servicio.id) + 1;
-      avisos.exito(`${servicio.nombre} ${delta < 0 ? 'subió' : 'bajó'} al puesto ${String(puesto)} de ${String(guardados.length)}.`);
+      // Desde una pestaña, el puesto que se anuncia es el de esa pestaña (el que se ve en pantalla).
+      const visibles = vecino ? serviciosPara(guardados, vecino.tipo) : guardados;
+      const puesto = visibles.findIndex((s) => s.id === servicio.id) + 1;
+      const donde = vecino ? ` de ${ETIQUETA_VEHICULO[vecino.tipo]}` : '';
+      avisos.exito(
+        `${servicio.nombre} ${delta < 0 ? 'subió' : 'bajó'} al puesto ${String(puesto)} de ${String(visibles.length)}${donde}.`,
+      );
     } catch (error) {
       cambiarLista(() => actuales);
       if (esSesionPerdida(error)) {

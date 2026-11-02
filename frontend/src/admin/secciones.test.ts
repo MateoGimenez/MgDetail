@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { VISTAS, resolverVista } from '../lib/hoy';
-import { SECCIONES, navegacionPara, seccionDe, seccionesVisibles, vistasPermitidas } from './secciones';
+import {
+  SECCIONES,
+  estaEnGrupos,
+  indiceConTecla,
+  navegacionAncha,
+  navegacionPara,
+  seccionDe,
+  seccionesVisibles,
+  vistasPermitidas,
+} from './secciones';
 
 describe('registro de secciones del panel', () => {
   it('tiene las diez, una por clave de ?vista=, sin repetir', () => {
@@ -72,5 +81,53 @@ describe('registro de secciones del panel', () => {
     expect(resolverVista('inventario', vistasPermitidas('empleado'))).toBe('inventario');
     expect(resolverVista('usuarios', vistasPermitidas('admin'))).toBe('hoy');
     expect(resolverVista('usuarios', vistasPermitidas('superadmin'))).toBe('usuarios');
+  });
+});
+
+describe('navegación de la pantalla ancha', () => {
+  it('Hoy, Turnos, Agenda y Servicios quedan a la vista; el resto va agrupado en Más', () => {
+    const { principales, grupos } = navegacionAncha('superadmin');
+    expect(principales.map((s) => s.clave)).toEqual(['hoy', 'turnos', 'agenda', 'servicios']);
+    expect(grupos.map((g) => [g.titulo, g.secciones.map((s) => s.clave)])).toEqual([
+      ['Gestión', ['inventario', 'finanzas', 'presupuestos']],
+      ['Admin', ['estadisticas', 'disponibilidad', 'usuarios']],
+    ]);
+  });
+
+  it('respeta los permisos: el admin no ve Usuarios', () => {
+    const { grupos } = navegacionAncha('admin');
+    expect(grupos.flatMap((g) => g.secciones.map((s) => s.clave))).not.toContain('usuarios');
+    expect(grupos[1]?.secciones.map((s) => s.clave)).toEqual(['estadisticas', 'disponibilidad']);
+  });
+
+  it('el empleado ve solo Inventario en Gestión y Estadísticas y Disponibilidad en Admin', () => {
+    const { grupos } = navegacionAncha('empleado');
+    expect(grupos.map((g) => g.secciones.map((s) => s.clave))).toEqual([['inventario'], ['estadisticas', 'disponibilidad']]);
+  });
+
+  it('ninguna sección se pierde ni se repite', () => {
+    for (const rol of ['superadmin', 'admin', 'empleado'] as const) {
+      const { principales, grupos } = navegacionAncha(rol);
+      const claves = [...principales, ...grupos.flatMap((g) => g.secciones)].map((s) => s.clave);
+      expect(claves.sort()).toEqual(vistasPermitidas(rol).sort());
+    }
+  });
+
+  it('estaEnGrupos marca Más activo solo si la ruta está dentro', () => {
+    const { grupos } = navegacionAncha('superadmin');
+    expect(estaEnGrupos(grupos, 'finanzas')).toBe(true);
+    expect(estaEnGrupos(grupos, 'usuarios')).toBe(true);
+    expect(estaEnGrupos(grupos, 'servicios')).toBe(false);
+    expect(estaEnGrupos(grupos, 'hoy')).toBe(false);
+  });
+
+  it('indiceConTecla recorre el menú de forma circular', () => {
+    expect(indiceConTecla(0, 3, 'ArrowDown')).toBe(1);
+    expect(indiceConTecla(2, 3, 'ArrowDown')).toBe(0);
+    expect(indiceConTecla(0, 3, 'ArrowUp')).toBe(2);
+    expect(indiceConTecla(1, 3, 'Home')).toBe(0);
+    expect(indiceConTecla(1, 3, 'End')).toBe(2);
+    expect(indiceConTecla(1, 3, 'x')).toBe(1);
+    expect(indiceConTecla(0, 0, 'ArrowDown')).toBe(-1);
   });
 });
