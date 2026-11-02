@@ -3,7 +3,7 @@ import type { ServicioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { ETIQUETA_VEHICULO, VEHICULO_TIPOS } from '../api/contract';
 import { textoPesos } from '../data/servicios';
-import { precioPorVehiculo } from '../lib/precios';
+import { precioPorVehiculo, seOfrecePara } from '../lib/precios';
 import { idBajar, idSubir } from './useServicios';
 
 interface Props {
@@ -107,17 +107,21 @@ export function FilaServicio({
 
           <dl className="turno__datos servicio__datos">
             <div className="servicio__precios">
-              <dt>Precio desde</dt>
+              <dt>Se ofrece para · precio desde</dt>
               <dd>
                 <ul className="servicio__precios-lista" role="list">
                   {VEHICULO_TIPOS.map((tipo) => {
+                    const ofrece = seOfrecePara(servicio, tipo);
                     const precio = precioPorVehiculo(servicio, tipo);
                     return (
-                      <li key={tipo} className="servicio__precio-tipo">
+                      <li key={tipo} className="servicio__precio-tipo" data-no-ofrece={!ofrece || undefined}>
                         <span className="servicio__precio-vehiculo">{ETIQUETA_VEHICULO[tipo]}</span>
-                        <span className={precio === null ? 'servicio__consulta' : 'servicio__precio-valor'}>
-                          {precio === null ? 'Consultá' : textoPesos(precio)}
+                        <span className={!ofrece || precio === null ? 'servicio__consulta' : 'servicio__precio-valor'}>
+                          {!ofrece ? 'No se ofrece' : precio === null ? 'Consultá' : textoPesos(precio)}
                         </span>
+                        {!ofrece && precio !== null && (
+                          <span className="servicio__precio-oculto">Tiene {textoPesos(precio)}, no se ve en la web</span>
+                        )}
                       </li>
                     );
                   })}

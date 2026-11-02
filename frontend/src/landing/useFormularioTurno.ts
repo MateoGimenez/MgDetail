@@ -7,12 +7,14 @@ import {
   esFranja,
   esSlugDeServicio,
   esVehiculoTipo,
+  VEHICULO_PLURAL,
   type CampoTurno,
   type TurnoNuevo,
 } from '../api/contract';
 import { crearTurno } from '../api/turnos';
 import { estadoDelDia, franjaLibre } from '../lib/disponibilidad';
 import { rangoDeTurno } from '../lib/fechas';
+import { seOfrecePara, serviciosPara } from '../lib/precios';
 import { useCatalogo } from './catalogo-contexto';
 import { useReserva } from './reserva-contexto';
 import { useDisponibilidad, type DiasDisponibles } from './useDisponibilidad';
@@ -113,8 +115,12 @@ const primerError = (errores: Errores) => ORDEN.find((campo) => errores[campo] !
 /** Estado, validación (mismas reglas que el backend) y envío del formulario de turno. */
 export function useFormularioTurno() {
   const { registrar, vehiculo, elegirVehiculo } = useReserva();
-  const { servicios } = useCatalogo();
+  const { servicios: catalogo } = useCatalogo();
+  // El formulario ofrece (y valida) solo los servicios que se hacen para el vehículo elegido.
+  const servicios = useMemo(() => serviciosPara(catalogo, vehiculo), [catalogo, vehiculo]);
   const idsDeServicio = servicios.map((servicio) => servicio.id);
+  /** Se avisa (en una región role="status") cuando un cambio de vehículo deja sin servicio al pedido. */
+  const [avisoServicio, setAvisoServicio] = useState<string | null>(null);
   const [parametros] = useSearchParams();
   const [valoresLocales, setValores] = useState<Valores>(() => {
     const servicio = parametros.get('servicio') ?? '';
@@ -182,6 +188,20 @@ export function useFormularioTurno() {
     [registrar],
   );
 
+  // Si el servicio elegido no se ofrece para el vehículo (porque se cambió de tipo o llegó el catálogo), se limpia
+  // en vez de mandarlo inválido, y se avisa. Se ajusta durante el render (patrón de React para estado derivado):
+  // la condición deja de cumplirse en la pasada siguiente.
+  const elegido = valoresLocales.servicioId === '' ? undefined : catalogo.find((servicio) => servicio.id === valoresLocales.servicioId);
+  if (elegido && !seOfrecePara(elegido, vehiculo)) {
+    setValores({ ...valoresLocales, servicioId: '' });
+    setErrores((previos) => {
+      const siguientes = { ...previos };
+      delete siguientes.servicioId;
+      return siguientes;
+    });
+    setAvisoServicio(`«${elegido.nombre}» no se ofrece para ${VEHICULO_PLURAL[vehiculo]}. Elegí otro servicio.`);
+  }
+
   useEffect(() => {
     if (envio.fase === 'exito') exitoRef.current?.focus();
   }, [envio.fase]);
@@ -200,6 +220,7 @@ export function useFormularioTurno() {
 
   const actualizar = (campo: CampoTurno, valor: string) => {
     const siguientes = { ...valores, [campo]: valor };
+    if (campo === 'servicioId') setAvisoServicio(null);
     if (campo === 'vehiculoTipo' && esVehiculoTipo(valor)) elegirVehiculo(valor);
     // Otro día: si la franja elegida no tiene lugar ahí, se borra (el selector solo deja marcar las que tienen).
     if (campo === 'fechaPreferida' && dias && esFranja(siguientes.franja) && !franjaLibre(dias.get(valor), siguientes.franja)) {
@@ -289,6 +310,7 @@ export function useFormularioTurno() {
       email: actuales.email,
     }));
     setErrores({});
+    setAvisoServicio(null);
     setValidarEnVivo(false);
     setEnvio({ fase: 'editando' });
     enfocar('servicioId');
@@ -303,6 +325,8 @@ export function useFormularioTurno() {
 
   return {
     disponibilidad,
+    servicios,
+    avisoServicio,
     valores,
     setValores,
     errores,

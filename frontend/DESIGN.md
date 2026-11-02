@@ -335,3 +335,10 @@ Componentes nuevos, solo con variables del panel. **Barra de stock** (`.inv-barr
 - **Selector «Precios para»** (`SelectorVehiculo`): el mismo segmentado de radios de la reserva (`.selector`, chapa con filete rojo al elegir), con el rótulo en Label (650, 0.75rem, mayúsculas) encima. Va dentro de la cabecera de Servicios, bajo la bajada, con `max-width: 26rem`: en 390 px ocupa el ancho del margen (3 opciones, 48 px de alto, sin desbordar) y en pantalla ancha no se estira. Teclado nativo (flechas dentro del grupo, Tab entra y sale) y un aviso `role="status"` oculto dice «Mostrando los precios para moto».
 - **Card:** el precio sigue en la misma chapa de datos; cambia con un fundido corto de `opacity` + `transform` (220 ms, `precio-entra`), solo sin `prefers-reduced-motion`. Como el cambio no altera la altura, las cards no saltan (medido: alturas idénticas entre Auto, Camioneta y Moto a 390 y 1280). Falta el precio del tipo = «Consultá» (no el de auto).
 - **Panel:** en el diálogo, grupo «Precio desde, según el vehículo» con tres campos (una columna en celular, tres desde 40rem) y debajo de cada uno «En la web: …». En la lista, tres columnas compactas (Auto, Camioneta, Moto) con «Consultá» en gris.
+
+## Servicios según el vehículo
+
+- Al cambiar el tipo, la lista de cards se vuelve a montar y entra con un fundido de 260 ms (opacity + translateY 8 px, solo sin `prefers-reduced-motion`); el carrusel del celular vuelve al principio. La bajada cuenta los servicios del tipo ("Dos servicios para motos…"). El selector anuncia la cantidad en una región oculta `role="status"`.
+- Sin servicios para el tipo: el mismo aviso informativo que "sin turnos online" (icono de reloj, titular en voz de taller, botón primario de WhatsApp). No es un error.
+- Formulario: el servicio descartado se explica en una línea con icono de alerta, sobre las opciones. `/servicios/:id`: aviso informativo con botones secundarios chicos "Ver para auto".
+- Panel: las tres casillas "Se ofrece para" van en fila (cuadro de 20 px, acento rojo); el precio de un tipo no ofrecido se ve apagado con su aviso. En la lista, "No se ofrece" va en gris.

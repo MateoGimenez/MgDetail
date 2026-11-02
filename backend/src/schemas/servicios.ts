@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { DESTACADO_INACTIVO_MSG, LIMITES_SERVICIO as L, SERVICIO_ID_MAX, SERVICIO_ID_REGEX } from '../domain/servicios.js';
+import { VEHICULO_TIPOS, type VehiculoTipo } from '../domain/booking.js';
+import {
+  DESTACADO_INACTIVO_MSG,
+  LIMITES_SERVICIO as L,
+  SERVICIO_ID_MAX,
+  SERVICIO_ID_REGEX,
+  vehiculosCanonicos,
+} from '../domain/servicios.js';
 
 /*
  * Higiene del texto del catálogo (lo carga el dueño desde el panel y se muestra en la landing). Misma regla que el
@@ -95,6 +102,18 @@ const precio = z
   .max(L.precioMax, { error: PRECIO_MSG })
   .nullable();
 
+const VEHICULOS_MSG = 'Elegí al menos un vehículo (auto, camioneta o moto) para el servicio.';
+/** Lista de tipos de vehículo, de 1 a 3, sin repetidos; sale en orden canónico (auto, camioneta, moto). */
+const vehiculos = z
+  .array(z.unknown(), { error: VEHICULOS_MSG })
+  .min(1, { error: VEHICULOS_MSG })
+  // Todos los errores salen en fields.vehiculos (y no en vehiculos.0): el panel tiene un solo grupo de casillas.
+  .refine((lista): lista is VehiculoTipo[] => lista.every((tipo) => VEHICULO_TIPOS.some((valido) => valido === tipo)), {
+    error: 'Los vehículos válidos son auto, camioneta y moto.',
+  })
+  .refine((lista) => new Set(lista).size === lista.length, { error: 'No repitas vehículos en la lista.' })
+  .transform(vehiculosCanonicos);
+
 const destacado = z.boolean({ error: 'destacado tiene que ser true o false.' });
 const activo = z.boolean({ error: 'activo tiene que ser true o false.' });
 
@@ -119,6 +138,7 @@ export const createServicioSchema = z.strictObject({
   precioDesde: precio.default(null),
   precioDesdeCamioneta: precio.default(null),
   precioDesdeMoto: precio.default(null),
+  vehiculos: vehiculos.default([...VEHICULO_TIPOS]),
   destacado: destacado.default(false),
   activo: activo.default(true),
 }).refine((servicio) => !(servicio.destacado && !servicio.activo), {
@@ -141,6 +161,7 @@ export const updateServicioSchema = z.strictObject({
   precioDesde: precio.optional(),
   precioDesdeCamioneta: precio.optional(),
   precioDesdeMoto: precio.optional(),
+  vehiculos: vehiculos.optional(),
   destacado: destacado.optional(),
   activo: activo.optional(),
 }).refine((cambios) => !(cambios.destacado === true && cambios.activo === false), {

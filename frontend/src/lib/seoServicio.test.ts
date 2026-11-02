@@ -21,6 +21,7 @@ const pulido: Servicio = {
   precioDesde: 60000,
   precioDesdeCamioneta: null,
   precioDesdeMoto: null,
+  vehiculos: ['auto', 'camioneta', 'moto'] as ('auto' | 'camioneta' | 'moto')[],
   destacado: false,
 };
 
@@ -71,6 +72,14 @@ describe('seoDeServicio', () => {
     expect(ld({ precioDesde: 60000, precioDesdeCamioneta: 80000, precioDesdeMoto: 40000 }).offers?.priceSpecification.minPrice).toBe(40000);
     expect(ld({ precioDesde: null, precioDesdeCamioneta: 80000, precioDesdeMoto: null }).offers?.priceSpecification.minPrice).toBe(80000);
     expect(ld({ precioDesde: 0, precioDesdeCamioneta: 5, precioDesdeMoto: null }).offers?.priceSpecification.minPrice).toBe(0);
+  });
+
+  it('JSON-LD: un precio de un vehículo que el servicio no ofrece no cuenta para lowPrice', () => {
+    const ld = seoDeServicio(
+      { ...pulido, precioDesde: 60000, precioDesdeCamioneta: 80000, precioDesdeMoto: 5000, vehiculos: ['auto', 'camioneta'] },
+      { sitio: sitioBase, negocio },
+    ).jsonLd[0] as { offers?: { priceSpecification: { minPrice: number } } };
+    expect(ld.offers?.priceSpecification.minPrice).toBe(60000);
   });
 
   it('sin precio no hay offers; sin URL, las migas no llevan item', () => {

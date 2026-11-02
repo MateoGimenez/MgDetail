@@ -4,6 +4,8 @@
  * Contrato: reportes/2026-10-22_07_catalogo-editable.md.
  */
 
+import { VEHICULO_TIPOS, type VehiculoTipo } from './booking.js';
+
 /** Slug del id: minúsculas, números y guiones simples, hasta 64 caracteres. Inmutable después de crearlo. */
 export const SERVICIO_ID_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 export const SERVICIO_ID_MAX = 64;
@@ -44,6 +46,8 @@ export interface Servicio {
   precioDesdeCamioneta: number | null;
   /** Precio para MOTO. Entero en ARS. null = "Consultá" (nunca se cae al de auto). */
   precioDesdeMoto: number | null;
+  /** Tipos de vehículo para los que se ofrece, en orden canónico (auto, camioneta, moto). Al menos uno. */
+  vehiculos: VehiculoTipo[];
   /** A lo sumo uno en true. */
   destacado: boolean;
   /** false = ya no se ofrece (no se borra: hay turnos que lo referencian). */
@@ -129,6 +133,12 @@ export function servicioPublico(servicio: Servicio): ServicioPublico {
     precioDesde: servicio.precioDesde,
     precioDesdeCamioneta: servicio.precioDesdeCamioneta,
     precioDesdeMoto: servicio.precioDesdeMoto,
+    vehiculos: servicio.vehiculos,
     destacado: servicio.destacado,
   };
+}
+
+/** Ordena y filtra a los tipos conocidos, en el orden canónico (auto, camioneta, moto). */
+export function vehiculosCanonicos(vehiculos: readonly string[]): VehiculoTipo[] {
+  return VEHICULO_TIPOS.filter((tipo) => vehiculos.includes(tipo));
 }

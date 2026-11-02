@@ -1,3 +1,4 @@
+import { VEHICULO_TIPOS } from '../api/contract';
 import type { Servicio } from '../types';
 
 /**
@@ -13,7 +14,7 @@ import type { Servicio } from '../types';
  * PROVISIONAL: descripciones, lo que incluye cada servicio y las duraciones son una propuesta inicial que el
  * dueño todavía no confirmó (buscá "COMPLETAR: confirmar con el taller").
  */
-type ServicioDeRespaldo = Omit<Servicio, 'precioDesde' | 'precioDesdeCamioneta' | 'precioDesdeMoto' | 'duracion'> & { readonly duracion: string };
+type ServicioDeRespaldo = Omit<Servicio, 'precioDesde' | 'precioDesdeCamioneta' | 'precioDesdeMoto' | 'vehiculos' | 'duracion'> & { readonly duracion: string };
 
 const respaldo = [
   {
@@ -183,6 +184,8 @@ export const serviciosDeRespaldo: readonly Servicio[] = respaldo.map((servicio) 
   precioDesde: null,
   precioDesdeCamioneta: null,
   precioDesdeMoto: null,
+  // El respaldo no sabe qué ofrece el taller para cada vehículo: no esconde nada.
+  vehiculos: [...VEHICULO_TIPOS],
 }));
 
 const PRECIO = new Intl.NumberFormat('es-AR', {

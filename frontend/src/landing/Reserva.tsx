@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { ETIQUETA_FRANJA, ETIQUETA_VEHICULO, FRANJAS, LIMITES, VEHICULO_TIPOS } from '../api/contract';
+import { Icono } from '../components/Icono';
+import { ETIQUETA_FRANJA, ETIQUETA_VEHICULO, FRANJAS, LIMITES, VEHICULO_PLURAL, VEHICULO_TIPOS } from '../api/contract';
 import { MarcoFilete, SubrayadoFilete } from '../components/Filete';
 import { useCatalogo } from './catalogo-contexto';
 import { CampoTexto, ErrorDeCampo } from './CampoTexto';
 import { CalendarioCargando, ElegirDia, ElegirFranja } from './ElegirDia';
 import { ExitoTurno } from './ExitoTurno';
-import { ID_SECCION_RESERVA } from './reserva-contexto';
+import { ID_SECCION_RESERVA, useReserva } from './reserva-contexto';
 import { ResumenPedido } from './ResumenPedido';
 import { CabeceraSeccion } from './CabeceraSeccion';
 import { SinTurnosOnline } from './SinTurnosOnline';
@@ -34,12 +35,15 @@ export function Reserva() {
     exitoRef,
     ids,
     radio,
+    servicios,
+    avisoServicio,
     actualizar,
     alSalir,
     enviar,
     nuevoPedido,
   } = useFormularioTurno();
-  const { servicios, estado } = useCatalogo();
+  const { estado } = useCatalogo();
+  const { vehiculo } = useReserva();
   const describe = (campo: 'servicioId' | 'vehiculoTipo' | 'franja') => (errores[campo] ? ids.error(campo) : undefined);
 
   return (
@@ -80,6 +84,18 @@ export function Reserva() {
             >
               <div className="reserva__campos">
                 <Grupo titulo="¿Qué servicio querés?" describedBy={describe('servicioId')}>
+                  {avisoServicio && (
+                    <p className="reserva__aviso-servicio" role="status">
+                      <Icono nombre="alerta" tamano={18} />
+                      {avisoServicio}
+                    </p>
+                  )}
+                  {servicios.length === 0 && (
+                    <p className="reserva__sin-servicios">
+                      Todavía no tenemos servicios cargados para {VEHICULO_PLURAL[vehiculo]}. Elegí
+                      otro vehículo más abajo o escribinos por WhatsApp.
+                    </p>
+                  )}
                   <div className="opciones-servicio">
                     {servicios.map((servicio) => (
                       <label key={servicio.id} className="opcion-servicio">

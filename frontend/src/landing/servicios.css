@@ -395,6 +395,25 @@
   display: inline-block;
 }
 
+/* Al cambiar de vehículo la lista entera se vuelve a montar: entra con un fundido corto (solo opacity y
+   transform) en lugar de aparecer de golpe. Sin prefers-reduced-motion no se anima nada. */
+@media (prefers-reduced-motion: no-preference) {
+  .servicios__cambio {
+    animation: servicios-entra 260ms var(--ease-salida) both;
+  }
+}
+
+@keyframes servicios-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .tarjeta__precio {
     animation: precio-entra 220ms var(--ease-salida, ease-out) both;

@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { ETIQUETA_VEHICULO, VEHICULO_TIPOS } from '../api/contract';
+import { ETIQUETA_VEHICULO, VEHICULO_PLURAL, VEHICULO_TIPOS } from '../api/contract';
 import { SubrayadoFilete } from '../components/Filete';
 import { useReserva } from './reserva-contexto';
 
@@ -8,7 +8,7 @@ import { useReserva } from './reserva-contexto';
  * (ReservaProvider): lo que se elige acá queda elegido en la reserva y al revés. Son radios nativos, así que las
  * flechas, el Tab y el foco funcionan sin código extra; el aviso en voz alta dice qué precios se están viendo.
  */
-export function SelectorVehiculo() {
+export function SelectorVehiculo({ cantidad }: { cantidad?: number }) {
   const { vehiculo, elegirVehiculo } = useReserva();
   const nombre = useId();
 
@@ -34,7 +34,11 @@ export function SelectorVehiculo() {
         ))}
       </div>
       <p className="visualmente-oculto" role="status">
-        Mostrando los precios para {ETIQUETA_VEHICULO[vehiculo].toLowerCase()}.
+        {cantidad === undefined
+          ? `Mostrando los precios para ${ETIQUETA_VEHICULO[vehiculo].toLowerCase()}.`
+          : cantidad === 0
+            ? `No hay servicios para ${VEHICULO_PLURAL[vehiculo]}.`
+            : `Mostrando ${cantidad === 1 ? '1 servicio' : `${String(cantidad)} servicios`} para ${VEHICULO_PLURAL[vehiculo]}, con su precio.`}
       </p>
     </fieldset>
   );

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { menorPrecio, precioPorVehiculo, type ConPrecios } from './precios';
+import { menorPrecio, precioPorVehiculo, seOfrecePara, serviciosPara, tiposOfrecidos, type ConPrecios } from './precios';
 import { vehiculoInicial } from './vehiculoElegido';
 import { textoPrecio } from '../data/servicios';
 
-const servicio: ConPrecios = { precioDesde: 25000, precioDesdeCamioneta: 32000, precioDesdeMoto: null };
+const TODOS = ['auto', 'camioneta', 'moto'] as const;
+const servicio: ConPrecios = { precioDesde: 25000, precioDesdeCamioneta: 32000, precioDesdeMoto: null, vehiculos: TODOS };
 
 describe('precioPorVehiculo', () => {
   it('devuelve el precio del tipo elegido', () => {
@@ -25,9 +26,9 @@ describe('precioPorVehiculo', () => {
 describe('menorPrecio', () => {
   it('es el menor entre los cargados y null si no hay ninguno', () => {
     expect(menorPrecio(servicio)).toBe(25000);
-    expect(menorPrecio({ precioDesde: null, precioDesdeCamioneta: null, precioDesdeMoto: 9000 })).toBe(9000);
-    expect(menorPrecio({ precioDesde: null, precioDesdeCamioneta: null, precioDesdeMoto: null })).toBeNull();
-    expect(menorPrecio({ precioDesde: 10, precioDesdeCamioneta: 0, precioDesdeMoto: 5 })).toBe(0);
+    expect(menorPrecio({ precioDesde: null, precioDesdeCamioneta: null, precioDesdeMoto: 9000, vehiculos: TODOS })).toBe(9000);
+    expect(menorPrecio({ precioDesde: null, precioDesdeCamioneta: null, precioDesdeMoto: null, vehiculos: TODOS })).toBeNull();
+    expect(menorPrecio({ precioDesde: 10, precioDesdeCamioneta: 0, precioDesdeMoto: 5, vehiculos: TODOS })).toBe(0);
   });
 });
 
@@ -37,5 +38,32 @@ describe('vehiculoInicial', () => {
     expect(vehiculoInicial('?servicio=pulido', 'camioneta')).toBe('camioneta');
     expect(vehiculoInicial('', null)).toBe('auto');
     expect(vehiculoInicial('?vehiculo=bicicleta', null)).toBe('auto');
+  });
+});
+
+describe('servicios según el vehículo', () => {
+  const lista = [
+    { id: 'a', vehiculos: ['auto', 'camioneta', 'moto'] as const },
+    { id: 'b', vehiculos: ['auto', 'camioneta'] as const },
+    { id: 'c', vehiculos: ['auto'] as const },
+  ];
+
+  it('serviciosPara filtra y conserva el orden; un tipo puede quedar sin servicios', () => {
+    expect(serviciosPara(lista, 'auto').map((s) => s.id)).toEqual(['a', 'b', 'c']);
+    expect(serviciosPara(lista, 'camioneta').map((s) => s.id)).toEqual(['a', 'b']);
+    expect(serviciosPara(lista, 'moto').map((s) => s.id)).toEqual(['a']);
+    expect(serviciosPara([lista[2]!], 'moto')).toEqual([]);
+  });
+
+  it('seOfrecePara y tiposOfrecidos (orden canónico)', () => {
+    expect(seOfrecePara(lista[1]!, 'moto')).toBe(false);
+    expect(seOfrecePara(lista[1]!, 'camioneta')).toBe(true);
+    expect(tiposOfrecidos({ vehiculos: ['moto', 'auto'] })).toEqual(['auto', 'moto']);
+  });
+
+  it('menorPrecio ignora el precio de un tipo que no se ofrece', () => {
+    const s: ConPrecios = { precioDesde: 60000, precioDesdeCamioneta: 80000, precioDesdeMoto: 5000, vehiculos: ['auto', 'camioneta'] };
+    expect(menorPrecio(s)).toBe(60000);
+    expect(menorPrecio({ ...s, vehiculos: ['moto'] })).toBe(5000);
   });
 });

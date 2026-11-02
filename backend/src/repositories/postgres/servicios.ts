@@ -9,6 +9,7 @@ import {
   ServicioExisteError,
   type ServicioRepository,
   type TerminoGlosario,
+  vehiculosCanonicos,
 } from '../../domain/servicios.js';
 
 /** jsonb llega ya parseado (node-postgres y PGlite). Se verifica igual: si la base y el código se desalinean, falla claro. */
@@ -46,6 +47,7 @@ function toServicio(row: Row): Servicio {
     precioDesde: intOrNull(row, 'precio_desde'),
     precioDesdeCamioneta: intOrNull(row, 'precio_desde_camioneta'),
     precioDesdeMoto: intOrNull(row, 'precio_desde_moto'),
+    vehiculos: vehiculosCanonicos(textos(row, 'vehiculos')),
     destacado: bool(row, 'destacado'),
     activo: bool(row, 'activo'),
     orden: int(row, 'orden'),
@@ -81,7 +83,7 @@ export class PostgresServicioRepository implements ServicioRepository {
   async findById(id: string): Promise<Servicio | undefined> {
     const { rows } = await this.sql.query(
       `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-              precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at
+              precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
        FROM mgdetailing.servicios
        WHERE id = $1`,
       [id],
@@ -106,14 +108,14 @@ export class PostgresServicioRepository implements ServicioRepository {
       const { rows } = await sql.query(
         `INSERT INTO mgdetailing.servicios (
            id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-           precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at
+           precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
          )
-         SELECT $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::integer, $9::integer, $10::integer, $11::boolean,
-                $12::boolean, coalesce(max(orden), 0) + 10, $13::timestamptz
+         SELECT $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::integer, $9::integer, $10::integer, $11::text[],
+                $12::boolean, $13::boolean, coalesce(max(orden), 0) + 10, $14::timestamptz
          FROM mgdetailing.servicios
          ON CONFLICT (id) DO NOTHING
          RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-                   precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at`,
+                   precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at`,
         [
           nuevo.id,
           nuevo.nombre,
@@ -125,6 +127,7 @@ export class PostgresServicioRepository implements ServicioRepository {
           nuevo.precioDesde,
           nuevo.precioDesdeCamioneta,
           nuevo.precioDesdeMoto,
+          nuevo.vehiculos,
           nuevo.destacado,
           nuevo.activo,
           timestamp,
@@ -171,12 +174,13 @@ export class PostgresServicioRepository implements ServicioRepository {
              precio_desde = CASE WHEN $9::boolean THEN $10::integer ELSE precio_desde END,
              precio_desde_camioneta = CASE WHEN $11::boolean THEN $12::integer ELSE precio_desde_camioneta END,
              precio_desde_moto = CASE WHEN $13::boolean THEN $14::integer ELSE precio_desde_moto END,
+             vehiculos = coalesce($18::text[], vehiculos),
              destacado = CASE WHEN $16::boolean IS FALSE THEN false ELSE coalesce($15::boolean, destacado) END,
              activo = coalesce($16::boolean, activo),
              updated_at = $17::timestamptz
          WHERE id = $1
          RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-                   precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at`,
+                   precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at`,
         [
           id,
           cambios.nombre ?? null,
@@ -195,6 +199,7 @@ export class PostgresServicioRepository implements ServicioRepository {
           cambios.destacado ?? null,
           cambios.activo ?? null,
           timestamp,
+          cambios.vehiculos ?? null,
         ],
       );
       const row = rows[0];
@@ -232,14 +237,14 @@ async function listar(sql: SqlClient, soloActivos: boolean): Promise<Servicio[]>
   const { rows } = soloActivos
     ? await sql.query(
         `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-                precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at
+                precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
          FROM mgdetailing.servicios
          WHERE activo
          ORDER BY orden, id COLLATE "C"`,
       )
     : await sql.query(
         `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-                precio_desde_camioneta, precio_desde_moto, destacado, activo, orden, updated_at
+                precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
          FROM mgdetailing.servicios
          ORDER BY orden, id COLLATE "C"`,
       );

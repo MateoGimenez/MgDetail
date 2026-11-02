@@ -79,6 +79,8 @@ export const camposServicioPublico = {
   /** Mismo formato, para camioneta y para moto (reportes/2026-11-01_19_precios-por-vehiculo.md). */
   precioDesdeCamioneta: z.nullable(z.int()),
   precioDesdeMoto: z.nullable(z.int()),
+  /** Para qué vehículos se ofrece (al menos uno, en orden auto, camioneta, moto). Parte 2 del contrato de precios. */
+  vehiculos: z.array(z.enum(VEHICULO_TIPOS)),
   destacado: z.boolean(),
 };
 
@@ -383,3 +385,10 @@ export const seguimientoSchema = z.object({
   }),
 });
 export type TurnoSeguido = z.output<typeof seguimientoSchema>['turno'];
+
+/** Plural para frases ("servicios para motos"). */
+export const VEHICULO_PLURAL: Readonly<Record<VehiculoTipo, string>> = {
+  auto: 'autos',
+  camioneta: 'camionetas',
+  moto: 'motos',
+};

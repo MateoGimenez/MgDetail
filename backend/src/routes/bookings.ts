@@ -29,7 +29,7 @@ export function publicBookingsRouter({ bookings, logger, now, limiter }: PublicB
     if (website !== undefined && website.trim() !== '') {
       // Mismas respuestas que un pedido real: un servicio inexistente o inactivo da 400, y un día cerrado o una
       // franja llena, 400 / 409, también acá.
-      await bookings.servicioReservable(data.servicioId);
+      await bookings.servicioReservable(data.servicioId, data.vehiculoTipo);
       await bookings.verificarDisponible(data.fechaPreferida, data.franja);
       logger.info('Solicitud de turno descartada por honeypot');
       const id = randomUUID();

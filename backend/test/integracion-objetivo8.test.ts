@@ -228,6 +228,10 @@ describe('respuestas reales del backend para los esquemas del frontend', () => {
     cap('servicioPatchBorraPrecio', await admin.patch('/api/admin/servicios/pulido', { precioDesdeMoto: null }));
     cap('error400PrecioCamioneta', await admin.patch('/api/admin/servicios/pulido', { precioDesdeCamioneta: 100000000 }));
     cap('error400PrecioMoto', await admin.patch('/api/admin/servicios/pulido', { precioDesdeMoto: 1.5 }));
+    cap('servicioPatchVehiculos', await admin.patch('/api/admin/servicios/pulido', { vehiculos: ['moto', 'auto'] }));
+    cap('serviciosPublicoConVehiculos', await createClient(context.app).get('/api/servicios'));
+    cap('error400Vehiculos', await admin.patch('/api/admin/servicios/pulido', { vehiculos: [] }));
+    cap('error400ReservaServicioNoOfrecido', await createClient(context.app).post('/api/bookings', { nombre: 'Juan Pérez', telefono: '+54 9 380 412-3456', email: 'juan@example.com', vehiculoTipo: 'camioneta', vehiculoModelo: 'Hilux 2020', servicioId: 'pulido', fechaPreferida: '2026-10-20', franja: 'manana' }));
     cap('error403ServicioEmpleado', await empleado.patch('/api/admin/servicios/pulido', { precioDesdeMoto: 1 }));
 
     const generadas = normalizar(capturas);

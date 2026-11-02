@@ -18,8 +18,8 @@ import { Pie } from './Pie';
 import { ReservaProvider } from './ReservaProvider';
 import { useReserva } from './reserva-contexto';
 import { SelectorVehiculo } from './SelectorVehiculo';
-import { ETIQUETA_VEHICULO } from '../api/contract';
-import { precioPorVehiculo } from '../lib/precios';
+import { ETIQUETA_VEHICULO, VEHICULO_PLURAL, type VehiculoTipo } from '../api/contract';
+import { precioPorVehiculo, seOfrecePara, tiposOfrecidos } from '../lib/precios';
 import { useMagnetico } from './useMagnetico';
 import { useSeo } from './useSeo';
 import './landing.css';
@@ -86,10 +86,16 @@ function ServicioNoEncontrado() {
   );
 }
 
+/** ["auto", "camioneta"] → "autos y camionetas". */
+function listaDeTipos(tipos: readonly VehiculoTipo[]): string {
+  const nombres = tipos.map((tipo) => VEHICULO_PLURAL[tipo]);
+  return nombres.length > 1 ? `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1] ?? ''}` : (nombres[0] ?? '');
+}
+
 function Pagina() {
   const { id = '' } = useParams();
   const { servicios, estado, buscar } = useCatalogo();
-  const { vehiculo } = useReserva();
+  const { vehiculo, elegirVehiculo } = useReserva();
   const servicio = buscar(id);
   const cargando = estado === 'cargando';
   const noExiste = !servicio && !cargando;
@@ -137,7 +143,32 @@ function Pagina() {
               <div className="servicio__vehiculo">
                 <SelectorVehiculo />
               </div>
-              <dl className="tarjeta__datos servicio__datos">
+              {servicio && !seOfrecePara(servicio, vehiculo) && (
+                <div className="aviso aviso--info servicio__no-ofrece" role="status">
+                  <Icono nombre="alerta" />
+                  <div className="aviso__cuerpo">
+                    <p className="sin-turnos__titulo">Este servicio no se ofrece para {VEHICULO_PLURAL[vehiculo]}.</p>
+                    <p>
+                      Lo hacemos para {listaDeTipos(tiposOfrecidos(servicio))}. Elegí uno para ver su precio y reservar.
+                    </p>
+                    <div className="servicio__no-ofrece-tipos">
+                      {tiposOfrecidos(servicio).map((tipo) => (
+                        <button
+                          key={tipo}
+                          type="button"
+                          className="boton boton--secundario boton--chico"
+                          onClick={() => {
+                            elegirVehiculo(tipo);
+                          }}
+                        >
+                          Ver para {ETIQUETA_VEHICULO[tipo].toLowerCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <dl className="tarjeta__datos servicio__datos" hidden={!seOfrecePara(servicio, vehiculo)}>
                 <div className="tarjeta__dato">
                   <dt>Precio</dt>
                   <dd aria-busy={cargando || undefined}>
@@ -161,13 +192,15 @@ function Pagina() {
                 </div>
               </dl>
               <div className="servicio__acciones">
-                <Link
-                  className="boton boton--primario boton--grande"
-                  to={`/?servicio=${encodeURIComponent(servicio.id)}&vehiculo=${vehiculo}#reservar`}
-                >
-                  Reservá este servicio
-                  <Icono nombre="flecha" />
-                </Link>
+                {seOfrecePara(servicio, vehiculo) && (
+                  <Link
+                    className="boton boton--primario boton--grande"
+                    to={`/?servicio=${encodeURIComponent(servicio.id)}&vehiculo=${vehiculo}#reservar`}
+                  >
+                    Reservá este servicio
+                    <Icono nombre="flecha" />
+                  </Link>
+                )}
                 {consulta && (
                   <a className="boton boton--secundario boton--grande" href={consulta} target="_blank" rel="noopener noreferrer">
                     <Icono nombre="whatsapp" />

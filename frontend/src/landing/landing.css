@@ -1252,6 +1252,32 @@ legend.arranque__etiqueta + * {
   gap: 8px;
 }
 
+/* Aviso cuando un cambio de vehículo deja sin servicio al pedido, y estado de "sin servicios para este vehículo" */
+.reserva__aviso-servicio {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-2);
+  background: var(--superficie);
+  color: var(--texto);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.reserva__aviso-servicio .icono {
+  flex: none;
+  margin-top: 2px;
+  color: var(--acento-texto);
+}
+
+.reserva__sin-servicios {
+  margin: 0 0 8px;
+  color: var(--texto-2);
+}
+
 .opcion-servicio {
   position: relative;
   display: grid;

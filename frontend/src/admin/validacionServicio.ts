@@ -1,5 +1,5 @@
 import * as z from 'zod/mini';
-import { SLUG_SERVICIO } from '../api/contract';
+import { SLUG_SERVICIO, VEHICULO_TIPOS, type VehiculoTipo } from '../api/contract';
 import { LIMITES_SERVICIO, type CambiosServicio, type NuevoServicio, type ServicioPanel } from '../api/contract-panel';
 
 /**
@@ -24,6 +24,8 @@ export interface FormularioServicio {
   precio: string;
   precioCamioneta: string;
   precioMoto: string;
+  /** Para qué vehículos se ofrece (al menos uno). */
+  vehiculos: VehiculoTipo[];
   destacado: boolean;
   activo: boolean;
 }
@@ -115,6 +117,9 @@ export const esquemaServicio = z.strictObject({
   precioDesde: precioOpcional(L.precioDesde.max),
   precioDesdeCamioneta: precioOpcional(L.precioDesdeCamioneta.max),
   precioDesdeMoto: precioOpcional(L.precioDesdeMoto.max),
+  vehiculos: z
+    .array(z.enum(VEHICULO_TIPOS))
+    .check(z.minLength(1, 'Elegí al menos un vehículo: un servicio sin vehículos no se ve en la web (para eso está «Desactivar»).')),
   destacado: z.boolean(),
   activo: z.boolean(),
 });
@@ -151,6 +156,8 @@ export function validarServicio(formulario: FormularioServicio): Validacion {
     precioDesde: precios.precioDesde ?? null,
     precioDesdeCamioneta: precios.precioDesdeCamioneta ?? null,
     precioDesdeMoto: precios.precioDesdeMoto ?? null,
+    // En el orden de siempre (auto, camioneta, moto), como lo devuelve el backend.
+    vehiculos: VEHICULO_TIPOS.filter((tipo) => formulario.vehiculos.includes(tipo)),
     destacado: formulario.destacado,
     activo: formulario.activo,
   });
@@ -195,6 +202,7 @@ export function formularioVacio(): FormularioServicio {
     precio: '',
     precioCamioneta: '',
     precioMoto: '',
+    vehiculos: [...VEHICULO_TIPOS],
     destacado: false,
     activo: true,
   };
@@ -212,6 +220,7 @@ export function formularioDesde(servicio: ServicioPanel): FormularioServicio {
     precio: textoDePrecio(servicio.precioDesde),
     precioCamioneta: textoDePrecio(servicio.precioDesdeCamioneta),
     precioMoto: textoDePrecio(servicio.precioDesdeMoto),
+    vehiculos: [...servicio.vehiculos],
     destacado: servicio.destacado,
     activo: servicio.activo,
   };
@@ -227,6 +236,7 @@ const CAMPOS_EDITABLES = [
   'precioDesde',
   'precioDesdeCamioneta',
   'precioDesdeMoto',
+  'vehiculos',
   'destacado',
   'activo',
 ] as const satisfies readonly (keyof CambiosServicio)[];

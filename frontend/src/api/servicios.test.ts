@@ -31,6 +31,7 @@ const publico = {
   precioDesde: 25000,
   precioDesdeCamioneta: 32000,
   precioDesdeMoto: null,
+  vehiculos: ['auto', 'camioneta'] as ('auto' | 'camioneta' | 'moto')[],
   destacado: false,
 };
 const panel = { ...publico, activo: true, orden: 10, updatedAt: '2026-10-22T15:00:00.000Z' };
@@ -64,6 +65,8 @@ describe('catálogo público (landing)', () => {
     expect(await listarServiciosPublicos()).toEqual([publico]);
     expect(llamadas).toEqual([{ metodo: 'GET', ruta: '/api/servicios', tipo: null, body: undefined }]);
 
+    simular(() => json(200, { servicios: [{ ...publico, vehiculos: ['bicicleta'] }] }));
+    await expect(listarServiciosPublicos()).rejects.toThrow();
     simular(() => json(200, { servicios: [{ ...publico, precioDesde: '25000' }] }));
     const error = await listarServiciosPublicos().catch((e: unknown) => e);
     expect((error as ApiError).code).toBe('INVALID_RESPONSE');
@@ -262,6 +265,21 @@ describe('formulario de servicio', () => {
     });
     expect(!mal.ok && Object.keys(mal.errores).sort()).toEqual(['descripcion', 'glosario.0.significado', 'incluye.0', 'resumen']);
     expect(!mal.ok && mal.errores.resumen).toMatch(/una sola línea/);
+  });
+
+  it('vehiculos: al menos uno, en orden canónico, y solo se manda si cambia', () => {
+    const base = { ...formularioVacio(), id: 'lavado-de-motor', nombre: 'Lavado de motor', resumen: 'R.', descripcion: 'D.' };
+    expect(validarServicio(base).ok && validarServicio(base)).toMatchObject({ datos: { vehiculos: ['auto', 'camioneta', 'moto'] } });
+    const desordenado = validarServicio({ ...base, vehiculos: ['moto', 'auto'] });
+    expect(desordenado.ok && desordenado.datos.vehiculos).toEqual(['auto', 'moto']);
+    const ninguno = validarServicio({ ...base, vehiculos: [] });
+    expect(!ninguno.ok && Object.keys(ninguno.errores)).toEqual(['vehiculos']);
+    expect(!ninguno.ok && ninguno.errores.vehiculos).toMatch(/al menos un vehículo/);
+
+    expect(formularioDesde(panel).vehiculos).toEqual(['auto', 'camioneta']);
+    const cambio = validarServicio({ ...formularioDesde(panel), vehiculos: ['auto', 'camioneta', 'moto'] });
+    expect(cambio.ok && cambiosDe(panel, cambio.datos)).toEqual({ vehiculos: ['auto', 'camioneta', 'moto'] });
+    expect(serviciosDeRespaldo.every((s) => s.vehiculos.length === 3)).toBe(true);
   });
 
   it('los tres precios: vacío = null (Consultá), tope 99.999.999 y se mandan solo los que cambian', () => {

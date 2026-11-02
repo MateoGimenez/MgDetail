@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
-import { ETIQUETA_VEHICULO } from '../api/contract';
+import { ETIQUETA_VEHICULO, VEHICULO_TIPOS, type VehiculoTipo } from '../api/contract';
 import { LIMITES_SERVICIO, type CambiosServicio, type NuevoServicio, type ServicioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { textoPrecio } from '../data/servicios';
@@ -100,6 +100,7 @@ function FormularioServicio({
   const [precio, setPrecio] = useState(inicial.precio);
   const [precioCamioneta, setPrecioCamioneta] = useState(inicial.precioCamioneta);
   const [precioMoto, setPrecioMoto] = useState(inicial.precioMoto);
+  const [vehiculos, setVehiculos] = useState<VehiculoTipo[]>(inicial.vehiculos);
   const [destacado, setDestacado] = useState(inicial.destacado);
   const [activo, setActivo] = useState(inicial.activo);
   const [incluye, setIncluye] = useState<Renglon[]>(() => inicial.incluye.map((texto, clave) => ({ clave, texto })));
@@ -136,9 +137,9 @@ function FormularioServicio({
   };
 
   const PRECIOS = [
-    { clave: 'precioDesde', etiqueta: ETIQUETA_VEHICULO.auto, valor: precio, cambiar: setPrecio },
-    { clave: 'precioDesdeCamioneta', etiqueta: ETIQUETA_VEHICULO.camioneta, valor: precioCamioneta, cambiar: setPrecioCamioneta },
-    { clave: 'precioDesdeMoto', etiqueta: ETIQUETA_VEHICULO.moto, valor: precioMoto, cambiar: setPrecioMoto },
+    { clave: 'precioDesde', tipo: 'auto', etiqueta: ETIQUETA_VEHICULO.auto, valor: precio, cambiar: setPrecio },
+    { clave: 'precioDesdeCamioneta', tipo: 'camioneta', etiqueta: ETIQUETA_VEHICULO.camioneta, valor: precioCamioneta, cambiar: setPrecioCamioneta },
+    { clave: 'precioDesdeMoto', tipo: 'moto', etiqueta: ETIQUETA_VEHICULO.moto, valor: precioMoto, cambiar: setPrecioMoto },
   ] as const;
   const otroDestacado = destacado && destacadoActual && destacadoActual.id !== original?.id ? destacadoActual : null;
 
@@ -155,6 +156,7 @@ function FormularioServicio({
       precio,
       precioCamioneta,
       precioMoto,
+      vehiculos,
       destacado,
       activo,
     });
@@ -290,6 +292,39 @@ function FormularioServicio({
         </div>
 
         <div
+          className="servicio-form__vehiculos"
+          role="group"
+          aria-labelledby={`${id}-vehiculos-titulo`}
+          aria-describedby={errorDe('vehiculos') ? `${campo('vehiculos')}-error` : undefined}
+        >
+          <p id={`${id}-vehiculos-titulo`} className="campo__etiqueta">
+            Se ofrece para
+          </p>
+          <div className="servicio-form__vehiculos-casillas">
+            {VEHICULO_TIPOS.map((tipo) => (
+              <label key={tipo} className="casilla">
+                <input
+                  type="checkbox"
+                  checked={vehiculos.includes(tipo)}
+                  aria-invalid={errorDe('vehiculos') ? true : undefined}
+                  onChange={(evento) => {
+                    const marcado = evento.target.checked;
+                    setVehiculos((actuales) =>
+                      VEHICULO_TIPOS.filter((t) => (t === tipo ? marcado : actuales.includes(t))),
+                    );
+                  }}
+                />
+                {ETIQUETA_VEHICULO[tipo]}
+              </label>
+            ))}
+          </div>
+          <p className="campo__ayuda">
+            La web solo muestra este servicio a quien elige uno de estos vehículos. Tiene que haber al menos uno.
+          </p>
+          <ErrorCampo id={`${campo('vehiculos')}-error`} mensaje={errorDe('vehiculos')} />
+        </div>
+
+        <div
           className="servicio-form__precios"
           role="group"
           aria-labelledby={`${id}-precios-titulo`}
@@ -299,8 +334,8 @@ function FormularioServicio({
             Precio desde, según el vehículo <span className="campo__opcional">(opcional)</span>
           </p>
           <div className="servicio-form__precios-grilla">
-            {PRECIOS.map(({ clave, etiqueta, valor, cambiar }) => (
-              <div key={clave} className="campo">
+            {PRECIOS.map(({ clave, tipo, etiqueta, valor, cambiar }) => (
+              <div key={clave} className="campo" data-no-ofrece={!vehiculos.includes(tipo) || undefined}>
                 <label className="campo__etiqueta servicio-form__precio-etiqueta" htmlFor={campo(clave)}>
                   {etiqueta}
                 </label>
@@ -320,7 +355,11 @@ function FormularioServicio({
                   />
                 </div>
                 <p className="campo__ayuda servicio-form__precio-web">
-                  {leerPrecio(valor) === undefined ? 'En pesos, sin centavos.' : `En la web: «${textoPrecio(leerPrecio(valor) ?? null)}».`}
+                  {!vehiculos.includes(tipo)
+                    ? `No se ofrece para ${etiqueta.toLowerCase()}: este precio no se ve en la web.`
+                    : leerPrecio(valor) === undefined
+                      ? 'En pesos, sin centavos.'
+                      : `En la web: «${textoPrecio(leerPrecio(valor) ?? null)}».`}
                 </p>
                 <ErrorCampo id={`${campo(clave)}-error`} mensaje={errorDe(clave)} />
               </div>

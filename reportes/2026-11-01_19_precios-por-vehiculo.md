@@ -97,3 +97,64 @@ no cambia el significado de nada que ya existe: cobro, presupuestos, JSON-LD, te
 2. El formulario de reserva ahora arranca con vehículo "Auto" ya elegido (antes "Sin elegir" y obligatorio): se puede enviar sin haber tocado el vehículo. Consecuencia del estado compartido.
 3. El enlace "Reservar" de la cabecera no lleva `&vehiculo=`; usa lo recordado en memoria del módulo (se pierde al recargar). Aceptable.
 4. Si un tipo no tiene precio y otro sí, la card muestra "Consultá" (como pide el contrato); el JSON-LD igual publica el menor precio.
+
+---
+
+# Parte 2 (pedido del dueño, mismo día): los servicios dependen del vehículo
+
+"Cuando se elija el vehículo se verían los servicios para ese y el precio." No solo cambia el precio: **cada servicio
+se ofrece para un conjunto de vehículos**, y la landing muestra solo los servicios del tipo elegido.
+
+## Modelo
+
+- Nueva columna `vehiculos text[] not null default array['auto','camioneta','moto']` en `mgdetailing.servicios`, con
+  CHECK: entre 1 y 3 elementos, sin repetidos, todos de `{'auto','camioneta','moto'}`. Migración aditiva
+  `backend/supabase/migrations/20261101110000_servicios_por_vehiculo.sql` (se aplica DESPUÉS de la
+  `20261101100000_precios_por_vehiculo.sql`; ninguna de las dos está aplicada aún en Supabase). Los servicios que ya
+  existen quedan en los tres (nada desaparece de la web). GRANT por columna de INSERT/UPDATE para `mgdetailing_app`.
+- API: campo `vehiculos: ('auto'|'camioneta'|'moto')[]` (público y panel). En crear: opcional, por defecto los tres.
+  En editar: lo que no viene no cambia. Mínimo uno (un servicio sin vehículos sería invisible: para eso está
+  "desactivar"); error por campo `fields.vehiculos` con mensaje claro. Se devuelve en orden canónico auto, camioneta, moto.
+- Un precio puede estar cargado para un tipo que el servicio no ofrece (se ignora en la web); el panel lo avisa.
+- **Reserva (`POST /api/bookings`)**: si el servicio no se ofrece para el `vehiculoTipo` pedido, 400 con
+  `fields.servicioId` ("Ese servicio no se ofrece para <tipo>. Elegí otro."). Es defensa del servidor (el formulario ya
+  filtra). Los turnos que ya existen no se tocan. Revisar también reprogramaciones o ediciones que cambien servicio o
+  tipo si las hubiera.
+- Sin migraciones que toquen datos. Los precios iniciales van en un SQL aparte que se corre a mano una vez:
+  `backend/supabase/seeds/2026-11-01_precios-iniciales.sql` (NO dentro de `migrations/`: los tests aplican todas las
+  migraciones y suponen precios en `null`). Debe ser idempotente y actualizar solo por `id`:
+
+  | servicio | auto | camioneta | moto |
+  |---|---|---|---|
+  | `lavado-basico` | 20.000 | 30.000 | 10.000 |
+  | `lavado-premium` | 40.000 | 50.000 | 15.000 |
+
+  Los otros servicios (encerado, pulido, restauración de ópticas, y cualquier otro) NO se tocan: sin precios nuevos y
+  disponibles para los tres vehículos; el dueño los ajusta desde el panel.
+
+## Frontend
+
+- Landing: al cambiar el selector Auto/Camioneta/Moto, las cards muestran **solo los servicios que se ofrecen para ese
+  tipo**, con su precio; la cantidad de cards puede cambiar (transición suave, sin saltos bruscos de layout;
+  `prefers-reduced-motion`). La bajada de la sección ("Cinco servicios…") cuenta los del tipo elegido. Si un tipo no
+  tiene ningún servicio, mostrar un estado vacío amable con el botón de WhatsApp.
+- El formulario de reserva (select de servicio) y el resumen muestran solo los servicios del tipo elegido; si se cambia
+  el tipo y el servicio elegido no aplica, se limpia el servicio (con aviso accesible) en vez de enviarlo inválido.
+  El enlace profundo `/?servicio=<id>&vehiculo=moto#reservar`: si el servicio no aplica a ese tipo, no se preselecciona.
+- `/servicios/:id`: si el servicio no se ofrece para el tipo elegido, decirlo claro (p. ej. "Este servicio no se ofrece
+  para motos") con los tipos para los que sí, y sin botón de reservar para ese tipo.
+- JSON-LD (`lowPrice`): menor precio entre los tipos que el servicio ofrece.
+- Panel: en `DialogoServicio` un grupo "Se ofrece para" con tres casillas (Auto / Camioneta / Moto, al menos una) y los
+  precios por tipo; el precio de un tipo que no se ofrece se deshabilita o se avisa que no se verá. `FilaServicio`
+  muestra para qué vehículos se ofrece cada servicio y sus precios. Mismos mensajes de error por campo.
+- Esquemas zod estrictos, tipos y tests al día. Capturas 390/1280 en oscuro y claro (moto con menos servicios, estado
+  vacío, formulario, panel).
+
+## Estado (parte 2)
+- [x] **Backend LISTO (parte 2, 2026-11-01)**: migración 2 + API + validación en reserva + seed SQL + tests + fixture regenerada (`frontend/src/api/fixtures-backend/respuestas.json`; capturas nuevas: `servicioPatchVehiculos`, `serviciosPublicoConVehiculos`, `error400Vehiculos`, `error400ReservaServicioNoOfrecido`; `serviciosPublico`/`serviciosAdmin` ya traen `vehiculos`).
+  - Forma JSON: `vehiculos: ("auto"|"camioneta"|"moto")[]` en el servicio público y del panel, siempre en orden canónico. POST: opcional, por defecto los tres; PATCH: lo que no viene no cambia. Cualquier error (vacío, repetidos, tipo desconocido, no es lista, `null`) sale en `fields.vehiculos` (nunca `vehiculos.0`). Mensajes: vacío / no lista / null = "Elegí al menos un vehículo (auto, camioneta o moto) para el servicio."; tipo desconocido = "Los vehículos válidos son auto, camioneta y moto."; repetidos = "No repitas vehículos en la lista.". Empleado: 403 al crear o editar, ve el campo.
+  - Reserva: `POST /api/bookings` con un servicio que no se ofrece para el `vehiculoTipo` => 400, `fields.servicioId` = "Ese servicio no se ofrece para <tipo>. Elegí otro." (también en el camino del honeypot). Turnos existentes y reprogramaciones no se tocan (reprogramar solo cambia fecha y franja).
+  - Seed: `backend/supabase/seeds/2026-11-01_precios-iniciales.sql` (fuera de `migrations/`, idempotente, solo lavado-basico y lavado-premium). Arranque: `db/postgres.ts` exige la columna `vehiculos`. Ni las migraciones ni el seed están aplicados en Supabase.
+- [x] Frontend: filtrado por vehículo + reserva + página de servicio + SEO + panel (2026-11-01; tsc, eslint, vitest 534 tests con la fixture regenerada y build en verde; capturas 390 y 1280, oscuro y claro, en el demo PGlite)
+- [ ] Pruebas: revisión cruzada
+- [ ] Migraciones aplicadas en Supabase (1 y 2), seed corrido, push

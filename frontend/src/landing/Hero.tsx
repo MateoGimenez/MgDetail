@@ -4,6 +4,7 @@ import { MarcoFilete, SubrayadoFilete } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { whatsappUrl } from '../config/enlaces';
 import { negocio } from '../config/sitio';
+import { serviciosPara } from '../lib/precios';
 import { useCatalogo } from './catalogo-contexto';
 import { useReserva } from './reserva-contexto';
 
@@ -13,10 +14,12 @@ import { useReserva } from './reserva-contexto';
  */
 export function Hero() {
   const { reservar, vehiculo, elegirVehiculo } = useReserva();
-  const { servicios, buscar } = useCatalogo();
+  const { servicios: todos } = useCatalogo();
+  // El desplegable ofrece solo lo que se hace para el vehículo elegido.
+  const servicios = serviciosPara(todos, vehiculo);
   const [servicio, setServicio] = useState<ServicioId>('');
   // Si el catálogo cambia al llegar de la API y el elegido ya no está, el desplegable vuelve a "Elegí un servicio".
-  const elegido = buscar(servicio) ? servicio : '';
+  const elegido = servicios.some((s) => s.id === servicio) ? servicio : '';
   const whatsapp = whatsappUrl(`¡Hola ${negocio.nombre}! Quiero consultar por un turno.`);
 
   const alEnviar = (evento: FormEvent<HTMLFormElement>) => {
@@ -74,7 +77,7 @@ export function Hero() {
                   value={elegido}
                   onChange={(evento) => {
                     const valor = evento.target.value;
-                    setServicio(buscar(valor) ? valor : '');
+                    setServicio(servicios.some((s) => s.id === valor) ? valor : '');
                   }}
                 >
                   <option value="">Elegí un servicio</option>

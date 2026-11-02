@@ -43,8 +43,8 @@ interface Fila {
 }
 
 describe('migración de precios por vehículo sobre una base con servicios existentes', () => {
-  it('es la última migración y se aplica sin tocar las filas: auto queda igual y camioneta/moto en null', async () => {
-    expect(migrationFiles().at(-1)).toBe(NUEVA);
+  it('se aplica sin tocar las filas: auto queda igual y camioneta/moto en null', async () => {
+    expect(migrationFiles()).toContain(NUEVA);
     const pg = await baseAntes();
     await pg.exec(
       "UPDATE mgdetailing.servicios SET precio_desde = 45000 WHERE id = 'pulido'; UPDATE mgdetailing.servicios SET precio_desde = 0 WHERE id = 'encerado'; UPDATE mgdetailing.servicios SET updated_at = '2026-09-02T10:00:00Z';",

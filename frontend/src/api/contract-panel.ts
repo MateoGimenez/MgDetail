@@ -1,5 +1,5 @@
 import * as z from 'zod/mini';
-import { SLUG_SERVICIO_MAXIMO, camposServicioPublico } from './contract';
+import { SLUG_SERVICIO_MAXIMO, camposServicioPublico, type VehiculoTipo } from './contract';
 
 /**
  * Contrato del panel con Supabase Auth en modo BFF (usuario de la sesión, roles y
@@ -124,6 +124,8 @@ export interface NuevoServicio {
   precioDesde: number | null;
   precioDesdeCamioneta: number | null;
   precioDesdeMoto: number | null;
+  /** Para qué vehículos se ofrece: al menos uno. */
+  vehiculos: VehiculoTipo[];
   destacado: boolean;
   activo: boolean;
 }

@@ -1,3 +1,4 @@
+import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BookingNotifier } from '../src/domain/notifier.js';
 import {
@@ -18,7 +19,7 @@ afterEach(closeAllContexts);
 
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const IDS_INICIALES = ['lavado-basico', 'lavado-premium', 'pulido', 'encerado', 'restauracion-opticas'];
-const CAMPOS_PUBLICOS = ['descripcion', 'destacado', 'duracion', 'glosario', 'id', 'incluye', 'nombre', 'precioDesde', 'precioDesdeCamioneta', 'precioDesdeMoto', 'resumen'];
+const CAMPOS_PUBLICOS = ['descripcion', 'destacado', 'duracion', 'glosario', 'id', 'incluye', 'nombre', 'precioDesde', 'precioDesdeCamioneta', 'precioDesdeMoto', 'resumen', 'vehiculos'];
 const CAMPOS_PANEL = [...CAMPOS_PUBLICOS, 'activo', 'orden', 'updatedAt'].sort();
 
 function nuevoServicio(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -113,6 +114,7 @@ describe('POST /api/admin/servicios', () => {
       precioDesde: null,
       precioDesdeCamioneta: null,
       precioDesdeMoto: null,
+      vehiculos: ['auto', 'camioneta', 'moto'],
       destacado: false,
       activo: true,
       orden: 60,
@@ -526,6 +528,123 @@ describe('precios por tipo de vehículo (auto, camioneta, moto)', () => {
   });
 });
 
+describe('servicios por tipo de vehículo', () => {
+  const TRES = ['auto', 'camioneta', 'moto'];
+
+  it('los servicios existentes se ven para los tres vehículos, en el público y en el panel', async () => {
+    const { context, client } = await editor();
+    const publico = await createClient(context.app).get('/api/servicios');
+    for (const servicio of publico.body.servicios) expect(servicio.vehiculos, servicio.id).toEqual(TRES);
+    const { body } = await client.get('/api/admin/servicios');
+    for (const servicio of body.servicios) expect(servicio.vehiculos, servicio.id).toEqual(TRES);
+  });
+
+  it('crear con un subconjunto: sale en orden canónico; el público lo ve; editar cambia solo eso', async () => {
+    const { context, client } = await editor();
+    const creado = await client.post('/api/admin/servicios', nuevoServicio({ vehiculos: ['moto', 'auto'] }));
+    expect(creado.status).toBe(201);
+    expect(creado.body.servicio.vehiculos).toEqual(['auto', 'moto']);
+
+    const publico = await createClient(context.app).get('/api/servicios');
+    expect(publico.body.servicios.at(-1)).toMatchObject({ id: 'tratamiento-ceramico', vehiculos: ['auto', 'moto'] });
+
+    const editado = await client.patch('/api/admin/servicios/tratamiento-ceramico', { vehiculos: ['camioneta'] });
+    expect(editado.body.servicio).toMatchObject({ vehiculos: ['camioneta'], nombre: 'Tratamiento cerámico' });
+    const otro = await client.patch('/api/admin/servicios/tratamiento-ceramico', { nombre: 'Cerámico 2' });
+    expect(otro.body.servicio).toMatchObject({ vehiculos: ['camioneta'], nombre: 'Cerámico 2' });
+    expect(context.logger.text).toContain('campos=vehiculos');
+  });
+
+  const invalidos: [label: string, valor: unknown][] = [
+    ['lista vacía', []],
+    ['repetidos', ['auto', 'auto']],
+    ['tipo desconocido', ['auto', 'bici']],
+    ['mayúsculas', ['Auto']],
+    ['un texto en vez de lista', 'auto'],
+    ['null', null],
+    ['números', [1]],
+  ];
+
+  it.each(invalidos)('POST y PATCH con vehiculos inválido (%s) => 400 en fields.vehiculos y no cambia nada', async (_label, valor) => {
+    const { client } = await editor();
+    const post = await client.post('/api/admin/servicios', nuevoServicio({ vehiculos: valor }));
+    expect(post.status).toBe(400);
+    expect(Object.keys(post.body.error.fields as object)).toEqual(['vehiculos']);
+    const patch = await client.patch('/api/admin/servicios/pulido', { vehiculos: valor });
+    expect(patch.status).toBe(400);
+    expect(Object.keys(patch.body.error.fields as object)).toEqual(['vehiculos']);
+    expect(typeof patch.body.error.fields.vehiculos).toBe('string');
+    const { body } = await client.get('/api/admin/servicios');
+    expect(body.servicios).toHaveLength(5);
+    expect(body.servicios[2].vehiculos).toEqual(TRES);
+  });
+
+  it('el empleado no puede editar los vehículos (403) pero los ve', async () => {
+    const context = await createTestContext();
+    const { client: admin } = await loginAs(context, 'admin');
+    await admin.patch('/api/admin/servicios/pulido', { vehiculos: ['auto'] }).expect(200);
+    const { client: empleado } = await loginAs(context, 'empleado');
+    expect((await empleado.patch('/api/admin/servicios/pulido', { vehiculos: ['moto'] })).status).toBe(403);
+    expect((await empleado.post('/api/admin/servicios', nuevoServicio({ vehiculos: ['moto'] }))).status).toBe(403);
+    const { body } = await empleado.get('/api/admin/servicios');
+    expect(body.servicios[2].vehiculos).toEqual(['auto']);
+  });
+
+  it('reservar: un servicio que no se ofrece para ese vehículo => 400 en servicioId; para los que sí, 201', async () => {
+    const context = await createTestContext();
+    const { client: admin } = await loginAs(context, 'admin');
+    await admin.patch('/api/admin/servicios/pulido', { vehiculos: ['auto', 'camioneta'] }).expect(200);
+
+    const moto = await rawPost(context.app, '/api/bookings').send(validBooking({ servicioId: 'pulido', vehiculoTipo: 'moto' }));
+    expect(moto.status).toBe(400);
+    expect(moto.body.error.code).toBe('VALIDATION_ERROR');
+    expect(moto.body.error.fields).toEqual({ servicioId: 'Ese servicio no se ofrece para moto. Elegí otro.' });
+    expect(await countRows(context.db, 'bookings')).toBe(0);
+
+    // El honeypot responde lo mismo que un pedido real.
+    const bot = await rawPost(context.app, '/api/bookings').send(validBooking({ servicioId: 'pulido', vehiculoTipo: 'moto', website: 'x' }));
+    expect(bot.status).toBe(400);
+
+    for (const vehiculoTipo of ['auto', 'camioneta']) {
+      const ok = await rawPost(context.app, '/api/bookings').send(validBooking({ servicioId: 'pulido', vehiculoTipo }));
+      expect(ok.status, vehiculoTipo).toBe(201);
+    }
+    // Otro servicio sigue andando para moto.
+    const otro = await rawPost(context.app, '/api/bookings').send(validBooking({ servicioId: 'encerado', vehiculoTipo: 'moto' }));
+    expect(otro.status).toBe(201);
+  });
+
+  it('un precio cargado para un tipo que no se ofrece se guarda igual (la web lo ignora)', async () => {
+    const { client } = await editor();
+    const response = await client.patch('/api/admin/servicios/pulido', { vehiculos: ['auto'], precioDesdeMoto: 5000 });
+    expect(response.body.servicio).toMatchObject({ vehiculos: ['auto'], precioDesdeMoto: 5000 });
+  });
+
+  it('un turno ya reservado sigue andando (seguimiento, panel, cobro, comprobante) cuando su servicio deja de ofrecerse para ese vehículo o se desactiva', async () => {
+    const context = await createTestContext();
+    const { client: admin } = await loginAs(context, 'admin');
+    const creado = await rawPost(context.app, '/api/bookings').send(validBooking({ servicioId: 'pulido', vehiculoTipo: 'moto' }));
+    expect(creado.status).toBe(201);
+    const id = (creado.body as { booking: { id: string } }).booking.id;
+
+    // Pulido deja de ofrecerse para motos y después se desactiva.
+    await admin.patch('/api/admin/servicios/pulido', { vehiculos: ['auto'] }).expect(200);
+    await admin.patch('/api/admin/servicios/pulido', { activo: false }).expect(200);
+
+    const publico = await request(context.app).get(`/api/turnos/${id}`);
+    expect(publico.status).toBe(200);
+    const lista = await admin.get('/api/admin/bookings');
+    expect(lista.body.bookings).toHaveLength(1);
+    expect(lista.body.bookings[0]).toMatchObject({ servicioId: 'pulido', vehiculoTipo: 'moto' });
+    expect((await admin.patch(`/api/admin/bookings/${id}`, { estado: 'confirmado' })).status).toBe(200);
+    expect((await admin.patch(`/api/admin/bookings/${id}`, { estado: 'completado', monto: 40000 })).status).toBe(200);
+    expect((await admin.post(`/api/admin/bookings/${id}/comprobante`, { formaPago: 'efectivo' })).status).toBe(201);
+    // Y un pedido nuevo de ese servicio para moto sigue siendo 400.
+    const nuevo = await rawPost(context.app, '/api/bookings').send(validBooking({ servicioId: 'pulido', vehiculoTipo: 'moto' }));
+    expect(nuevo.status).toBe(400);
+  });
+});
+
 describe('de punta a punta: el ciclo de vida de un servicio', () => {
   it('crear → se ve en público → se reserva → se desactiva → ya no se reserva ni se ve → se reordena', async () => {
     const context = await createTestContext();
@@ -553,6 +672,7 @@ describe('de punta a punta: el ciclo de vida de un servicio', () => {
       precioDesde: 120000,
       precioDesdeCamioneta: 150000,
       precioDesdeMoto: null,
+      vehiculos: ['auto', 'camioneta', 'moto'],
       destacado: true,
     });
     expect(catalogo.body.servicios.filter((s: { destacado: boolean }) => s.destacado)).toHaveLength(1);

@@ -1,4 +1,11 @@
-import { type Booking, type BookingRepository, type NewBooking, type PublicBooking, seguimientoPath } from '../domain/booking.js';
+import {
+  type Booking,
+  type BookingRepository,
+  type NewBooking,
+  type PublicBooking,
+  type VehiculoTipo,
+  seguimientoPath,
+} from '../domain/booking.js';
 import {
   DiaCerradoError,
   type DisponibilidadRepository,
@@ -43,13 +50,17 @@ export class BookingService {
   constructor(private readonly deps: BookingServiceDeps) {}
 
   /**
-   * El servicio del catálogo si existe y está activo. Si no, 400 VALIDATION_ERROR en el campo servicioId (mismo
+   * El servicio del catálogo si existe, está activo y (si se indica el vehículo) se ofrece para ese tipo. Si no, 400 VALIDATION_ERROR en el campo servicioId (mismo
    * mensaje que un id mal formado: al público no le importa la diferencia).
    */
-  async servicioReservable(id: string): Promise<Servicio> {
+  async servicioReservable(id: string, vehiculoTipo?: VehiculoTipo): Promise<Servicio> {
     const servicio = await this.deps.servicios.findById(id);
     if (!servicio?.activo) {
       throw AppError.validation({ servicioId: SERVICIO_MSG });
+    }
+    // Defensa del servidor: el formulario ya muestra solo los servicios del vehículo elegido.
+    if (vehiculoTipo !== undefined && !servicio.vehiculos.includes(vehiculoTipo)) {
+      throw AppError.validation({ servicioId: `Ese servicio no se ofrece para ${vehiculoTipo}. Elegí otro.` });
     }
     return servicio;
   }
@@ -74,7 +85,7 @@ export class BookingService {
    * arma la respuesta pública.
    */
   async createBooking(data: NewBooking, now: Date): Promise<PublicBooking> {
-    const servicio = await this.servicioReservable(data.servicioId);
+    const servicio = await this.servicioReservable(data.servicioId, data.vehiculoTipo);
     let saved: Booking;
     try {
       saved = await this.deps.bookings.reservar(data, now);

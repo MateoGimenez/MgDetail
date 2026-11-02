@@ -27,6 +27,7 @@ function toJson(servicio: Servicio) {
     precioDesde: servicio.precioDesde,
     precioDesdeCamioneta: servicio.precioDesdeCamioneta,
     precioDesdeMoto: servicio.precioDesdeMoto,
+    vehiculos: servicio.vehiculos,
     destacado: servicio.destacado,
     activo: servicio.activo,
     orden: servicio.orden,
@@ -57,7 +58,7 @@ export function adminServiciosRouter(deps: { servicios: ServicioService }): Rout
   });
 
   // POST /api/admin/servicios { id, nombre, resumen, descripcion, incluye?, glosario?, duracion?, precioDesde?,
-  // precioDesdeCamioneta?, precioDesdeMoto?, destacado?, activo? } => 201 { servicio }. orden se asigna solo (al final).
+  // precioDesdeCamioneta?, precioDesdeMoto?, vehiculos?, destacado?, activo? } => 201 { servicio }. orden se asigna solo (al final).
   router.post('/', soloEditores, async (req, res) => {
     const nuevo = parseOrThrow(createServicioSchema, req.body ?? {});
     const creado = await servicios.create(getUsuario(res), nuevo);
@@ -78,7 +79,7 @@ export function adminServiciosRouter(deps: { servicios: ServicioService }): Rout
     if (Object.keys(cambios).length === 0) {
       throw AppError.validation(
         undefined,
-        'Indicá al menos un cambio: nombre, resumen, descripción, incluye, glosario, duración, precios, destacado o activo.',
+        'Indicá al menos un cambio: nombre, resumen, descripción, incluye, glosario, duración, precios, vehículos, destacado o activo.',
       );
     }
     const actualizado = await servicios.update(getUsuario(res), id, cambios);
