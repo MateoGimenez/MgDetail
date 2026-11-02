@@ -3,7 +3,7 @@ import type { ServicioPanel } from '../api/contract-panel';
 import { Icono } from '../components/Icono';
 import { ETIQUETA_VEHICULO, type VehiculoTipo } from '../api/contract';
 import { textoPesos } from '../data/servicios';
-import { precioPorVehiculo, tiposOfrecidos } from '../lib/precios';
+import { duracionPorVehiculo, precioPorVehiculo, tiposOfrecidos } from '../lib/precios';
 import { idBajar, idSubir } from './useServicios';
 
 interface Props {
@@ -131,9 +131,9 @@ export function FilaServicio({
               </dd>
             </div>
             <div>
-              <dt>Duración</dt>
-              <dd className={servicio.duracion === null ? 'servicio__consulta' : undefined}>
-                {servicio.duracion ?? 'Sin cargar'}
+              <dt>Duración · {ETIQUETA_VEHICULO[vehiculo]}</dt>
+              <dd className={duracionPorVehiculo(servicio, vehiculo) === null ? 'servicio__consulta' : undefined}>
+                {duracionPorVehiculo(servicio, vehiculo) ?? 'Sin cargar'}
               </dd>
             </div>
             <div>

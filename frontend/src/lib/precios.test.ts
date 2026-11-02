@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contarPorVehiculo, vehiculosSin, menorPrecio, precioPorVehiculo, seOfrecePara, serviciosPara, tiposOfrecidos, type ConPrecios } from './precios';
+import { duracionPorVehiculo, contarPorVehiculo, vehiculosSin, menorPrecio, precioPorVehiculo, seOfrecePara, serviciosPara, tiposOfrecidos, type ConPrecios } from './precios';
 import { vehiculoInicial } from './vehiculoElegido';
 import { textoPrecio } from '../data/servicios';
 
@@ -87,5 +87,18 @@ describe('servicios por vehículo (pestañas)', () => {
 
   it('no se puede quitar el único vehículo (para eso está ocultar)', () => {
     expect(vehiculosSin({ vehiculos: ['moto'] }, 'moto')).toBeNull();
+  });
+});
+
+describe('duracionPorVehiculo', () => {
+  const d = { duracion: '2 h', duracionCamioneta: '3 h', duracionMoto: null };
+  it('usa la del vehículo y, si falta, cae a la de auto', () => {
+    expect(duracionPorVehiculo(d, 'auto')).toBe('2 h');
+    expect(duracionPorVehiculo(d, 'camioneta')).toBe('3 h');
+    expect(duracionPorVehiculo(d, 'moto')).toBe('2 h');
+  });
+  it('sin ninguna, null (A confirmar)', () => {
+    expect(duracionPorVehiculo({ duracion: null, duracionCamioneta: null, duracionMoto: '1 h' }, 'camioneta')).toBeNull();
+    expect(duracionPorVehiculo({ duracion: null, duracionCamioneta: null, duracionMoto: '1 h' }, 'moto')).toBe('1 h');
   });
 });

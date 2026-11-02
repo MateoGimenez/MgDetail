@@ -19,7 +19,7 @@ import { ReservaProvider } from './ReservaProvider';
 import { useReserva } from './reserva-contexto';
 import { SelectorVehiculo } from './SelectorVehiculo';
 import { ETIQUETA_VEHICULO, VEHICULO_PLURAL, type VehiculoTipo } from '../api/contract';
-import { precioPorVehiculo, seOfrecePara, tiposOfrecidos } from '../lib/precios';
+import { duracionPorVehiculo, precioPorVehiculo, seOfrecePara, tiposOfrecidos } from '../lib/precios';
 import { useMagnetico } from './useMagnetico';
 import { useSeo } from './useSeo';
 import './landing.css';
@@ -188,7 +188,7 @@ function Pagina() {
                 </div>
                 <div className="tarjeta__dato">
                   <dt>Duración</dt>
-                  <dd>{servicio.duracion ?? 'A confirmar'}</dd>
+                  <dd>{duracionPorVehiculo(servicio, vehiculo) ?? 'A confirmar'}</dd>
                 </div>
               </dl>
               <div className="servicio__acciones">

@@ -80,7 +80,7 @@ const glosario = z
   )
   .max(L.glosarioItems, { error: `El glosario puede tener hasta ${String(L.glosarioItems)} términos.` });
 
-/** "" o null => null (sin confirmar). */
+/** "" o null => null (sin confirmar; en camioneta y moto, "usa la de auto"). */
 const duracion = z
   .string({ error: 'La duración tiene que ser un texto o null.' })
   .transform(stripBidi)
@@ -135,6 +135,8 @@ export const createServicioSchema = z.strictObject({
   incluye: incluye.default([]),
   glosario: glosario.default([]),
   duracion: duracion.default(null),
+  duracionCamioneta: duracion.default(null),
+  duracionMoto: duracion.default(null),
   precioDesde: precio.default(null),
   precioDesdeCamioneta: precio.default(null),
   precioDesdeMoto: precio.default(null),
@@ -158,6 +160,8 @@ export const updateServicioSchema = z.strictObject({
   incluye: incluye.optional(),
   glosario: glosario.optional(),
   duracion: duracion.optional(),
+  duracionCamioneta: duracion.optional(),
+  duracionMoto: duracion.optional(),
   precioDesde: precio.optional(),
   precioDesdeCamioneta: precio.optional(),
   precioDesdeMoto: precio.optional(),

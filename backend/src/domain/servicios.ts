@@ -38,8 +38,12 @@ export interface Servicio {
   descripcion: string;
   incluye: string[];
   glosario: TerminoGlosario[];
-  /** Texto libre ("2 a 3 h"). null = sin confirmar. */
+  /** Duración para AUTO. Texto libre ("2 a 3 h"). null = sin confirmar. */
   duracion: string | null;
+  /** Duración para CAMIONETA. null = usa la de auto (a diferencia de los precios, no es "Consultá"). */
+  duracionCamioneta: string | null;
+  /** Duración para MOTO. null = usa la de auto. */
+  duracionMoto: string | null;
   /** Precio para AUTO. Entero en ARS. null = "Consultá". */
   precioDesde: number | null;
   /** Precio para CAMIONETA. Entero en ARS. null = "Consultá" (nunca se cae al de auto). */
@@ -48,7 +52,7 @@ export interface Servicio {
   precioDesdeMoto: number | null;
   /** Tipos de vehículo para los que se ofrece, en orden canónico (auto, camioneta, moto). Al menos uno. */
   vehiculos: VehiculoTipo[];
-  /** A lo sumo uno en true. */
+  /** Puede haber varios en true a la vez (solo entre los activos). */
   destacado: boolean;
   /** false = ya no se ofrece (no se borra: hay turnos que lo referencian). */
   activo: boolean;
@@ -103,12 +107,12 @@ export interface ServicioRepository {
   /** undefined si no existe. */
   findById(id: string): Promise<Servicio | undefined>;
   /**
-   * Crea el servicio al final del orden. Si viene destacado, desmarca al anterior en la misma transacción.
+   * Crea el servicio al final del orden. Si viene destacado, los demás destacados no se tocan.
    * Lanza ServicioExisteError si el id ya existe y DestacadoInactivoError si viene destacado e inactivo.
    */
   create(nuevo: NuevoServicio, now: Date): Promise<Servicio>;
   /**
-   * undefined si no existe. destacado: true desmarca al anterior en la misma transacción. Desactivar el servicio lo
+   * undefined si no existe. destacado: true no desmarca a los demás. Desactivar el servicio lo
    * desmarca (destacado = false) en la misma operación. Lanza DestacadoInactivoError si el servicio quedaría
    * inactivo y destacado (ya estaba inactivo, o se desactiva y se destaca en el mismo cambio).
    */
@@ -130,6 +134,8 @@ export function servicioPublico(servicio: Servicio): ServicioPublico {
     incluye: servicio.incluye,
     glosario: servicio.glosario,
     duracion: servicio.duracion,
+    duracionCamioneta: servicio.duracionCamioneta,
+    duracionMoto: servicio.duracionMoto,
     precioDesde: servicio.precioDesde,
     precioDesdeCamioneta: servicio.precioDesdeCamioneta,
     precioDesdeMoto: servicio.precioDesdeMoto,

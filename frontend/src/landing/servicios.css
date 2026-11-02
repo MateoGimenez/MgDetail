@@ -50,7 +50,7 @@
   color: var(--texto-2);
 }
 
-/* Desde 700 px: grilla. Si hay una card abierta, las demás no se estiran con ella */
+/* Desde 700 px: grilla (en escritorio, una fila; ver más abajo). Si hay una card abierta, las demás no se estiran con ella */
 .tarjetas:has(.tarjeta[data-abierta='true']) {
   align-items: start;
 }
@@ -326,11 +326,37 @@
   }
 }
 
+/* Escritorio: UNA sola fila, sean 2 o 6 servicios. Cada card ocupa su parte del ancho pero nunca menos de 17 rem
+   (legible) ni más de 26 rem (con 2 servicios no se estiran: la fila se angosta y queda centrada). Si no entran
+   con ese mínimo, la fila se desplaza de costado con scroll-snap en vez de bajar a otra línea. */
 @media (min-width: 1060px) {
+  .tarjetas-vista {
+    margin-inline: calc(-1 * var(--e-3));
+    padding: var(--e-5) var(--e-3) var(--e-5);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: var(--e-3);
+    scrollbar-width: thin;
+  }
+
+  .tarjetas-vista::-webkit-scrollbar {
+    display: initial;
+    height: 8px;
+  }
+
   .tarjetas {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(17rem, 1fr);
+    max-width: calc(var(--n, 3) * 26rem + (var(--n, 3) - 1) * var(--e-6));
+    margin-inline: auto;
     gap: var(--e-6);
-    padding-top: var(--e-4);
+    padding-top: 0;
+  }
+
+  .tarjetas__celda {
+    scroll-snap-align: start;
   }
 
   .tarjeta {

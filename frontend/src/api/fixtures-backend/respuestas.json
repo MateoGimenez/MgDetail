@@ -3185,6 +3185,8 @@
             }
           ],
           "duracion": "1 a 1,5 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3222,6 +3224,8 @@
             }
           ],
           "duracion": "3 a 4 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3262,6 +3266,8 @@
             }
           ],
           "duracion": "Alrededor de 1 día",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3299,6 +3305,8 @@
             }
           ],
           "duracion": "2 a 3 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3330,6 +3338,8 @@
             }
           ],
           "duracion": "1,5 a 2 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3371,6 +3381,8 @@
             }
           ],
           "duracion": "1 a 1,5 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3411,6 +3423,8 @@
             }
           ],
           "duracion": "3 a 4 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3454,6 +3468,8 @@
             }
           ],
           "duracion": "Alrededor de 1 día",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3494,6 +3510,8 @@
             }
           ],
           "duracion": "2 a 3 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3528,6 +3546,8 @@
             }
           ],
           "duracion": "1,5 a 2 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3555,6 +3575,8 @@
         "incluye": [],
         "glosario": [],
         "duracion": null,
+        "duracionCamioneta": null,
+        "duracionMoto": null,
         "precioDesde": 150000,
         "precioDesdeCamioneta": 180000,
         "precioDesdeMoto": null,
@@ -3603,6 +3625,8 @@
           }
         ],
         "duracion": "Alrededor de 1 día",
+        "duracionCamioneta": null,
+        "duracionMoto": null,
         "precioDesde": 45000,
         "precioDesdeCamioneta": 60000,
         "precioDesdeMoto": 30000,
@@ -3651,6 +3675,8 @@
           }
         ],
         "duracion": "Alrededor de 1 día",
+        "duracionCamioneta": null,
+        "duracionMoto": null,
         "precioDesde": 45000,
         "precioDesdeCamioneta": 60000,
         "precioDesdeMoto": null,
@@ -3723,6 +3749,8 @@
           }
         ],
         "duracion": "Alrededor de 1 día",
+        "duracionCamioneta": null,
+        "duracionMoto": null,
         "precioDesde": 45000,
         "precioDesdeCamioneta": 60000,
         "precioDesdeMoto": null,
@@ -3765,6 +3793,8 @@
             }
           ],
           "duracion": "1 a 1,5 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3802,6 +3832,8 @@
             }
           ],
           "duracion": "3 a 4 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3842,6 +3874,8 @@
             }
           ],
           "duracion": "Alrededor de 1 día",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": 45000,
           "precioDesdeCamioneta": 60000,
           "precioDesdeMoto": null,
@@ -3878,6 +3912,8 @@
             }
           ],
           "duracion": "2 a 3 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3909,6 +3945,8 @@
             }
           ],
           "duracion": "1,5 a 2 h",
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": null,
           "precioDesdeCamioneta": null,
           "precioDesdeMoto": null,
@@ -3927,6 +3965,8 @@
           "incluye": [],
           "glosario": [],
           "duracion": null,
+          "duracionCamioneta": null,
+          "duracionMoto": null,
           "precioDesde": 150000,
           "precioDesdeCamioneta": 180000,
           "precioDesdeMoto": null,

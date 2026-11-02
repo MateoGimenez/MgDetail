@@ -65,6 +65,12 @@ export const SLUG_SERVICIO_MAXIMO = 64;
 export const esSlugDeServicio = (valor: string): boolean =>
   valor.length <= SLUG_SERVICIO_MAXIMO && SLUG_SERVICIO.test(valor);
 
+/** Duración por vehículo: si el backend todavía no la manda se lee como null (= la de auto). */
+const duracionOpcional = z.pipe(
+  z.optional(z.nullable(z.string())),
+  z.transform((valor) => valor ?? null),
+);
+
 /** Campos públicos de un servicio (GET /api/servicios). El panel suma activo, orden y updatedAt. */
 export const camposServicioPublico = {
   id: z.string(),
@@ -73,7 +79,10 @@ export const camposServicioPublico = {
   descripcion: z.string(),
   incluye: z.array(z.string()),
   glosario: z.array(z.object({ termino: z.string(), significado: z.string() })),
+  /** Duración de AUTO (texto libre). Camioneta y moto tienen la suya; null = usar la de auto. */
   duracion: z.nullable(z.string()),
+  duracionCamioneta: duracionOpcional,
+  duracionMoto: duracionOpcional,
   /** Precio de AUTO: entero en pesos; null = "Consultá". */
   precioDesde: z.nullable(z.int()),
   /** Mismo formato, para camioneta y para moto (reportes/2026-11-01_19_precios-por-vehiculo.md). */

@@ -99,6 +99,8 @@ export const LIMITES_SERVICIO = {
   incluye: { items: 15, max: 120 },
   glosario: { items: 10, termino: 60, significado: 300 },
   duracion: { max: 60 },
+  duracionCamioneta: { max: 60 },
+  duracionMoto: { max: 60 },
   precioDesde: { max: 99_999_999 },
   precioDesdeCamioneta: { max: 99_999_999 },
   precioDesdeMoto: { max: 99_999_999 },
@@ -121,6 +123,9 @@ export interface NuevoServicio {
   incluye: string[];
   glosario: TerminoGlosario[];
   duracion: string | null;
+  /** null = misma duración que auto. */
+  duracionCamioneta: string | null;
+  duracionMoto: string | null;
   precioDesde: number | null;
   precioDesdeCamioneta: number | null;
   precioDesdeMoto: number | null;

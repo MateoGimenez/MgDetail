@@ -55,7 +55,6 @@ export function VistaServicios({ catalogo: c, editable }: Props) {
 
   const todos = c.servicios ?? [];
   const servicios = serviciosPara(todos, tipo);
-  const destacado = todos.find((s) => s.destacado) ?? null;
   const activos = servicios.filter((s) => s.activo).length;
   const cuentas = contarPorVehiculo(todos);
   const vehiculo = ETIQUETA_VEHICULO[tipo].toLowerCase();
@@ -279,7 +278,6 @@ export function VistaServicios({ catalogo: c, editable }: Props) {
         <DialogoServicio
           dialogoRef={dialogoRef}
           edicion={edicion}
-          destacadoActual={destacado}
           alCrear={c.crear}
           alGuardar={c.guardar}
           alCerrar={() => {

@@ -14,7 +14,7 @@ import { serviciosDeRespaldo } from '../data/servicios';
 import { CATALOGO_RESPALDO, CATALOGO_VACIO, catalogoDeLaApi } from '../landing/catalogo-contexto';
 import { actualizarServicio, crearServicio, listarServiciosPanel, ordenarServicios } from './admin';
 import { ApiError } from './client';
-import { crearEsquemaTurno } from './contract';
+import { crearEsquemaTurno, servicioPublicoSchema } from './contract';
 import { listarServiciosPublicos } from './servicios';
 
 const json = (status: number, cuerpo: unknown) =>
@@ -28,6 +28,8 @@ const publico = {
   incluye: ['Clay bar'],
   glosario: [{ termino: 'Swirls', significado: 'marcas circulares finitas.' }],
   duracion: 'Alrededor de 1 día',
+  duracionCamioneta: null,
+  duracionMoto: null,
   precioDesde: 25000,
   precioDesdeCamioneta: 32000,
   precioDesdeMoto: null,
@@ -164,10 +166,10 @@ describe('API del catálogo en el panel', () => {
     expect(puedeEditarCatalogo('empleado')).toBe(false);
   });
 
-  it('al destacar uno, el anterior deja de estarlo; mover reordena sin perder elementos', () => {
+  it('se pueden destacar varios a la vez; mover reordena sin perder elementos', () => {
     const a = { ...panel, id: 'a', destacado: true };
     const b = { ...panel, id: 'b' };
-    expect(conServicio([a, b], { ...b, destacado: true }).map((s) => s.destacado)).toEqual([false, true]);
+    expect(conServicio([a, b], { ...b, destacado: true }).map((s) => s.destacado)).toEqual([true, true]);
     expect(moverEnLista(['a', 'b', 'c'], 2, 1)).toEqual(['a', 'c', 'b']);
   });
 
@@ -294,6 +296,30 @@ describe('formulario de servicio', () => {
     expect(formularioDesde(panel)).toMatchObject({ precio: '25000', precioCamioneta: '32000', precioMoto: '' });
     const cambio = validarServicio({ ...formularioDesde(panel), precioCamioneta: '', precioMoto: '18.000' });
     expect(cambio.ok && cambiosDe(panel, cambio.datos)).toEqual({ precioDesdeCamioneta: null, precioDesdeMoto: 18000 });
+  });
+
+  it('duración por vehículo: vacío = null (misma que auto), mismo límite que auto y solo se manda lo que cambia', () => {
+    const base = { ...formularioVacio(), id: 'lavado-de-motor', nombre: 'Lavado de motor', resumen: 'R.', descripcion: 'D.' };
+    const ok = validarServicio({ ...base, duracion: '2 h', duracionCamioneta: ' 3 h ', duracionMoto: '' });
+    expect(ok.ok && ok.datos).toMatchObject({ duracion: '2 h', duracionCamioneta: '3 h', duracionMoto: null });
+    const largo = 'x'.repeat(61);
+    const mal = validarServicio({ ...base, duracionCamioneta: largo, duracionMoto: 'a\nb' });
+    expect(!mal.ok && Object.keys(mal.errores).sort()).toEqual(['duracionCamioneta', 'duracionMoto']);
+    expect(!mal.ok && mal.errores.duracionCamioneta).toMatch(/60/);
+    const justo = validarServicio({ ...base, duracionMoto: 'x'.repeat(60) });
+    expect(justo.ok).toBe(true);
+
+    expect(formularioDesde({ ...panel, duracionCamioneta: '1 día' })).toMatchObject({ duracionCamioneta: '1 día', duracionMoto: '' });
+    const cambio = validarServicio({ ...formularioDesde(panel), duracionMoto: '1 h' });
+    expect(cambio.ok && cambiosDe(panel, cambio.datos)).toEqual({ duracionMoto: '1 h' });
+  });
+
+  it('el catálogo público sin duración por vehículo (backend viejo) se lee como null', () => {
+    const { duracionCamioneta, duracionMoto, ...viejo } = publico;
+    void duracionCamioneta;
+    void duracionMoto;
+    const leido = servicioPublicoSchema.safeParse(viejo);
+    expect(leido.success && [leido.data.duracionCamioneta, leido.data.duracionMoto]).toEqual([null, null]);
   });
 
   it('al editar, solo manda lo que cambió', () => {

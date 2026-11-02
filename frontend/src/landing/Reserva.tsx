@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Icono } from '../components/Icono';
 import { ETIQUETA_FRANJA, ETIQUETA_VEHICULO, FRANJAS, LIMITES, VEHICULO_PLURAL, VEHICULO_TIPOS } from '../api/contract';
+import { duracionPorVehiculo } from '../lib/precios';
 import { MarcoFilete, SubrayadoFilete } from '../components/Filete';
 import { useCatalogo } from './catalogo-contexto';
 import { CampoTexto, ErrorDeCampo } from './CampoTexto';
@@ -113,7 +114,7 @@ export function Reserva() {
                           {servicio.nombre}
                           <SubrayadoFilete className="opcion-servicio__trazo" />
                         </span>
-                        <span className="opcion-servicio__duracion">{servicio.duracion ?? ''}</span>
+                        <span className="opcion-servicio__duracion">{duracionPorVehiculo(servicio, vehiculo) ?? ''}</span>
                       </label>
                     ))}
                   </div>

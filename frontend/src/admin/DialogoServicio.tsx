@@ -24,15 +24,13 @@ export type EdicionServicio = { modo: 'crear'; vehiculo?: VehiculoTipo } | { mod
 interface Props {
   dialogoRef: RefObject<HTMLDialogElement | null>;
   edicion: EdicionServicio | null;
-  /** Nombre del servicio destacado hoy (para avisar que deja de estarlo), si hay. */
-  destacadoActual: ServicioPanel | null;
   alCrear: (datos: NuevoServicio) => Promise<Problema | null>;
   alGuardar: (servicio: ServicioPanel, cambios: CambiosServicio) => Promise<Problema | null>;
   alCerrar: () => void;
 }
 
 /** Alta y edición de un servicio en un <dialog> modal, con todos los campos del contrato. */
-export function DialogoServicio({ dialogoRef, edicion, destacadoActual, alCrear, alGuardar, alCerrar }: Props) {
+export function DialogoServicio({ dialogoRef, edicion, alCrear, alGuardar, alCerrar }: Props) {
   const [ocupado, setOcupado] = useState(false);
   return (
     <dialog
@@ -46,7 +44,6 @@ export function DialogoServicio({ dialogoRef, edicion, destacadoActual, alCrear,
         <FormularioServicio
           key={edicion.modo === 'editar' ? `${edicion.servicio.id}|${edicion.servicio.updatedAt}` : `nuevo|${edicion.vehiculo ?? ''}`}
           edicion={edicion}
-          destacadoActual={destacadoActual}
           alCrear={alCrear}
           alGuardar={alGuardar}
           alCambiarOcupado={setOcupado}
@@ -70,7 +67,6 @@ interface Entrada {
 
 function FormularioServicio({
   edicion,
-  destacadoActual,
   alCrear,
   alGuardar,
   alCambiarOcupado,
@@ -97,6 +93,8 @@ function FormularioServicio({
   const [resumen, setResumen] = useState(inicial.resumen);
   const [descripcion, setDescripcion] = useState(inicial.descripcion);
   const [duracion, setDuracion] = useState(inicial.duracion);
+  const [duracionCamioneta, setDuracionCamioneta] = useState(inicial.duracionCamioneta);
+  const [duracionMoto, setDuracionMoto] = useState(inicial.duracionMoto);
   const [precio, setPrecio] = useState(inicial.precio);
   const [precioCamioneta, setPrecioCamioneta] = useState(inicial.precioCamioneta);
   const [precioMoto, setPrecioMoto] = useState(inicial.precioMoto);
@@ -141,7 +139,11 @@ function FormularioServicio({
     { clave: 'precioDesdeCamioneta', tipo: 'camioneta', etiqueta: ETIQUETA_VEHICULO.camioneta, valor: precioCamioneta, cambiar: setPrecioCamioneta },
     { clave: 'precioDesdeMoto', tipo: 'moto', etiqueta: ETIQUETA_VEHICULO.moto, valor: precioMoto, cambiar: setPrecioMoto },
   ] as const;
-  const otroDestacado = destacado && destacadoActual && destacadoActual.id !== original?.id ? destacadoActual : null;
+  const DURACIONES = [
+    { clave: 'duracion', tipo: 'auto', etiqueta: ETIQUETA_VEHICULO.auto, valor: duracion, cambiar: setDuracion, placeholder: 'Ej.: 2 a 3 h' },
+    { clave: 'duracionCamioneta', tipo: 'camioneta', etiqueta: ETIQUETA_VEHICULO.camioneta, valor: duracionCamioneta, cambiar: setDuracionCamioneta, placeholder: 'Igual que auto' },
+    { clave: 'duracionMoto', tipo: 'moto', etiqueta: ETIQUETA_VEHICULO.moto, valor: duracionMoto, cambiar: setDuracionMoto, placeholder: 'Igual que auto' },
+  ] as const;
 
   const enviar = async (evento: FormEvent<HTMLFormElement>) => {
     evento.preventDefault();
@@ -153,6 +155,8 @@ function FormularioServicio({
       incluye: incluye.map((r) => r.texto),
       glosario: glosario.map(({ termino, significado }) => ({ termino, significado })),
       duracion,
+      duracionCamioneta,
+      duracionMoto,
       precio,
       precioCamioneta,
       precioMoto,
@@ -372,28 +376,40 @@ function FormularioServicio({
           </p>
         </div>
 
-        <div className="servicio-form__par servicio-form__par--uno">
-          <div className="campo">
-            <label className="campo__etiqueta" htmlFor={campo('duracion')}>
-              Duración <span className="campo__opcional">(opcional)</span>
-            </label>
-            <input
-              {...describir('duracion', true)}
-              className="entrada"
-              type="text"
-              autoComplete="off"
-              maxLength={L.duracion.max}
-              placeholder="Ej.: 2 a 3 h"
-              value={duracion}
-              onChange={(evento) => {
-                setDuracion(evento.target.value);
-              }}
-            />
-            <p id={`${campo('duracion')}-ayuda`} className="campo__ayuda">
-              Como lo dirías en el taller. Vacío: «A confirmar».
-            </p>
-            <ErrorCampo id={`${campo('duracion')}-error`} mensaje={errorDe('duracion')} />
+        <div
+          className="servicio-form__precios"
+          role="group"
+          aria-labelledby={`${id}-duracion-titulo`}
+          aria-describedby={`${id}-duracion-ayuda`}
+        >
+          <p id={`${id}-duracion-titulo`} className="campo__etiqueta">
+            Duración, según el vehículo <span className="campo__opcional">(opcional)</span>
+          </p>
+          <div className="servicio-form__precios-grilla">
+            {DURACIONES.map(({ clave, tipo, etiqueta, valor, cambiar, placeholder }) => (
+              <div key={clave} className="campo" data-no-ofrece={!vehiculos.includes(tipo) || undefined}>
+                <label className="campo__etiqueta servicio-form__precio-etiqueta" htmlFor={campo(clave)}>
+                  {etiqueta}
+                </label>
+                <input
+                  {...describir(clave)}
+                  className="entrada"
+                  type="text"
+                  autoComplete="off"
+                  maxLength={L.duracion.max}
+                  placeholder={placeholder}
+                  value={valor}
+                  onChange={(evento) => {
+                    cambiar(evento.target.value);
+                  }}
+                />
+                <ErrorCampo id={`${campo(clave)}-error`} mensaje={errorDe(clave)} />
+              </div>
+            ))}
           </div>
+          <p id={`${id}-duracion-ayuda`} className="campo__ayuda">
+            Como lo dirías en el taller. En camioneta y moto, vacío = misma que auto. Si auto también queda vacío, la web muestra «A confirmar».
+          </p>
         </div>
       </fieldset>
 
@@ -609,9 +625,7 @@ function FormularioServicio({
             <p id={`${id}-destacado-ayuda`} className="campo__ayuda">
               {!activo
                 ? 'Solo se puede destacar un servicio activo: marcalo como activo primero.'
-                : otroDestacado
-                  ? `Solo puede haber uno: ${otroDestacado.nombre} deja de estar destacado.`
-                  : 'Lleva el marco fileteado en la web. Solo puede haber uno.'}
+                : 'Lleva el marco fileteado y el sello «Recomendado» en la web. Podés destacar todos los que quieras.'}
             </p>
             <ErrorCampo id={`${id}-destacado-error`} mensaje={errorDe('destacado')} />
           </div>

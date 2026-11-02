@@ -19,7 +19,7 @@ afterEach(closeAllContexts);
 
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const IDS_INICIALES = ['lavado-basico', 'lavado-premium', 'pulido', 'encerado', 'restauracion-opticas'];
-const CAMPOS_PUBLICOS = ['descripcion', 'destacado', 'duracion', 'glosario', 'id', 'incluye', 'nombre', 'precioDesde', 'precioDesdeCamioneta', 'precioDesdeMoto', 'resumen', 'vehiculos'];
+const CAMPOS_PUBLICOS = ['descripcion', 'destacado', 'duracion', 'duracionCamioneta', 'duracionMoto', 'glosario', 'id', 'incluye', 'nombre', 'precioDesde', 'precioDesdeCamioneta', 'precioDesdeMoto', 'resumen', 'vehiculos'];
 const CAMPOS_PANEL = [...CAMPOS_PUBLICOS, 'activo', 'orden', 'updatedAt'].sort();
 
 function nuevoServicio(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -111,6 +111,8 @@ describe('POST /api/admin/servicios', () => {
       incluye: [],
       glosario: [],
       duracion: null,
+      duracionCamioneta: null,
+      duracionMoto: null,
       precioDesde: null,
       precioDesdeCamioneta: null,
       precioDesdeMoto: null,
@@ -136,14 +138,25 @@ describe('POST /api/admin/servicios', () => {
     }
   });
 
-  it('crear uno destacado desmarca al anterior', async () => {
+  it('crear uno destacado NO desmarca a los demás', async () => {
     const { client } = await editor();
     await client.post('/api/admin/servicios', nuevoServicio({ destacado: true })).expect(201);
 
     const { body } = await client.get('/api/admin/servicios');
     expect(body.servicios.filter((s: { destacado: boolean }) => s.destacado).map((s: { id: string }) => s.id)).toEqual([
+      'lavado-premium',
       'tratamiento-ceramico',
     ]);
+  });
+
+  it('crea con la duración de camioneta y de moto (y las recorta)', async () => {
+    const { client } = await editor();
+    const response = await client.post(
+      '/api/admin/servicios',
+      nuevoServicio({ duracion: '2 h', duracionCamioneta: '  3 h ', duracionMoto: '' }),
+    );
+    expect(response.status).toBe(201);
+    expect(response.body.servicio).toMatchObject({ duracion: '2 h', duracionCamioneta: '3 h', duracionMoto: null });
   });
 
   const invalid: [label: string, body: Record<string, unknown>, field: string][] = [
@@ -184,6 +197,8 @@ describe('POST /api/admin/servicios', () => {
     ['control C0 en la descripción', nuevoServicio({ descripcion: `a${String.fromCharCode(0)}b` }), 'descripcion'],
     ['control C1 en un ítem', nuevoServicio({ incluye: [`a${String.fromCharCode(0x9b)}b`] }), 'incluye.0'],
     ['tab en el término', nuevoServicio({ glosario: [{ termino: 'a\tb', significado: 'c' }] }), 'glosario.0.termino'],
+    ['duración de camioneta de 61 caracteres', nuevoServicio({ duracionCamioneta: 'x'.repeat(61) }), 'duracionCamioneta'],
+    ['duración de moto como número', nuevoServicio({ duracionMoto: 3 }), 'duracionMoto'],
     ['control en la duración', nuevoServicio({ duracion: `1${String.fromCharCode(27)}h` }), 'duracion'],
     ['destacado e inactivo a la vez', nuevoServicio({ destacado: true, activo: false }), 'destacado'],
   ];
@@ -259,13 +274,29 @@ describe('PATCH /api/admin/servicios/:id', () => {
     expect(context.logger.text).toMatch(/Servicio actualizado id=pulido por=\S+ campos=duracion,precioDesde/);
   });
 
-  it('marcar uno como destacado desmarca al anterior (a lo sumo uno)', async () => {
+  it('marcar uno como destacado NO desmarca a los demás (puede haber varios)', async () => {
     const { context, client } = await editor();
     await client.patch('/api/admin/servicios/encerado', { destacado: true }).expect(200);
 
     const publico = await createClient(context.app).get('/api/servicios');
     const destacados = (publico.body.servicios as { id: string; destacado: boolean }[]).filter((s) => s.destacado);
-    expect(destacados.map((s) => s.id)).toEqual(['encerado']);
+    expect(destacados.map((s) => s.id)).toEqual(['lavado-premium', 'encerado']);
+  });
+
+  it('edita la duración de camioneta y de moto; null las borra (usan la de auto) y lo que no viene no cambia', async () => {
+    const { context, client } = await editor();
+    const response = await client.patch('/api/admin/servicios/pulido', { duracionCamioneta: '4 h', duracionMoto: '2 h' });
+    expect(response.status).toBe(200);
+    expect(response.body.servicio).toMatchObject({ duracionCamioneta: '4 h', duracionMoto: '2 h' });
+    const cleared = await client.patch('/api/admin/servicios/pulido', { duracionMoto: null });
+    expect(cleared.body.servicio).toMatchObject({ duracionCamioneta: '4 h', duracionMoto: null });
+    expect(context.logger.text).toMatch(/campos=duracionMoto/);
+    const publico = await createClient(context.app).get('/api/servicios');
+    expect(publico.body.servicios.find((s: { id: string }) => s.id === 'pulido')).toMatchObject({
+      duracionCamioneta: '4 h',
+      duracionMoto: null,
+    });
+    expect((await client.patch('/api/admin/servicios/pulido', { duracionMoto: 5 })).status).toBe(400);
   });
 
   it('desactivar el destacado lo desmarca en la misma operación (y no queda ningún destacado)', async () => {
@@ -669,13 +700,16 @@ describe('de punta a punta: el ciclo de vida de un servicio', () => {
       incluye: ['Capa cerámica'],
       glosario: [],
       duracion: '1 día',
+      duracionCamioneta: null,
+      duracionMoto: null,
       precioDesde: 120000,
       precioDesdeCamioneta: 150000,
       precioDesdeMoto: null,
       vehiculos: ['auto', 'camioneta', 'moto'],
       destacado: true,
     });
-    expect(catalogo.body.servicios.filter((s: { destacado: boolean }) => s.destacado)).toHaveLength(1);
+    // Varios destacados a la vez: el de siempre (lavado-premium) y el nuevo.
+    expect(catalogo.body.servicios.filter((s: { destacado: boolean }) => s.destacado)).toHaveLength(2);
 
     // 3. Un cliente reserva un turno con ese servicio; el panel lo ve.
     const turno = await rawPost(context.app, '/api/bookings').send(validBooking({ servicioId: 'tratamiento-ceramico' }));

@@ -20,6 +20,9 @@ export interface FormularioServicio {
   incluye: string[];
   glosario: { termino: string; significado: string }[];
   duracion: string;
+  /** Vacío = misma que auto. */
+  duracionCamioneta: string;
+  duracionMoto: string;
   /** Tal como lo escribió: "25000", "25.000" o "$ 25.000". Vacío = "Consultá". */
   precio: string;
   precioCamioneta: string;
@@ -72,6 +75,19 @@ const texto = (max: number, vacio: string, largo: string, variasLineas = false) 
         : z.refine((v) => !CONTROL_UNA_LINEA.test(v), SIN_SALTOS),
     );
 
+/** Duración: una línea, hasta el máximo; vacío = null (en camioneta y moto: la misma que auto). */
+const duracionOpcional = (max: number) =>
+  z.pipe(
+    z
+      .string()
+      .check(
+        z.trim(),
+        z.maxLength(max, `La duración puede tener hasta ${n(max)} caracteres.`),
+        z.refine((v) => !CONTROL_UNA_LINEA.test(v), SIN_SALTOS),
+      ),
+    z.transform((valor) => (valor === '' ? null : valor)),
+  );
+
 export const esquemaServicio = z.strictObject({
   id: z
     .string()
@@ -104,16 +120,9 @@ export const esquemaServicio = z.strictObject({
       }),
     )
     .check(z.maxLength(L.glosario.items, `El glosario puede tener hasta ${n(L.glosario.items)} términos.`)),
-  duracion: z.pipe(
-    z
-      .string()
-      .check(
-        z.trim(),
-        z.maxLength(L.duracion.max, `La duración puede tener hasta ${n(L.duracion.max)} caracteres.`),
-        z.refine((v) => !CONTROL_UNA_LINEA.test(v), SIN_SALTOS),
-      ),
-    z.transform((valor) => (valor === '' ? null : valor)),
-  ),
+  duracion: duracionOpcional(L.duracion.max),
+  duracionCamioneta: duracionOpcional(L.duracionCamioneta.max),
+  duracionMoto: duracionOpcional(L.duracionMoto.max),
   precioDesde: precioOpcional(L.precioDesde.max),
   precioDesdeCamioneta: precioOpcional(L.precioDesdeCamioneta.max),
   precioDesdeMoto: precioOpcional(L.precioDesdeMoto.max),
@@ -153,6 +162,8 @@ export function validarServicio(formulario: FormularioServicio): Validacion {
     incluye: formulario.incluye,
     glosario: formulario.glosario,
     duracion: formulario.duracion,
+    duracionCamioneta: formulario.duracionCamioneta,
+    duracionMoto: formulario.duracionMoto,
     precioDesde: precios.precioDesde ?? null,
     precioDesdeCamioneta: precios.precioDesdeCamioneta ?? null,
     precioDesdeMoto: precios.precioDesdeMoto ?? null,
@@ -199,6 +210,8 @@ export function formularioVacio(vehiculo?: VehiculoTipo): FormularioServicio {
     incluye: [],
     glosario: [],
     duracion: '',
+    duracionCamioneta: '',
+    duracionMoto: '',
     precio: '',
     precioCamioneta: '',
     precioMoto: '',
@@ -218,6 +231,8 @@ export function formularioDesde(servicio: ServicioPanel): FormularioServicio {
     incluye: [...servicio.incluye],
     glosario: servicio.glosario.map((t) => ({ ...t })),
     duracion: servicio.duracion ?? '',
+    duracionCamioneta: servicio.duracionCamioneta ?? '',
+    duracionMoto: servicio.duracionMoto ?? '',
     precio: textoDePrecio(servicio.precioDesde),
     precioCamioneta: textoDePrecio(servicio.precioDesdeCamioneta),
     precioMoto: textoDePrecio(servicio.precioDesdeMoto),
@@ -234,6 +249,8 @@ const CAMPOS_EDITABLES = [
   'incluye',
   'glosario',
   'duracion',
+  'duracionCamioneta',
+  'duracionMoto',
   'precioDesde',
   'precioDesdeCamioneta',
   'precioDesdeMoto',

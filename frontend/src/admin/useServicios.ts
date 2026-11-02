@@ -41,15 +41,9 @@ export function destinoDeMovimiento(ids: readonly string[], id: string, delta: -
   return hasta < 0 || hasta >= ids.length || hasta === desde ? -1 : hasta;
 }
 
-/**
- * Reemplaza un servicio con la versión del servidor. Si quedó destacado, el backend desmarcó al anterior en la
- * misma transacción: se refleja acá para no mostrar dos destacados.
- */
+/** Reemplaza un servicio con la versión del servidor. Puede haber varios destacados: el resto no se toca. */
 export function conServicio(servicios: readonly ServicioPanel[], actualizado: ServicioPanel): ServicioPanel[] {
-  return servicios.map((s) => {
-    if (s.id === actualizado.id) return actualizado;
-    return actualizado.destacado && s.destacado ? { ...s, destacado: false } : s;
-  });
+  return servicios.map((s) => (s.id === actualizado.id ? actualizado : s));
 }
 
 /** Lo que anuncia la región en vivo al activar o desactivar desde la fila. Desactivar el destacado lo desmarca. */

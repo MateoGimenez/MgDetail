@@ -18,6 +18,8 @@ const pulido: Servicio = {
   incluye: ['Lavado', 'Pulido'],
   glosario: [],
   duracion: '4 a 6 h',
+  duracionCamioneta: null,
+  duracionMoto: null,
   precioDesde: 60000,
   precioDesdeCamioneta: null,
   precioDesdeMoto: null,

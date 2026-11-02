@@ -25,6 +25,22 @@ export function precioPorVehiculo(servicio: ConPrecios, tipo: VehiculoTipo): num
   }
 }
 
+/** Duraciones por tipo de vehículo. Camioneta y moto en null = misma que auto. */
+export interface ConDuraciones {
+  readonly duracion: string | null;
+  readonly duracionCamioneta: string | null;
+  readonly duracionMoto: string | null;
+}
+
+/**
+ * Duración del servicio para ese tipo de vehículo. A diferencia del precio, acá SÍ se cae a la de auto cuando
+ * la del tipo no está cargada (vacío = misma que auto). null = "A confirmar".
+ */
+export function duracionPorVehiculo(servicio: ConDuraciones, tipo: VehiculoTipo): string | null {
+  const propia = tipo === 'camioneta' ? servicio.duracionCamioneta : tipo === 'moto' ? servicio.duracionMoto : null;
+  return propia ?? servicio.duracion;
+}
+
 /**
  * El menor precio cargado entre los tipos que el servicio ofrece, o null si no hay ninguno (para el JSON-LD).
  * Un precio de un tipo que no se ofrece no cuenta: en la web no se ve.

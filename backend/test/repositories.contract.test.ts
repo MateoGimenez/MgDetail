@@ -269,6 +269,8 @@ describe('servicios', () => {
       incluye: ['Lavado', 'Aplicación'],
       glosario: [{ termino: 'Cerámico', significado: 'un recubrimiento duro y brillante.' }],
       duracion: '1 día',
+      duracionCamioneta: '1 día y medio',
+      duracionMoto: null,
       precioDesde: 150000,
       precioDesdeCamioneta: 180000,
       precioDesdeMoto: null,
@@ -302,6 +304,8 @@ describe('servicios', () => {
       incluye: expect.arrayContaining(['Corrección de pintura en 1 o 2 etapas']),
       glosario: expect.arrayContaining([{ termino: 'Swirls', significado: expect.any(String) }]),
       duracion: 'Alrededor de 1 día',
+      duracionCamioneta: null,
+      duracionMoto: null,
       precioDesde: null,
       precioDesdeCamioneta: null,
       precioDesdeMoto: null,
@@ -335,19 +339,39 @@ describe('servicios', () => {
     expect(await destacados(repositories)).toEqual(['lavado-premium']);
   });
 
-  it('a lo sumo un destacado: crear o marcar uno desmarca al anterior en la misma transacción', async () => {
+  it('puede haber varios destacados: crear o marcar uno NO desmarca a los demás', async () => {
     const { repositories } = await open();
     const { servicios } = repositories;
+    const antes = (await servicios.findById('lavado-premium'))?.updatedAt;
 
     await servicios.create(nuevoServicio({ destacado: true }), NOW);
-    expect(await destacados(repositories)).toEqual(['tratamiento-ceramico']);
-    expect((await servicios.findById('lavado-premium'))?.updatedAt).toBe(NOW.toISOString());
+    expect(await destacados(repositories)).toEqual(['lavado-premium', 'tratamiento-ceramico']);
+    expect((await servicios.findById('lavado-premium'))?.updatedAt).toBe(antes);
 
     await servicios.update('pulido', { destacado: true }, LATER);
-    expect(await destacados(repositories)).toEqual(['pulido']);
+    expect(await destacados(repositories)).toEqual(['lavado-premium', 'pulido', 'tratamiento-ceramico']);
 
     await servicios.update('pulido', { destacado: false }, LATER);
-    expect(await destacados(repositories)).toEqual([]);
+    expect(await destacados(repositories)).toEqual(['lavado-premium', 'tratamiento-ceramico']);
+  });
+
+  it('duración por vehículo: se crea, se edita, null borra y lo que no viene no cambia', async () => {
+    const { repositories } = await open();
+    const { servicios } = repositories;
+    expect(await servicios.create(nuevoServicio(), NOW)).toMatchObject({
+      duracion: '1 día',
+      duracionCamioneta: '1 día y medio',
+      duracionMoto: null,
+    });
+    expect(await servicios.update('tratamiento-ceramico', { duracionMoto: '4 h' }, LATER)).toMatchObject({
+      duracionCamioneta: '1 día y medio',
+      duracionMoto: '4 h',
+    });
+    expect(await servicios.update('tratamiento-ceramico', { duracionCamioneta: null }, LATER)).toMatchObject({
+      duracion: '1 día',
+      duracionCamioneta: null,
+      duracionMoto: '4 h',
+    });
   });
 
   it('desactivar el destacado lo desmarca; destacar un inactivo lanza DestacadoInactivoError sin tocar nada', async () => {
@@ -433,10 +457,9 @@ describe('servicios', () => {
     expect((await servicios.list()).map((servicio) => servicio.id)).toEqual(nuevo);
   });
 
-  it('la base rechaza por sí sola dos destacados, listas mal formadas y valores fuera de rango', async () => {
+  it('la base rechaza por sí sola listas mal formadas y valores fuera de rango', async () => {
     const { db } = await open();
     const statements: [sql: string, constraint: RegExp][] = [
-      ["UPDATE mgdetailing.servicios SET destacado = true WHERE id = 'pulido'", /servicios_un_destacado/],
       [`UPDATE mgdetailing.servicios SET incluye = '[""]' WHERE id = 'pulido'`, /servicios_incluye_valido/],
       ["UPDATE mgdetailing.servicios SET incluye = '{}' WHERE id = 'pulido'", /servicios_incluye_valido/],
       [`UPDATE mgdetailing.servicios SET glosario = '[{"termino":"a"}]' WHERE id = 'pulido'`, /servicios_glosario_valido/],
@@ -456,6 +479,10 @@ describe('servicios', () => {
       ["UPDATE mgdetailing.servicios SET precio_desde_moto = 100000000 WHERE id = 'pulido'", /servicios_precio_moto_rango/],
       ["UPDATE mgdetailing.servicios SET precio_desde_moto = -1 WHERE id = 'pulido'", /servicios_precio_moto_rango/],
       ["UPDATE mgdetailing.servicios SET duracion_estimada = '  ' WHERE id = 'pulido'", /servicios_duracion_no_vacia/],
+      ["UPDATE mgdetailing.servicios SET duracion_estimada_camioneta = '  ' WHERE id = 'pulido'", /servicios_duracion_camioneta_valida/],
+      [`UPDATE mgdetailing.servicios SET duracion_estimada_camioneta = '${'x'.repeat(61)}' WHERE id = 'pulido'`, /servicios_duracion_camioneta_valida/],
+      ["UPDATE mgdetailing.servicios SET duracion_estimada_moto = '' WHERE id = 'pulido'", /servicios_duracion_moto_valida/],
+      [`UPDATE mgdetailing.servicios SET duracion_estimada_moto = '${'x'.repeat(61)}' WHERE id = 'pulido'`, /servicios_duracion_moto_valida/],
       ["UPDATE mgdetailing.servicios SET resumen = '' WHERE id = 'pulido'", /servicios_resumen_largo/],
       ["UPDATE mgdetailing.servicios SET activo = false WHERE id = 'lavado-premium'", /servicios_destacado_activo/],
     ];

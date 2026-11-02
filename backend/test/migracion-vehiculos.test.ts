@@ -25,7 +25,7 @@ async function baseAntes(): Promise<PGlite> {
   // eslint-disable-next-line no-restricted-syntax -- constante del propio test
   await pg.exec(SUPABASE_STUB);
   for (const file of migrationFiles()) {
-    if (file === NUEVA) continue;
+    if (file >= NUEVA) break; // solo las anteriores: las posteriores se aplican sobre esta
     // eslint-disable-next-line no-restricted-syntax -- migraciones versionadas
     await pg.exec(leer(file));
   }
@@ -36,8 +36,8 @@ async function baseAntes(): Promise<PGlite> {
 const aplicarNueva = (pg: PGlite) => pg.exec(leer(NUEVA));
 
 describe('migración de servicios por vehículo sobre una base con servicios existentes', () => {
-  it('es la última migración; los servicios que ya existen quedan en los tres vehículos y nada más cambia', async () => {
-    expect(migrationFiles().at(-1)).toBe(NUEVA);
+  it('los servicios que ya existen quedan en los tres vehículos y nada más cambia', async () => {
+    expect(migrationFiles()).toContain(NUEVA);
     const pg = await baseAntes();
     await pg.exec(
       "UPDATE mgdetailing.servicios SET precio_desde = 45000, activo = false WHERE id = 'pulido'; UPDATE mgdetailing.servicios SET updated_at = '2026-09-02T10:00:00Z';",

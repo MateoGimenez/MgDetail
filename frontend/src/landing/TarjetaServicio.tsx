@@ -4,7 +4,7 @@ import { Rombo } from '../components/Filete';
 import { Icono } from '../components/Icono';
 import { ETIQUETA_VEHICULO, type VehiculoTipo } from '../api/contract';
 import { textoPrecio } from '../data/servicios';
-import { precioPorVehiculo } from '../lib/precios';
+import { duracionPorVehiculo, precioPorVehiculo } from '../lib/precios';
 import type { Servicio } from '../types';
 import { revelar } from './useRevelar';
 
@@ -93,7 +93,7 @@ export function TarjetaServicio({
           </div>
           <div className="tarjeta__dato">
             <dt>Duración</dt>
-            <dd>{servicio.duracion ?? 'A confirmar'}</dd>
+            <dd>{duracionPorVehiculo(servicio, vehiculo) ?? 'A confirmar'}</dd>
           </div>
         </dl>
 

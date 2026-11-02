@@ -1,38 +1,36 @@
-import { useCallback, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { revelar } from './useRevelar';
 
-const CONSULTA = '(max-width: 699px)';
-
-function suscribir(avisar: () => void) {
-  const consulta = window.matchMedia(CONSULTA);
-  consulta.addEventListener('change', avisar);
-  return () => {
-    consulta.removeEventListener('change', avisar);
-  };
-}
-
-/** true en el celular (< 700 px), donde las cards van en un carrusel horizontal. */
-function useEsCarrusel(): boolean {
-  return useSyncExternalStore(
-    suscribir,
-    () => window.matchMedia(CONSULTA).matches,
-    () => false,
-  );
-}
-
 /**
- * Las cards de servicios. Desde 700 px, una grilla de 2 y 3 columnas. En el celular, un carrusel horizontal con
- * scroll-snap: la card siguiente se asoma, solo la lista se desplaza de costado (no la página), la región se
- * recorre con el teclado y "2 de 5" sigue al scroll.
+ * Las cards de servicios. Celular: carrusel horizontal con scroll-snap (la card siguiente se asoma). De 700 a
+ * 1059 px: grilla de 2 columnas. Desde 1060 px: UNA sola fila (servicios.css reparte el ancho según `--n`, la
+ * cantidad); si no entran con un ancho legible, esa fila se desplaza de costado. Siempre que la lista se
+ * desplaza, es una región que se recorre con el teclado y "2 de 5" sigue al scroll.
  */
 export function ListaTarjetas({ cantidad, children }: { cantidad: number; children: ReactNode }) {
-  const carrusel = useEsCarrusel();
   const vista = useRef<HTMLDivElement>(null);
+  /** La lista se desplaza de costado (no entra entera): celular, o fila de escritorio con muchos servicios. */
+  const [carrusel, setCarrusel] = useState(false);
   const [actual, setActual] = useState(0);
   const ref = useCallback((el: HTMLDivElement | null) => {
     vista.current = el;
     return revelar(el);
   }, []);
+
+  useEffect(() => {
+    const el = vista.current;
+    if (!el) return;
+    const medir = () => {
+      setCarrusel(el.scrollWidth > el.clientWidth + 1);
+    };
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(el);
+    if (el.firstElementChild) observador.observe(el.firstElementChild);
+    return () => {
+      observador.disconnect();
+    };
+  }, [cantidad]);
 
   /** La card más cercana al borde izquierdo de la lista es la "actual". */
   const alDesplazar = () => {
@@ -61,7 +59,7 @@ export function ListaTarjetas({ cantidad, children }: { cantidad: number; childr
           ? { role: 'region', 'aria-label': 'Servicios: deslizá para ver los demás', tabIndex: 0, onScroll: alDesplazar }
           : {})}
       >
-        <ul className="tarjetas escalonado" role="list">
+        <ul className="tarjetas escalonado" role="list" style={{ '--n': cantidad } as CSSProperties}>
           {children}
         </ul>
       </div>

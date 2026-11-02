@@ -7,7 +7,7 @@ import { negocio } from '../config/sitio';
 import { useCatalogo } from './catalogo-contexto';
 import { textoPrecio } from '../data/servicios';
 import { fechaLarga } from '../lib/fechas';
-import { precioPorVehiculo } from '../lib/precios';
+import { duracionPorVehiculo, precioPorVehiculo } from '../lib/precios';
 import type { Envio, Errores, Valores } from './useFormularioTurno';
 
 interface Props {
@@ -28,6 +28,10 @@ export function ResumenPedido({ valores, errores, validarEnVivo, envio }: Props)
     servicio && estado !== 'cargando' && esVehiculoTipo(valores.vehiculoTipo)
       ? textoPrecio(precioPorVehiculo(servicio, valores.vehiculoTipo))
       : null;
+  const duracion =
+    servicio && esVehiculoTipo(valores.vehiculoTipo)
+      ? duracionPorVehiculo(servicio, valores.vehiculoTipo)
+      : (servicio?.duracion ?? null);
   const whatsappAyuda = whatsappUrl(`¡Hola ${negocio.nombre}! Quiero pedir un turno.`);
   const cantidadErrores = Object.keys(errores).length;
 
@@ -56,10 +60,10 @@ export function ResumenPedido({ valores, errores, validarEnVivo, envio }: Props)
             </div>
           ))}
         </dl>
-        {servicio?.duracion && (
+        {duracion && (
           <p className="resumen__nota">
             <Icono nombre="reloj" tamano={18} />
-            Duración estimada: {servicio.duracion}
+            Duración estimada: {duracion}
           </p>
         )}
       </div>

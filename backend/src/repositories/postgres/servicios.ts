@@ -44,6 +44,8 @@ function toServicio(row: Row): Servicio {
     incluye: textos(row, 'incluye'),
     glosario: glosario(row, 'glosario'),
     duracion: strOrNull(row, 'duracion_estimada'),
+    duracionCamioneta: strOrNull(row, 'duracion_estimada_camioneta'),
+    duracionMoto: strOrNull(row, 'duracion_estimada_moto'),
     precioDesde: intOrNull(row, 'precio_desde'),
     precioDesdeCamioneta: intOrNull(row, 'precio_desde_camioneta'),
     precioDesdeMoto: intOrNull(row, 'precio_desde_moto'),
@@ -63,8 +65,7 @@ const jsonOrNull = (value: unknown): string | null => (value === undefined ? nul
  * sin interpolar).
  *
  * Escrituras: todas en una transacción que empieza con pg_advisory_xact_lock(7340002) (7340001 es el del trigger
- * "nunca sin superadmin"). Así dos cambios simultáneos del catálogo se hacen de a uno: marcar un destacado
- * desmarca al anterior sin chocar con el índice único servicios_un_destacado, y el reordenamiento ve el catálogo
+ * "nunca sin superadmin"). Así dos cambios simultáneos del catálogo se hacen de a uno: el reordenamiento ve el catálogo
  * completo (nadie crea un servicio en el medio). En READ COMMITTED, cada sentencia posterior al lock ya ve lo que
  * confirmó la transacción anterior.
  */
@@ -82,8 +83,8 @@ export class PostgresServicioRepository implements ServicioRepository {
 
   async findById(id: string): Promise<Servicio | undefined> {
     const { rows } = await this.sql.query(
-      `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-              precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
+      `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada,
+              duracion_estimada_camioneta, duracion_estimada_moto, precio_desde, precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
        FROM mgdetailing.servicios
        WHERE id = $1`,
       [id],
@@ -98,24 +99,20 @@ export class PostgresServicioRepository implements ServicioRepository {
     const timestamp = now.toISOString();
     return this.sql.transaction(async (sql) => {
       await sql.query('SELECT pg_catalog.pg_advisory_xact_lock(7340002)');
-      if (nuevo.destacado) {
-        await sql.query(
-          'UPDATE mgdetailing.servicios SET destacado = false, updated_at = $1::timestamptz WHERE destacado',
-          [timestamp],
-        );
-      }
       // Al final del orden. ON CONFLICT DO NOTHING: un id repetido no aborta con error, devuelve 0 filas.
       const { rows } = await sql.query(
         `INSERT INTO mgdetailing.servicios (
            id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-           precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
+           precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at,
+           duracion_estimada_camioneta, duracion_estimada_moto
          )
          SELECT $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::integer, $9::integer, $10::integer, $11::text[],
-                $12::boolean, $13::boolean, coalesce(max(orden), 0) + 10, $14::timestamptz
+                $12::boolean, $13::boolean, coalesce(max(orden), 0) + 10, $14::timestamptz,
+                $15::text, $16::text
          FROM mgdetailing.servicios
          ON CONFLICT (id) DO NOTHING
-         RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-                   precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at`,
+         RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada,
+                   duracion_estimada_camioneta, duracion_estimada_moto, precio_desde, precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at`,
         [
           nuevo.id,
           nuevo.nombre,
@@ -131,10 +128,11 @@ export class PostgresServicioRepository implements ServicioRepository {
           nuevo.destacado,
           nuevo.activo,
           timestamp,
+          nuevo.duracionCamioneta,
+          nuevo.duracionMoto,
         ],
       );
       const row = rows[0];
-      // Lanzar dentro de la transacción la revierte (también el "desmarcar al anterior").
       if (!row) throw new ServicioExisteError(nuevo.id);
       return toServicio(row);
     });
@@ -148,20 +146,12 @@ export class PostgresServicioRepository implements ServicioRepository {
       const actual = existe.rows[0];
       if (!actual) return undefined;
 
-      // No se puede destacar un inactivo: ni uno que ya lo está ni uno que se desactiva en el mismo cambio. (Se
-      // valida antes de desmarcar al anterior: el error no deja el catálogo sin destacado.)
+      // No se puede destacar un inactivo: ni uno que ya lo está ni uno que se desactiva en el mismo cambio.
       const quedaActivo = cambios.activo ?? bool(actual, 'activo');
       if (cambios.destacado === true && !quedaActivo) throw new DestacadoInactivoError();
 
-      if (cambios.destacado === true) {
-        await sql.query(
-          `UPDATE mgdetailing.servicios SET destacado = false, updated_at = $2::timestamptz
-           WHERE destacado AND id <> $1`,
-          [id, timestamp],
-        );
-      }
-      // coalesce para los campos que no admiten null; duracion y los tres precios sí (null = "sin confirmar" /
-      // "Consultá"): ahí un flag distingue "no viene" de "viene null". Desactivar (activo = false) también
+      // coalesce para los campos que no admiten null; las tres duraciones y los tres precios sí (null = "sin confirmar" /
+      // "usa la de auto" / "Consultá"): ahí un flag distingue "no viene" de "viene null". Desactivar (activo = false) también
       // desmarca el destacado: un servicio que no se ve en la web no puede ser el destacado.
       const { rows } = await sql.query(
         `UPDATE mgdetailing.servicios
@@ -177,10 +167,12 @@ export class PostgresServicioRepository implements ServicioRepository {
              vehiculos = coalesce($18::text[], vehiculos),
              destacado = CASE WHEN $16::boolean IS FALSE THEN false ELSE coalesce($15::boolean, destacado) END,
              activo = coalesce($16::boolean, activo),
+             duracion_estimada_camioneta = CASE WHEN $19::boolean THEN $20::text ELSE duracion_estimada_camioneta END,
+             duracion_estimada_moto = CASE WHEN $21::boolean THEN $22::text ELSE duracion_estimada_moto END,
              updated_at = $17::timestamptz
          WHERE id = $1
-         RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-                   precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at`,
+         RETURNING id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada,
+                   duracion_estimada_camioneta, duracion_estimada_moto, precio_desde, precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at`,
         [
           id,
           cambios.nombre ?? null,
@@ -200,6 +192,10 @@ export class PostgresServicioRepository implements ServicioRepository {
           cambios.activo ?? null,
           timestamp,
           cambios.vehiculos ?? null,
+          cambios.duracionCamioneta !== undefined,
+          cambios.duracionCamioneta ?? null,
+          cambios.duracionMoto !== undefined,
+          cambios.duracionMoto ?? null,
         ],
       );
       const row = rows[0];
@@ -236,15 +232,15 @@ export class PostgresServicioRepository implements ServicioRepository {
 async function listar(sql: SqlClient, soloActivos: boolean): Promise<Servicio[]> {
   const { rows } = soloActivos
     ? await sql.query(
-        `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-                precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
+        `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada,
+                duracion_estimada_camioneta, duracion_estimada_moto, precio_desde, precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
          FROM mgdetailing.servicios
          WHERE activo
          ORDER BY orden, id COLLATE "C"`,
       )
     : await sql.query(
-        `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada, precio_desde,
-                precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
+        `SELECT id, nombre, resumen, descripcion, incluye, glosario, duracion_estimada,
+                duracion_estimada_camioneta, duracion_estimada_moto, precio_desde, precio_desde_camioneta, precio_desde_moto, vehiculos, destacado, activo, orden, updated_at
          FROM mgdetailing.servicios
          ORDER BY orden, id COLLATE "C"`,
       );

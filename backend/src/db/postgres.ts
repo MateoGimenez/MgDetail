@@ -36,6 +36,8 @@ const PUSH_COLUMNS = ['perfil_id', 'endpoint', 'p256dh', 'auth', 'agente', 'ulti
 const CATALOGO_COLUMNS = ['resumen', 'descripcion', 'incluye', 'glosario', 'destacado'] as const;
 /** Columnas que agrega la migración precios_por_vehiculo (precio de camioneta y de moto). */
 const PRECIOS_COLUMNS = ['precio_desde_camioneta', 'precio_desde_moto'] as const;
+/** Columnas que agrega la migración duracion_por_vehiculo (duración de camioneta y de moto). */
+const DURACION_COLUMNS = ['duracion_estimada_camioneta', 'duracion_estimada_moto'] as const;
 /** Columna que agrega la migración servicios_por_vehiculo (para qué vehículos se ofrece cada servicio). */
 const VEHICULOS_COLUMNS = ['vehiculos'] as const;
 /** Columnas que agrega la migración agenda_fecha_confirmada (las que lee el repositorio de turnos). */
@@ -210,6 +212,21 @@ export async function verifyPostgresSchema(client: SqlClient): Promise<void> {
     throw new Error(
       `Faltan columnas en mgdetailing.servicios (${missingPrecios.join(', ')}). ` +
         'Aplicá la migración precios_por_vehiculo de backend/supabase/migrations/ (ver README, "Migraciones").',
+    );
+  }
+
+  // La duración por tipo de vehículo (migración duracion_por_vehiculo): mismas razones que con los precios.
+  const duracionColumns = await client.query(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = 'servicios' AND column_name = ANY($2::text[])`,
+    [PG_SCHEMA, DURACION_COLUMNS],
+  );
+  const presentDuracion = new Set(duracionColumns.rows.map((row) => row.column_name));
+  const missingDuracion = DURACION_COLUMNS.filter((column) => !presentDuracion.has(column));
+  if (missingDuracion.length > 0) {
+    throw new Error(
+      `Faltan columnas en mgdetailing.servicios (${missingDuracion.join(', ')}). ` +
+        'Aplicá la migración duracion_por_vehiculo de backend/supabase/migrations/ (ver README, "Migraciones").',
     );
   }
 
